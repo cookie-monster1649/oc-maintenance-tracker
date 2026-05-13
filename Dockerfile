@@ -1,10 +1,4 @@
-# Stage 1: deps
-FROM node:20-alpine AS deps
-WORKDIR /app
-COPY package.json package-lock.json* ./
-RUN npm ci --omit=dev || npm install --omit=dev
-
-# Stage 2: builder
+# Stage 1: builder
 FROM node:20-alpine AS builder
 WORKDIR /app
 COPY package.json package-lock.json* ./
@@ -12,7 +6,7 @@ RUN npm ci
 COPY . .
 RUN npm run build
 
-# Stage 3: runner
+# Stage 2: runner
 FROM node:20-alpine AS runner
 WORKDIR /app
 ENV NODE_ENV=production
