@@ -52,7 +52,8 @@ export default function VendorDetailPage() {
   useEffect(() => {
     Promise.all([fetch("/api/vendors"), fetch("/api/tasks"), fetch("/api/categories")])
       .then((res) => Promise.all(res.map((r) => r.json())))
-      .then(([vendorsData, tasksData, categoriesData]: [Vendor[], Task[], CategoryColor[]]) => {
+      .then((data) => {
+        const [vendorsData, tasksData, categoriesData] = data as [Vendor[], Task[], CategoryColor[]];
         setVendors(vendorsData);
         setTasks(tasksData);
         const colorMap = categoriesData.reduce((acc: Record<string, string>, c: CategoryColor) => {

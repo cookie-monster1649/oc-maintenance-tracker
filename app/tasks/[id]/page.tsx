@@ -51,7 +51,8 @@ export default function TaskDetailPage() {
   useEffect(() => {
     Promise.all([fetch("/api/tasks"), fetch("/api/vendors"), fetch("/api/categories")])
       .then((res) => Promise.all(res.map((r) => r.json())))
-      .then(([tasksData, vendorsData, categoriesData]: [Task[], Vendor[], CategoryColor[]]) => {
+      .then((data) => {
+        const [tasksData, vendorsData, categoriesData] = data as [Task[], Vendor[], CategoryColor[]];
         setTasks(tasksData);
         setVendors(vendorsData);
         const categoryNames = categoriesData.map((c) => c.name);
