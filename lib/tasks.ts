@@ -37,6 +37,9 @@ export interface Task {
 }
 
 export function readTasks(): Task[] {
+  if (!fs.existsSync(DATA_PATH)) {
+    return [];
+  }
   const raw = fs.readFileSync(DATA_PATH, "utf-8");
   const tasks: Task[] = JSON.parse(raw);
   const today = startOfToday();

@@ -16,6 +16,9 @@ export interface Vendor {
 }
 
 export function readVendors(): Vendor[] {
+  if (!fs.existsSync(DATA_PATH)) {
+    return [];
+  }
   const raw = fs.readFileSync(DATA_PATH, "utf-8");
   return JSON.parse(raw);
 }
