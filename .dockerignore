@@ -7,5 +7,3 @@ node_modules
 .github
 .gitignore
 .eslintrc.json
-tsconfig.json
-next.config.ts
