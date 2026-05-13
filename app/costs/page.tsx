@@ -11,6 +11,7 @@ interface Task {
   due_date: string;
   estimated_cost: number | null;
   category: string;
+  vendor_id: string | null;
 }
 
 interface Expense {
@@ -48,6 +49,13 @@ interface ExpenseLineItem {
 }
 
 type LineItem = TaskLineItem | ExpenseLineItem;
+
+interface VendorGroup {
+  vendorId: string | null;
+  vendorName: string;
+  items: LineItem[];
+  groupTotal: number;
+}
 
 function fyForDate(dateStr: string): number {
   const d = new Date(dateStr + "T00:00:00");
@@ -172,72 +180,88 @@ export default function CostsPage() {
   const inFY_tasks = tasks.filter((t) => fyForDate(t.due_date) === fy);
   const inFY_expenses = expenses.filter((e) => fyForDate(e.date_paid) === fy);
 
-  // Group tasks by title within each category
-  const tasksByCategory = new Map<string, Map<string, Task[]>>();
+  // Group tasks by title
+  const tasksByTitle = new Map<string, Task[]>();
   for (const t of inFY_tasks) {
-    if (!tasksByCategory.has(t.category)) {
-      tasksByCategory.set(t.category, new Map());
+    if (!tasksByTitle.has(t.title)) {
+      tasksByTitle.set(t.title, []);
     }
-    const catMap = tasksByCategory.get(t.category)!;
-    if (!catMap.has(t.title)) {
-      catMap.set(t.title, []);
-    }
-    catMap.get(t.title)!.push(t);
+    tasksByTitle.get(t.title)!.push(t);
   }
 
-  // Build line items
+  // Build line items for all tasks and expenses
   const lineItems: LineItem[] = [];
 
-  // Add task items grouped by category
-  const categories = [...tasksByCategory.keys()].sort();
-  for (const category of categories) {
-    const catMap = tasksByCategory.get(category)!;
-    for (const [title, taskList] of catMap) {
-      const freq = taskList[0].frequency;
-      const unitCost = taskList.find((t) => t.estimated_cost)?.estimated_cost ?? null;
-      const completed = taskList.filter((t) => t.status === "Completed");
-      const actualTotal = completed.reduce((s, t) => s + (t.estimated_cost ?? 0), 0);
-      const budgetCount = occurrencesInRange(freq, daysInFY);
-      const budgetTotal = unitCost ? budgetCount * unitCost : 0;
+  // Add task items
+  for (const [title, taskList] of tasksByTitle) {
+    const freq = taskList[0].frequency;
+    const category = taskList[0].category;
+    const unitCost = taskList.find((t) => t.estimated_cost)?.estimated_cost ?? null;
+    const completed = taskList.filter((t) => t.status === "Completed");
+    const actualTotal = completed.reduce((s, t) => s + (t.estimated_cost ?? 0), 0);
+    const budgetCount = occurrencesInRange(freq, daysInFY);
+    const budgetTotal = unitCost ? budgetCount * unitCost : 0;
 
-      lineItems.push({
-        type: "task",
-        key: `task-${category}-${title}`,
-        title,
-        category,
-        frequency: freq,
-        unitCost,
-        actualCount: completed.length,
-        actualTotal,
-        budgetCount,
-        budgetTotal,
-      });
-    }
+    lineItems.push({
+      type: "task",
+      key: `task-${title}`,
+      title,
+      category,
+      frequency: freq,
+      unitCost,
+      actualCount: completed.length,
+      actualTotal,
+      budgetCount,
+      budgetTotal,
+    });
   }
 
-  // Add expense items grouped by category
-  const expensesByCategory = new Map<string, Expense[]>();
-  for (const e of inFY_expenses) {
-    if (!expensesByCategory.has(e.category)) {
-      expensesByCategory.set(e.category, []);
-    }
-    expensesByCategory.get(e.category)!.push(e);
+  // Add expense items
+  for (const expense of inFY_expenses) {
+    lineItems.push({
+      type: "expense",
+      key: `expense-${expense.id}`,
+      id: expense.id,
+      title: expense.description || "(No description)",
+      category: expense.category,
+      date_paid: expense.date_paid,
+      vendor_id: expense.vendor_id,
+      amount: expense.amount,
+      description: expense.description,
+    });
   }
 
-  for (const [category, expenseList] of expensesByCategory) {
-    for (const expense of expenseList) {
-      lineItems.push({
-        type: "expense",
-        key: `expense-${expense.id}`,
-        id: expense.id,
-        title: expense.description || "(No description)",
-        category,
-        date_paid: expense.date_paid,
-        vendor_id: expense.vendor_id,
-        amount: expense.amount,
-        description: expense.description,
-      });
+  // Group line items by vendor
+  const itemsByVendor = new Map<string | null, LineItem[]>();
+  for (const item of lineItems) {
+    const vendorId = item.type === "task" ? inFY_tasks.find(t => t.title === item.title)?.vendor_id ?? null : item.vendor_id ?? null;
+    if (!itemsByVendor.has(vendorId)) {
+      itemsByVendor.set(vendorId, []);
     }
+    itemsByVendor.get(vendorId)!.push(item);
+  }
+
+  // Create vendor groups
+  const vendorGroups: VendorGroup[] = [];
+  const sortedVendorIds = [...itemsByVendor.keys()].sort((a, b) => {
+    if (a === null) return 1;
+    if (b === null) return -1;
+    const vendorA = vendors.find(v => v.id === a)?.name || "";
+    const vendorB = vendors.find(v => v.id === b)?.name || "";
+    return vendorA.localeCompare(vendorB);
+  });
+
+  for (const vendorId of sortedVendorIds) {
+    const items = itemsByVendor.get(vendorId)!;
+    const vendorName = vendorId ? vendors.find(v => v.id === vendorId)?.name || "Unknown Vendor" : "No Vendor";
+    const groupTotal = items.reduce((s, item) => s + ("actualTotal" in item ? item.actualTotal : item.amount), 0);
+
+    vendorGroups.push({
+      vendorId,
+      vendorName,
+      items,
+      groupTotal,
+    });
   }
 
   const grandActual = lineItems.reduce((s, l) => s + ("actualTotal" in l ? l.actualTotal : l.amount), 0);
@@ -382,50 +406,66 @@ export default function CostsPage() {
               </tr>
             </thead>
             <tbody>
-              {lineItems.map((item) => (
-                <tr key={item.key} className="border-b border-gray-100 hover:bg-gray-50 dark:hover:bg-gray-800">
-                  {item.type === "task" ? (
-                    <>
-                      <td className="py-3 px-3 font-medium">{item.title}</td>
-                      <td className="py-3 px-3 text-sm text-gray-500">
-                        <span className="inline-block px-2 py-0.5 bg-gray-100 dark:bg-gray-700 rounded text-xs">{item.category}</span>
-                      </td>
-                      <td className="py-3 px-3 text-center text-gray-500 text-xs">{item.frequency}</td>
-                      <td className="py-3 px-3 text-right text-gray-500 tabular-nums">{item.unitCost ? fmt(item.unitCost) : "—"}</td>
-                      <td className="py-3 px-3 text-right tabular-nums border-l border-gray-200">{item.actualCount}</td>
-                      <td className="py-3 px-3 text-right tabular-nums font-medium">{fmt(item.actualTotal)}</td>
-                      <td className="py-3 px-3 text-right tabular-nums border-l border-gray-200">{item.budgetCount}</td>
-                      <td className="py-3 px-3 text-right tabular-nums font-medium">{fmt(item.budgetTotal)}</td>
-                      <td className="py-3 px-3"></td>
-                    </>
-                  ) : (
-                    <>
-                      <td className="py-3 px-3">
-                        <div>
-                          <div className="font-medium text-gray-900 dark:text-gray-100">{item.description || "(No description)"}</div>
-                          <div className="text-xs text-gray-500">Paid {item.date_paid}</div>
-                        </div>
-                      </td>
-                      <td className="py-3 px-3 text-sm">
-                        <span className="inline-block px-2 py-0.5 bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 rounded text-xs">{item.category}</span>
-                      </td>
-                      <td className="py-3 px-3 text-center text-xs text-gray-400">—</td>
-                      <td className="py-3 px-3"></td>
-                      <td className="py-3 px-3 text-right tabular-nums border-l border-gray-200"></td>
-                      <td className="py-3 px-3 text-right tabular-nums font-medium">{fmt(item.amount)}</td>
-                      <td className="py-3 px-3 border-l border-gray-200"></td>
-                      <td className="py-3 px-3"></td>
-                      <td className="py-3 px-3 text-right">
-                        <button
-                          onClick={() => handleDeleteExpense(item.id)}
-                          className="text-xs text-red-600 dark:text-red-400 hover:underline"
-                        >
-                          Delete
-                        </button>
-                      </td>
-                    </>
-                  )}
-                </tr>
+              {vendorGroups.map((group) => (
+                <tbody key={group.vendorId || "no-vendor"}>
+                  <tr className="bg-gray-50 dark:bg-gray-900 border-y-2 border-gray-300 dark:border-gray-700">
+                    <td colSpan={9} className="py-3 px-3 font-bold text-gray-900 dark:text-gray-100">
+                      {group.vendorName}
+                    </td>
+                  </tr>
+                  {group.items.map((item) => (
+                    <tr key={item.key} className="border-b border-gray-100 hover:bg-gray-50 dark:hover:bg-gray-800">
+                      {item.type === "task" ? (
+                        <>
+                          <td className="py-3 px-3 pl-6 font-medium">{item.title}</td>
+                          <td className="py-3 px-3 text-sm text-gray-500">
+                            <span className="inline-block px-2 py-0.5 bg-gray-100 dark:bg-gray-700 rounded text-xs">{item.category}</span>
+                          </td>
+                          <td className="py-3 px-3 text-center text-gray-500 text-xs">{item.frequency}</td>
+                          <td className="py-3 px-3 text-right text-gray-500 tabular-nums">{item.unitCost ? fmt(item.unitCost) : "—"}</td>
+                          <td className="py-3 px-3 text-right tabular-nums border-l border-gray-200">{item.actualCount}</td>
+                          <td className="py-3 px-3 text-right tabular-nums font-medium">{fmt(item.actualTotal)}</td>
+                          <td className="py-3 px-3 text-right tabular-nums border-l border-gray-200">{item.budgetCount}</td>
+                          <td className="py-3 px-3 text-right tabular-nums font-medium">{fmt(item.budgetTotal)}</td>
+                          <td className="py-3 px-3"></td>
+                        </>
+                      ) : (
+                        <>
+                          <td className="py-3 px-3 pl-6">
+                            <div>
+                              <div className="font-medium text-gray-900 dark:text-gray-100">{item.description || "(No description)"}</div>
+                              <div className="text-xs text-gray-500">Paid {item.date_paid}</div>
+                            </div>
+                          </td>
+                          <td className="py-3 px-3 text-sm">
+                            <span className="inline-block px-2 py-0.5 bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 rounded text-xs">{item.category}</span>
+                          </td>
+                          <td className="py-3 px-3 text-center text-xs text-gray-400">—</td>
+                          <td className="py-3 px-3"></td>
+                          <td className="py-3 px-3 text-right tabular-nums border-l border-gray-200"></td>
+                          <td className="py-3 px-3 text-right tabular-nums font-medium">{fmt(item.amount)}</td>
+                          <td className="py-3 px-3 border-l border-gray-200"></td>
+                          <td className="py-3 px-3"></td>
+                          <td className="py-3 px-3 text-right">
+                            <button
+                              onClick={() => handleDeleteExpense(item.id)}
+                              className="text-xs text-red-600 dark:text-red-400 hover:underline"
+                            >
+                              Delete
+                            </button>
+                          </td>
+                        </>
+                      )}
+                    </tr>
+                  ))}
+                  <tr className="border-b-2 border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900">
+                    <td colSpan={5} className="py-2 px-6 text-right text-sm font-semibold text-gray-700 dark:text-gray-300">
+                      {group.vendorName} Total
+                    </td>
+                    <td className="py-2 px-3 text-right tabular-nums font-semibold border-l border-gray-200">{fmt(group.groupTotal)}</td>
+                    <td colSpan={3}></td>
+                  </tr>
+                </tbody>
               ))}
             </tbody>
             <tfoot>
