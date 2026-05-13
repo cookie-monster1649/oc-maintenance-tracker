@@ -3,9 +3,15 @@
 import { useEffect, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { TaskCard, Task, Vendor } from "../../components/TaskCard";
+import { getColorClasses } from "@/lib/colors";
 
 type Frequency = "Weekly" | "Bi-weekly" | "Monthly" | "Quarterly" | "Semi-Annually" | "Annually";
 const FREQUENCIES: Frequency[] = ["Weekly", "Bi-weekly", "Monthly", "Quarterly", "Semi-Annually", "Annually"];
+
+interface CategoryColor {
+  name: string;
+  color: string;
+}
 
 function fmt(n: number): string {
   return n.toLocaleString("en-AU", { style: "currency", currency: "AUD" });
@@ -27,6 +33,7 @@ export default function TaskDetailPage() {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [vendors, setVendors] = useState<Vendor[]>([]);
   const [categories, setCategories] = useState<string[]>([]);
+  const [categoryColors, setCategoryColors] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [editOpen, setEditOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -44,10 +51,16 @@ export default function TaskDetailPage() {
   useEffect(() => {
     Promise.all([fetch("/api/tasks"), fetch("/api/vendors"), fetch("/api/categories")])
       .then((res) => Promise.all(res.map((r) => r.json())))
-      .then(([tasksData, vendorsData, categoriesData]) => {
+      .then(([tasksData, vendorsData, categoriesData]: [Task[], Vendor[], CategoryColor[]]) => {
         setTasks(tasksData);
         setVendors(vendorsData);
-        setCategories(categoriesData);
+        const categoryNames = categoriesData.map((c) => c.name);
+        setCategories(categoryNames);
+        const colorMap = categoriesData.reduce((acc: Record<string, string>, c: CategoryColor) => {
+          acc[c.name] = c.color;
+          return acc;
+        }, {});
+        setCategoryColors(colorMap);
         setLoading(false);
       });
   }, []);
@@ -196,7 +209,14 @@ export default function TaskDetailPage() {
           <div className="space-y-3 text-sm">
             <div className="flex justify-between gap-4">
               <span className="text-gray-500 dark:text-gray-400">Category</span>
-              <span className="font-medium text-gray-900 dark:text-gray-100">{currentTask.category}</span>
+              {(() => {
+                const colors = getColorClasses(categoryColors[currentTask.category] || "blue");
+                return (
+                  <span className={`px-2 py-0.5 rounded-full ${colors.bg} ${colors.text} font-medium text-xs`}>
+                    {currentTask.category}
+                  </span>
+                );
+              })()}
             </div>
             <div className="flex justify-between gap-4">
               <span className="text-gray-500 dark:text-gray-400">Due Date</span>
@@ -276,7 +296,7 @@ export default function TaskDetailPage() {
             <h3 className="text-sm font-semibold uppercase tracking-widest text-gray-400 mb-6">Upcoming</h3>
             <div className="space-y-3">
               {upcoming.map((task) => (
-                <TaskCard key={task.id} task={task} vendors={vendors} onComplete={completeTask} completing={completing} />
+                <TaskCard key={task.id} task={task} vendors={vendors} onComplete={completeTask} completing={completing} categoryColors={categoryColors} />
               ))}
             </div>
           </div>
@@ -287,7 +307,7 @@ export default function TaskDetailPage() {
             <h3 className="text-sm font-semibold uppercase tracking-widest text-gray-400 dark:text-gray-500 mb-6">Completion History</h3>
             <div className="space-y-3">
               {completed.map((task) => (
-                <TaskCard key={task.id} task={task} vendors={vendors} onComplete={completeTask} completing={completing} />
+                <TaskCard key={task.id} task={task} vendors={vendors} onComplete={completeTask} completing={completing} categoryColors={categoryColors} />
               ))}
             </div>
           </div>

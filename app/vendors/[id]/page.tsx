@@ -4,6 +4,11 @@ import { useEffect, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { TaskCard, Task } from "../../components/TaskCard";
 
+interface CategoryColor {
+  name: string;
+  color: string;
+}
+
 interface Vendor {
   id: string;
   name: string;
@@ -29,6 +34,7 @@ export default function VendorDetailPage() {
 
   const [vendors, setVendors] = useState<Vendor[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
+  const [categoryColors, setCategoryColors] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [editOpen, setEditOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -44,11 +50,16 @@ export default function VendorDetailPage() {
   }
 
   useEffect(() => {
-    Promise.all([fetch("/api/vendors"), fetch("/api/tasks")])
+    Promise.all([fetch("/api/vendors"), fetch("/api/tasks"), fetch("/api/categories")])
       .then((res) => Promise.all(res.map((r) => r.json())))
-      .then(([vendorsData, tasksData]) => {
+      .then(([vendorsData, tasksData, categoriesData]: [Vendor[], Task[], CategoryColor[]]) => {
         setVendors(vendorsData);
         setTasks(tasksData);
+        const colorMap = categoriesData.reduce((acc: Record<string, string>, c: CategoryColor) => {
+          acc[c.name] = c.color;
+          return acc;
+        }, {});
+        setCategoryColors(colorMap);
         setLoading(false);
       });
   }, []);
@@ -232,7 +243,7 @@ export default function VendorDetailPage() {
             <h2 className="text-sm font-semibold uppercase tracking-widest text-gray-400 dark:text-gray-500 mb-6">Upcoming Work</h2>
             <div className="space-y-3">
               {upcoming.map((task) => (
-                <TaskCard key={task.id} task={task} vendors={vendors.map((v) => ({ id: v.id, name: v.name, service_type: v.service_type }))} onComplete={completeTask} completing={completing} />
+                <TaskCard key={task.id} task={task} vendors={vendors.map((v) => ({ id: v.id, name: v.name, service_type: v.service_type }))} onComplete={completeTask} completing={completing} categoryColors={categoryColors} />
               ))}
             </div>
           </div>
@@ -243,7 +254,7 @@ export default function VendorDetailPage() {
             <h2 className="text-sm font-semibold uppercase tracking-widest text-gray-400 dark:text-gray-500 mb-6">Completed Work</h2>
             <div className="space-y-3">
               {completed.map((task) => (
-                <TaskCard key={task.id} task={task} vendors={vendors.map((v) => ({ id: v.id, name: v.name, service_type: v.service_type }))} onComplete={completeTask} completing={completing} />
+                <TaskCard key={task.id} task={task} vendors={vendors.map((v) => ({ id: v.id, name: v.name, service_type: v.service_type }))} onComplete={completeTask} completing={completing} categoryColors={categoryColors} />
               ))}
             </div>
           </div>

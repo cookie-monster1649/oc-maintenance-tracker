@@ -1,5 +1,13 @@
 "use client";
 
+import { useEffect, useState } from "react";
+import { getColorClasses } from "@/lib/colors";
+
+interface CategoryColor {
+  name: string;
+  color: string;
+}
+
 export type Status = "Scheduled" | "In Progress" | "Completed" | "Overdue";
 export type Frequency = "Weekly" | "Bi-weekly" | "Monthly" | "Quarterly" | "Semi-Annually" | "Annually";
 
@@ -35,14 +43,21 @@ export function TaskCard({
   vendors,
   onComplete,
   completing,
+  categoryColors,
 }: {
   task: Task;
   vendors: Vendor[];
   onComplete?: (id: string) => void;
   completing?: string | null;
+  categoryColors?: Record<string, string>;
 }) {
   const vendor = vendors.find((v) => v.id === task.vendor_id);
   const isCompleted = task.status === "Completed";
+
+  const getCategoryColor = (category: string): { bg: string; text: string } => {
+    const colorName = categoryColors?.[category] || "blue";
+    return getColorClasses(colorName);
+  };
 
   const [day, month] = new Date(task.due_date + "T00:00:00")
     .toLocaleDateString("en-AU", { day: "2-digit", month: "short" })
@@ -60,9 +75,14 @@ export function TaskCard({
             <a href={`/tasks/${task.id}`} className={`font-medium hover:underline ${isCompleted ? "line-through text-gray-400 dark:text-gray-500" : "text-gray-900 dark:text-gray-100"}`}>
               {task.title}
             </a>
-            <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 font-medium">
-              {task.category}
-            </span>
+            {(() => {
+              const colors = getCategoryColor(task.category);
+              return (
+                <span className={`text-xs px-2 py-0.5 rounded-full ${colors.bg} ${colors.text} font-medium`}>
+                  {task.category}
+                </span>
+              );
+            })()}
             {isCompleted && (
               <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${STATUS_STYLES[task.status]}`}>
                 {task.status}

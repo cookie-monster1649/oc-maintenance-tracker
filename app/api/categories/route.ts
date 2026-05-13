@@ -1,19 +1,46 @@
-import { NextResponse } from "next/server";
-import { readCategories, writeCategories } from "@/lib/categories";
+import { readCategories, readCategoryColors, writeCategories, writeCategoryColors, colorOptions, ColorName } from "@/lib/categoryColors";
+import { NextRequest, NextResponse } from "next/server";
 
 export async function GET() {
-  return NextResponse.json(readCategories());
+  try {
+    const categories = readCategories();
+    const colors = readCategoryColors();
+    const result = categories.map((cat) => ({
+      name: cat,
+      color: colors[cat] || "blue",
+    }));
+    return NextResponse.json(result);
+  } catch {
+    return NextResponse.json({ error: "Failed to read categories" }, { status: 500 });
+  }
 }
 
-export async function POST(req: Request) {
-  const body = await req.json();
-  const categories = readCategories();
+export async function POST(request: NextRequest) {
+  try {
+    const { name, color } = await request.json();
 
-  if (!body.name || categories.includes(body.name)) {
-    return NextResponse.json({ error: "Invalid or duplicate category" }, { status: 400 });
+    if (!name) {
+      return NextResponse.json({ error: "Category name required" }, { status: 400 });
+    }
+
+    if (color && !colorOptions.includes(color)) {
+      return NextResponse.json({ error: "Invalid color" }, { status: 400 });
+    }
+
+    const categories = readCategories();
+    if (categories.includes(name)) {
+      return NextResponse.json({ error: "Category already exists" }, { status: 400 });
+    }
+
+    categories.push(name);
+    writeCategories(categories);
+
+    const colors = readCategoryColors();
+    colors[name] = (color || "blue") as ColorName;
+    writeCategoryColors(colors);
+
+    return NextResponse.json({ name, color: colors[name] });
+  } catch {
+    return NextResponse.json({ error: "Failed to add category" }, { status: 500 });
   }
-
-  categories.push(body.name);
-  writeCategories(categories);
-  return NextResponse.json(categories, { status: 201 });
 }

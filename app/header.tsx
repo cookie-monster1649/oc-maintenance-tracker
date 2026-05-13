@@ -4,6 +4,12 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 
 type Theme = "light" | "dark" | "system";
+type ColorName = "blue" | "purple" | "green" | "red" | "amber" | "pink" | "cyan" | "indigo";
+
+interface CategoryItem {
+  name: string;
+  color: ColorName;
+}
 
 const THEMES: { value: Theme; label: string }[] = [
   { value: "light", label: "Light" },
@@ -21,11 +27,132 @@ function applyTheme(newTheme: Theme) {
   }
 }
 
+const colorOptions: ColorName[] = ["blue", "purple", "green", "red", "amber", "pink", "cyan", "indigo"];
+const colorLabels: Record<ColorName, string> = {
+  blue: "Blue",
+  purple: "Purple",
+  green: "Green",
+  red: "Red",
+  amber: "Amber",
+  pink: "Pink",
+  cyan: "Cyan",
+  indigo: "Indigo",
+};
+
 export default function Header() {
   const [theme, setTheme] = useState<Theme>("system");
   const [open, setOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
+  const [categoriesOpen, setCategoriesOpen] = useState(false);
+  const [categories, setCategories] = useState<CategoryItem[]>([]);
+  const [newCategoryName, setNewCategoryName] = useState("");
+  const [newCategoryColor, setNewCategoryColor] = useState<ColorName>("blue");
+  const [loadingCategories, setLoadingCategories] = useState(false);
+  const [tasks, setTasks] = useState<any[]>([]);
+  const [reassigningCategory, setReassigningCategory] = useState<string | null>(null);
+  const [reassignTarget, setReassignTarget] = useState("");
   const ref = useRef<HTMLDivElement>(null);
+
+  async function loadCategories() {
+    try {
+      setLoadingCategories(true);
+      const [categoriesRes, tasksRes] = await Promise.all([
+        fetch("/api/categories"),
+        fetch("/api/tasks"),
+      ]);
+      const categoriesData = await categoriesRes.json();
+      const tasksData = await tasksRes.json();
+      setCategories(categoriesData);
+      setTasks(tasksData);
+    } catch (error) {
+      console.error("Failed to load categories:", error);
+    } finally {
+      setLoadingCategories(false);
+    }
+  }
+
+  async function addCategory() {
+    if (!newCategoryName.trim()) return;
+    try {
+      const res = await fetch("/api/categories", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: newCategoryName, color: newCategoryColor }),
+      });
+      if (res.ok) {
+        await loadCategories();
+        setNewCategoryName("");
+        setNewCategoryColor("blue");
+      }
+    } catch (error) {
+      console.error("Failed to add category:", error);
+    }
+  }
+
+  async function updateCategoryColor(name: string, color: ColorName) {
+    try {
+      const res = await fetch(`/api/categories/${encodeURIComponent(name)}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ color }),
+      });
+      if (res.ok) {
+        await loadCategories();
+      }
+    } catch (error) {
+      console.error("Failed to update category:", error);
+    }
+  }
+
+  async function deleteCategory(name: string) {
+    const tasksWithCategory = tasks.filter((t) => t.category === name);
+
+    if (tasksWithCategory.length > 0) {
+      setReassigningCategory(name);
+      setReassignTarget("");
+      return;
+    }
+
+    if (!confirm(`Delete category "${name}"?`)) return;
+    try {
+      const res = await fetch(`/api/categories/${encodeURIComponent(name)}`, {
+        method: "DELETE",
+      });
+      if (res.ok) {
+        await loadCategories();
+      }
+    } catch (error) {
+      console.error("Failed to delete category:", error);
+    }
+  }
+
+  async function confirmReassignment() {
+    if (!reassigningCategory || !reassignTarget) return;
+
+    try {
+      const tasksWithCategory = tasks.filter((t) => t.category === reassigningCategory);
+      await Promise.all(
+        tasksWithCategory.map((task) =>
+          fetch(`/api/tasks/${task.id}`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ ...task, category: reassignTarget }),
+          })
+        )
+      );
+
+      const res = await fetch(`/api/categories/${encodeURIComponent(reassigningCategory)}`, {
+        method: "DELETE",
+      });
+      if (res.ok) {
+        await loadCategories();
+        setReassigningCategory(null);
+        setReassignTarget("");
+      }
+    } catch (error) {
+      console.error("Failed to reassign and delete category:", error);
+    }
+  }
 
   useEffect(() => {
     setMounted(true);
@@ -33,6 +160,7 @@ export default function Header() {
     const initial = stored ?? "system";
     setTheme(initial);
     applyTheme(initial);
+    loadCategories();
   }, []);
 
   // Close on outside click
@@ -101,6 +229,15 @@ export default function Header() {
                   ))}
                 </div>
               </div>
+              <button
+                onClick={() => {
+                  setCategoriesOpen(true);
+                  setOpen(false);
+                }}
+                className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors border-b border-gray-100 dark:border-gray-800"
+              >
+                Categories
+              </button>
               <Link
                 href="/archived"
                 onClick={() => setOpen(false)}
@@ -112,6 +249,162 @@ export default function Header() {
           )}
         </div>
       </div>
+
+      {reassigningCategory && mounted && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60] p-4">
+          <div className="bg-white dark:bg-gray-900 rounded-lg shadow-xl max-w-lg w-full max-h-[90vh] overflow-y-auto flex flex-col p-8">
+            <h2 className="text-2xl font-bold mb-6 text-gray-900 dark:text-gray-100 shrink-0">Reassign Tasks</h2>
+
+            <p className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">
+              {tasks.filter((t) => t.category === reassigningCategory).length} task(s) to reassign:
+            </p>
+            <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-4 mb-6 max-h-48 overflow-y-auto">
+              <ul className="space-y-2">
+                {tasks
+                  .filter((t) => t.category === reassigningCategory)
+                  .map((task) => (
+                    <li key={task.id} className="text-sm text-gray-700 dark:text-gray-300">
+                      • {task.title}
+                    </li>
+                  ))}
+              </ul>
+            </div>
+
+            <div className="mb-6">
+              <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                Reassign to category:
+              </label>
+              <select
+                value={reassignTarget}
+                onChange={(e) => setReassignTarget(e.target.value)}
+                className="w-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 rounded-md px-3 py-2 text-sm text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-gray-400"
+              >
+                <option value="">Select a category</option>
+                {categories
+                  .filter((c) => c.name !== reassigningCategory)
+                  .map((cat) => (
+                    <option key={cat.name} value={cat.name}>
+                      {cat.name}
+                    </option>
+                  ))}
+              </select>
+            </div>
+
+            <div className="flex gap-3">
+              <button
+                onClick={confirmReassignment}
+                disabled={!reassignTarget}
+                className="flex-1 text-sm px-4 py-2 rounded-md bg-gray-900 dark:bg-gray-700 text-white hover:bg-gray-700 dark:hover:bg-gray-600 disabled:opacity-40 transition-colors font-medium"
+              >
+                Reassign & Delete
+              </button>
+              <button
+                onClick={() => {
+                  setReassigningCategory(null);
+                  setReassignTarget("");
+                }}
+                className="flex-1 text-sm px-4 py-2 rounded-md border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors font-medium"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {categoriesOpen && mounted && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-gray-900 rounded-lg shadow-xl max-w-lg w-full max-h-[90vh] overflow-y-auto flex flex-col p-8">
+            <h2 className="text-2xl font-bold mb-6 text-gray-900 dark:text-gray-100 shrink-0">Categories</h2>
+
+            {loadingCategories ? (
+              <p className="text-gray-400">Loading...</p>
+            ) : (
+              <>
+                <div className="space-y-3 flex-1 overflow-y-auto mb-6">
+                  {categories.map((cat) => {
+                    const colorMap: Record<ColorName, { bg: string; text: string }> = {
+                      blue: { bg: "bg-blue-100 dark:bg-blue-900", text: "text-blue-700 dark:text-blue-300" },
+                      purple: { bg: "bg-purple-100 dark:bg-purple-900", text: "text-purple-700 dark:text-purple-300" },
+                      green: { bg: "bg-green-100 dark:bg-green-900", text: "text-green-700 dark:text-green-300" },
+                      red: { bg: "bg-red-100 dark:bg-red-900", text: "text-red-700 dark:text-red-300" },
+                      amber: { bg: "bg-amber-100 dark:bg-amber-900", text: "text-amber-700 dark:text-amber-300" },
+                      pink: { bg: "bg-pink-100 dark:bg-pink-900", text: "text-pink-700 dark:text-pink-300" },
+                      cyan: { bg: "bg-cyan-100 dark:bg-cyan-900", text: "text-cyan-700 dark:text-cyan-300" },
+                      indigo: { bg: "bg-indigo-100 dark:bg-indigo-900", text: "text-indigo-700 dark:text-indigo-300" },
+                    };
+                    const colors = colorMap[cat.color as ColorName];
+                    return (
+                      <div key={cat.name} className="flex items-center justify-between gap-3">
+                        <div className="flex-1 min-w-0">
+                          <span className={`inline-block px-3 py-1.5 rounded-full text-sm font-medium ${colors.bg} ${colors.text}`}>
+                            {cat.name}
+                          </span>
+                        </div>
+                        <div className="flex gap-2 shrink-0">
+                          <select
+                            value={cat.color}
+                            onChange={(e) => updateCategoryColor(cat.name, e.target.value as ColorName)}
+                            className="border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 rounded px-2 py-1 text-sm text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-gray-400"
+                          >
+                            {colorOptions.map((color) => (
+                              <option key={color} value={color}>{colorLabels[color]}</option>
+                            ))}
+                          </select>
+                          <button
+                            onClick={() => deleteCategory(cat.name)}
+                            className="text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 text-sm font-medium"
+                          >
+                            Delete
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                <div className="border-t border-gray-200 dark:border-gray-700 pt-6">
+                  <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Add Category</h3>
+                  <div className="space-y-3">
+                    <input
+                      type="text"
+                      value={newCategoryName}
+                      onChange={(e) => setNewCategoryName(e.target.value)}
+                      placeholder="Category name"
+                      className="w-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 rounded-md px-3 py-2 text-sm text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-gray-400"
+                    />
+                    <select
+                      value={newCategoryColor}
+                      onChange={(e) => setNewCategoryColor(e.target.value as ColorName)}
+                      className="w-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 rounded-md px-3 py-2 text-sm text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-gray-400"
+                    >
+                      {colorOptions.map((color) => (
+                        <option key={color} value={color}>{colorLabels[color]}</option>
+                      ))}
+                    </select>
+                    <button
+                      onClick={addCategory}
+                      disabled={!newCategoryName.trim()}
+                      className="w-full text-sm px-4 py-2 rounded-md bg-gray-900 dark:bg-gray-700 text-white hover:bg-gray-700 dark:hover:bg-gray-600 disabled:opacity-40 transition-colors font-medium"
+                    >
+                      Add Category
+                    </button>
+                  </div>
+                </div>
+              </>
+            )}
+
+            <div className="flex gap-3 mt-8 pt-6 border-t border-gray-100 dark:border-gray-800 shrink-0">
+              <button
+                onClick={() => setCategoriesOpen(false)}
+                className="flex-1 text-sm px-4 py-2 rounded-md border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors font-medium"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </header>
   );
 }

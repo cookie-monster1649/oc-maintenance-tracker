@@ -2,6 +2,12 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { getColorClasses } from "@/lib/colors";
+
+interface CategoryColor {
+  name: string;
+  color: string;
+}
 
 interface Task {
   id: string;
@@ -33,20 +39,28 @@ export default function ArchivedPage() {
   const router = useRouter();
   const [tasks, setTasks] = useState<Task[]>([]);
   const [vendors, setVendors] = useState<Vendor[]>([]);
+  const [categoryColors, setCategoryColors] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [unarchiving, setUnarchiving] = useState<string | null>(null);
 
   async function fetchAll() {
-    const [tasksRes, vendorsRes] = await Promise.all([
+    const [tasksRes, vendorsRes, categoriesRes] = await Promise.all([
       fetch("/api/tasks"),
       fetch("/api/vendors"),
+      fetch("/api/categories"),
     ]);
-    const [tasksData, vendorsData] = await Promise.all([
+    const [tasksData, vendorsData, categoriesData] = await Promise.all([
       tasksRes.json(),
       vendorsRes.json(),
+      categoriesRes.json(),
     ]);
     setTasks(tasksData.filter((t: Task) => t.archived));
     setVendors(vendorsData.filter((v: Vendor) => v.archived));
+    const colorMap = categoriesData.reduce((acc: Record<string, string>, c: CategoryColor) => {
+      acc[c.name] = c.color;
+      return acc;
+    }, {});
+    setCategoryColors(colorMap);
     setLoading(false);
   }
 
@@ -115,10 +129,17 @@ export default function ArchivedPage() {
                 <div className="flex-1 min-w-0">
                   <h3 className="font-medium text-gray-900 mb-1">{task.title}</h3>
                   <p className="text-sm text-gray-500 mb-2">{task.description}</p>
-                  <div className="flex items-center gap-4 text-xs text-gray-400">
-                    <span>{task.category}</span>
-                    <span>{task.due_date}</span>
-                    {task.estimated_cost && <span>{fmt(task.estimated_cost)}</span>}
+                  <div className="flex items-center gap-4 text-xs">
+                    {(() => {
+                      const colors = getColorClasses(categoryColors[task.category] || "blue");
+                      return (
+                        <span className={`px-2 py-0.5 rounded-full ${colors.bg} ${colors.text} font-medium`}>
+                          {task.category}
+                        </span>
+                      );
+                    })()}
+                    <span className="text-gray-400">{task.due_date}</span>
+                    {task.estimated_cost && <span className="text-gray-400">{fmt(task.estimated_cost)}</span>}
                   </div>
                 </div>
                 <button

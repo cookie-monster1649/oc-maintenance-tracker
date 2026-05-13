@@ -5,12 +5,18 @@ import { TaskCard, Task, Vendor } from "./components/TaskCard";
 
 type Frequency = "Weekly" | "Bi-weekly" | "Monthly" | "Quarterly" | "Semi-Annually" | "Annually";
 
+interface CategoryColor {
+  name: string;
+  color: string;
+}
+
 const FREQUENCIES: Frequency[] = ["Weekly", "Bi-weekly", "Monthly", "Quarterly", "Semi-Annually", "Annually"];
 
 export default function Home() {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [vendors, setVendors] = useState<Vendor[]>([]);
   const [categories, setCategories] = useState<string[]>([]);
+  const [categoryColors, setCategoryColors] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [completing, setCompleting] = useState<string | null>(null);
   const [showCompleted, setShowCompleted] = useState(false);
@@ -26,7 +32,13 @@ export default function Home() {
     const [tasksData, vendorsData, categoriesData] = await Promise.all([tasksRes.json(), vendorsRes.json(), categoriesRes.json()]);
     setTasks(tasksData.sort((a: Task, b: Task) => a.due_date.localeCompare(b.due_date)));
     setVendors(vendorsData);
-    setCategories(categoriesData);
+    const categoryNames = categoriesData.map((c: CategoryColor) => c.name);
+    setCategories(categoryNames);
+    const colorMap = categoriesData.reduce((acc: Record<string, string>, c: CategoryColor) => {
+      acc[c.name] = c.color;
+      return acc;
+    }, {});
+    setCategoryColors(colorMap);
     setLoading(false);
   }
 
@@ -123,6 +135,7 @@ export default function Home() {
                   vendors={vendors}
                   onComplete={completeTask}
                   completing={completing}
+                  categoryColors={categoryColors}
                 />
               ))}
             </div>
@@ -146,7 +159,8 @@ export default function Home() {
                       vendors={vendors}
                       onComplete={completeTask}
                       completing={completing}
-                        />
+                      categoryColors={categoryColors}
+                    />
                   ))}
                 </div>
               )}

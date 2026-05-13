@@ -1,11 +1,19 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { Vendor } from "@/lib/vendors";
+import { getColorClasses } from "@/lib/colors";
+
+interface CategoryColor {
+  name: string;
+  color: string;
+}
 
 interface Task {
   id: string;
   title: string;
+  description: string;
   frequency: string;
   status: "Scheduled" | "In Progress" | "Completed" | "Overdue";
   due_date: string;
@@ -26,6 +34,7 @@ interface Expense {
 interface TaskLineItem {
   type: "task";
   key: string;
+  id: string;
   title: string;
   category: string;
   frequency: string;
@@ -91,13 +100,21 @@ function fmt(n: number): string {
   return n.toLocaleString("en-AU", { style: "currency", currency: "AUD", maximumFractionDigits: 0 });
 }
 
+
+
+type EditingItem = { type: "task"; data: Task } | { type: "expense"; data: Expense } | null;
+
 export default function CostsPage() {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [vendors, setVendors] = useState<Vendor[]>([]);
+  const [categories, setCategories] = useState<string[]>([]);
+  const [categoryColors, setCategoryColors] = useState<Record<string, string>>({});
   const [fy, setFy] = useState<number | null>(null);
   const [availableFYs, setAvailableFYs] = useState<number[]>([]);
   const [showForm, setShowForm] = useState(false);
+  const [editingItem, setEditingItem] = useState<EditingItem>(null);
+  const [editForm, setEditForm] = useState<any>({});
   const [formData, setFormData] = useState({
     date_paid: new Date().toISOString().split("T")[0],
     amount: "",
@@ -111,10 +128,18 @@ export default function CostsPage() {
       fetch("/api/tasks").then((r) => r.json()),
       fetch("/api/expenses").then((r) => r.json()),
       fetch("/api/vendors").then((r) => r.json()),
-    ]).then(([tasksData, expensesData, vendorsData]: [Task[], Expense[], Vendor[]]) => {
+      fetch("/api/categories").then((r) => r.json()),
+    ]).then(([tasksData, expensesData, vendorsData, categoriesData]: [Task[], Expense[], Vendor[], CategoryColor[]]) => {
       setTasks(tasksData);
       setExpenses(expensesData);
       setVendors(vendorsData);
+      const categoryNames = categoriesData.map((c) => c.name);
+      setCategories(categoryNames);
+      const colorMap = categoriesData.reduce((acc: Record<string, string>, c: CategoryColor) => {
+        acc[c.name] = c.color;
+        return acc;
+      }, {});
+      setCategoryColors(colorMap);
 
       const allDates = [
         ...tasksData.map((t) => t.due_date),
@@ -171,6 +196,99 @@ export default function CostsPage() {
     }
   };
 
+  const openEdit = (item: LineItem) => {
+    if (item.type === "task") {
+      const task = tasks.find((t) => t.id === item.id)!;
+      setEditingItem({ type: "task", data: task });
+      setEditForm({
+        title: task.title,
+        description: task.description || "",
+        due_date: task.due_date,
+        frequency: task.frequency,
+        estimated_cost: task.estimated_cost || "",
+        category: task.category,
+        vendor_id: task.vendor_id || "",
+      });
+    } else {
+      const expense = expenses.find((e) => e.id === item.id)!;
+      setEditingItem({ type: "expense", data: expense });
+      setEditForm({
+        description: expense.description,
+        date_paid: expense.date_paid,
+        amount: expense.amount,
+        category: expense.category,
+        vendor_id: expense.vendor_id || "",
+        frequency: "",
+      });
+    }
+  };
+
+  const closeEdit = () => {
+    setEditingItem(null);
+    setEditForm({});
+  };
+
+  const saveEdit = async () => {
+    if (!editingItem) return;
+
+    try {
+      if (editingItem.type === "task") {
+        await fetch(`/api/tasks/${editingItem.data.id}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            title: editForm.title,
+            description: editForm.description,
+            due_date: editForm.due_date,
+            frequency: editForm.frequency,
+            estimated_cost: editForm.estimated_cost ? parseFloat(editForm.estimated_cost) : null,
+            category: editForm.category,
+            vendor_id: editForm.vendor_id || null,
+          }),
+        });
+        const updated = await fetch("/api/tasks").then((r) => r.json());
+        setTasks(updated);
+      } else if (editingItem.type === "expense") {
+        if (editForm.frequency) {
+          await fetch(`/api/expenses/${editingItem.data.id}`, { method: "DELETE" });
+          const newTask = await fetch("/api/tasks", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              title: editForm.description,
+              description: editForm.description,
+              due_date: editForm.date_paid,
+              frequency: editForm.frequency,
+              estimated_cost: parseFloat(editForm.amount),
+              category: editForm.category,
+              vendor_id: editForm.vendor_id || null,
+              status: "Completed",
+            }),
+          }).then((r) => r.json());
+          setExpenses(expenses.filter((e) => e.id !== editingItem.data.id));
+          setTasks([...tasks, newTask]);
+        } else {
+          await fetch(`/api/expenses/${editingItem.data.id}`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              date_paid: editForm.date_paid,
+              amount: parseFloat(editForm.amount),
+              category: editForm.category,
+              vendor_id: editForm.vendor_id || null,
+              description: editForm.description,
+            }),
+          });
+          const updated = await fetch("/api/expenses").then((r) => r.json());
+          setExpenses(updated);
+        }
+      }
+      closeEdit();
+    } catch (error) {
+      console.error("Failed to save:", error);
+    }
+  };
+
   if (!fy) return <main className="max-w-6xl mx-auto px-4 py-10"><p className="text-gray-400">Loading…</p></main>;
 
   const { start, end, label } = fyRange(fy);
@@ -196,6 +314,7 @@ export default function CostsPage() {
   for (const [title, taskList] of tasksByTitle) {
     const freq = taskList[0].frequency;
     const category = taskList[0].category;
+    const taskId = taskList[0].id;
     const unitCost = taskList.find((t) => t.estimated_cost)?.estimated_cost ?? null;
     const completed = taskList.filter((t) => t.status === "Completed");
     const actualTotal = completed.reduce((s, t) => s + (t.estimated_cost ?? 0), 0);
@@ -205,6 +324,7 @@ export default function CostsPage() {
     lineItems.push({
       type: "task",
       key: `task-${title}`,
+      id: taskId,
       title,
       category,
       frequency: freq,
@@ -378,102 +498,271 @@ export default function CostsPage() {
         </div>
       )}
 
+      {editingItem && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-gray-900 rounded-lg shadow-xl max-w-lg w-full max-h-[90vh] overflow-y-auto flex flex-col p-8">
+            <h2 className="text-2xl font-bold mb-8 text-gray-900 dark:text-gray-100 shrink-0">
+              Edit {editingItem.type === "task" ? "Task" : "Expense"}
+            </h2>
+            <div className="space-y-5 flex-1 overflow-y-auto">
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                  {editingItem.type === "task" ? "Title" : "Description"}
+                </label>
+                <input
+                  type="text"
+                  value={editForm.title || editForm.description || ""}
+                  onChange={(e) =>
+                    setEditForm((f: any) => ({
+                      ...f,
+                      [editingItem.type === "task" ? "title" : "description"]: e.target.value,
+                    }))
+                  }
+                  className="w-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 rounded-md px-3 py-2 text-sm text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-gray-400"
+                />
+              </div>
+
+              {editingItem.type === "task" && (
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Description</label>
+                  <textarea
+                    value={editForm.description || ""}
+                    onChange={(e) => setEditForm((f: any) => ({ ...f, description: e.target.value }))}
+                    rows={3}
+                    className="w-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 rounded-md px-3 py-2 text-sm text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-gray-400"
+                  />
+                </div>
+              )}
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                    {editingItem.type === "task" ? "Due Date" : "Date Paid"}
+                  </label>
+                  <input
+                    type="date"
+                    value={editForm.due_date || editForm.date_paid || ""}
+                    onChange={(e) =>
+                      setEditForm((f: any) => ({
+                        ...f,
+                        [editingItem.type === "task" ? "due_date" : "date_paid"]: e.target.value,
+                      }))
+                    }
+                    className="w-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 rounded-md px-3 py-2 text-sm text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-gray-400"
+                  />
+                </div>
+                {editingItem.type === "task" ? (
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Frequency</label>
+                    <select
+                      value={editForm.frequency || ""}
+                      onChange={(e) => setEditForm((f: any) => ({ ...f, frequency: e.target.value }))}
+                      className="w-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 rounded-md px-3 py-2 text-sm text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-gray-400"
+                    >
+                      <option value="">Select frequency</option>
+                      <option value="Weekly">Weekly</option>
+                      <option value="Bi-weekly">Bi-weekly</option>
+                      <option value="Monthly">Monthly</option>
+                      <option value="Quarterly">Quarterly</option>
+                      <option value="Semi-Annually">Semi-Annually</option>
+                      <option value="Annually">Annually</option>
+                    </select>
+                  </div>
+                ) : (
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                      Frequency <span className="text-xs text-gray-500">(convert to task)</span>
+                    </label>
+                    <select
+                      value={editForm.frequency || ""}
+                      onChange={(e) => setEditForm((f: any) => ({ ...f, frequency: e.target.value }))}
+                      className="w-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 rounded-md px-3 py-2 text-sm text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-gray-400"
+                    >
+                      <option value="">Keep as expense</option>
+                      <option value="Weekly">Weekly (convert to task)</option>
+                      <option value="Bi-weekly">Bi-weekly (convert to task)</option>
+                      <option value="Monthly">Monthly (convert to task)</option>
+                      <option value="Quarterly">Quarterly (convert to task)</option>
+                      <option value="Semi-Annually">Semi-Annually (convert to task)</option>
+                      <option value="Annually">Annually (convert to task)</option>
+                    </select>
+                  </div>
+                )}
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                    {editingItem.type === "task" ? "Est. Cost" : "Amount"}
+                  </label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={editForm.estimated_cost || editForm.amount || ""}
+                    onChange={(e) =>
+                      setEditForm((f: any) => ({
+                        ...f,
+                        [editingItem.type === "task" ? "estimated_cost" : "amount"]: e.target.value,
+                      }))
+                    }
+                    className="w-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 rounded-md px-3 py-2 text-sm text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-gray-400"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Category</label>
+                  <select
+                    value={editForm.category || ""}
+                    onChange={(e) => setEditForm((f: any) => ({ ...f, category: e.target.value }))}
+                    className="w-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 rounded-md px-3 py-2 text-sm text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-gray-400"
+                  >
+                    <option value="">Select category</option>
+                    {categories.map((cat) => (
+                      <option key={cat} value={cat}>{cat}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Vendor</label>
+                <select
+                  value={editForm.vendor_id || ""}
+                  onChange={(e) => setEditForm((f: any) => ({ ...f, vendor_id: e.target.value }))}
+                  className="w-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 rounded-md px-3 py-2 text-sm text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-gray-400"
+                >
+                  <option value="">None</option>
+                  {vendors.map((v) => (
+                    <option key={v.id} value={v.id}>{v.name}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+            <div className="flex gap-3 mt-8 pt-6 border-t border-gray-100 dark:border-gray-800 shrink-0">
+              <button
+                onClick={saveEdit}
+                className="flex-1 text-sm px-4 py-2 rounded-md bg-gray-900 dark:bg-gray-700 text-white hover:bg-gray-700 dark:hover:bg-gray-600 transition-colors font-medium"
+              >
+                {editingItem.type === "expense" && editForm.frequency ? "Convert to Task" : "Save"}
+              </button>
+              <button
+                onClick={closeEdit}
+                className="flex-1 text-sm px-4 py-2 rounded-md border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors font-medium"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {inFY_tasks.length === 0 && inFY_expenses.length === 0 ? (
         <p className="text-gray-400 text-sm">No items in FY{fy}.</p>
       ) : (
         <div className="overflow-x-auto">
-          <table className="w-full text-sm">
+          <table className="w-full text-sm table-fixed">
             <thead>
-              <tr className="border-b-2 border-gray-900">
-                <th className="text-left font-bold py-2 px-3">Item</th>
-                <th className="text-left font-bold py-2 px-3">Category</th>
-                <th className="text-center font-bold py-2 px-3">Frequency</th>
-                <th className="text-right font-bold py-2 px-3">Unit Cost</th>
-                <th colSpan={2} className="text-center font-bold py-2 px-3 border-l border-gray-200">Actuals</th>
+              <tr className="border-b-2 border-gray-900 dark:border-gray-100">
+                <th className="text-left font-bold py-2 px-3 w-1/3">Item</th>
+                <th className="text-left font-bold py-2 px-3 w-1/6">Category</th>
+                <th className="text-center font-bold py-2 px-3 w-1/12">Frequency</th>
+                <th className="text-right font-bold py-2 px-3 w-1/10">Unit Cost</th>
                 <th colSpan={2} className="text-center font-bold py-2 px-3 border-l border-gray-200">Budget</th>
-                <th className="text-center font-bold py-2 px-3"></th>
+                <th colSpan={2} className="text-center font-bold py-2 px-3 border-l border-gray-200">Actuals</th>
+                <th className="w-auto"></th>
               </tr>
               <tr className="border-b border-gray-200">
-                <th></th>
-                <th></th>
-                <th></th>
-                <th></th>
-                <th className="text-right text-xs font-normal text-gray-400 py-1 px-3">#</th>
+                <th></th><th></th><th></th><th></th>
+                <th className="text-right text-xs font-normal text-gray-400 py-1 px-2 w-12">#</th>
                 <th className="text-right text-xs font-normal text-gray-400 py-1 px-3">Amount</th>
-                <th className="text-right text-xs font-normal text-gray-400 py-1 px-3">#</th>
+                <th className="text-right text-xs font-normal text-gray-400 py-1 px-2 w-12">#</th>
                 <th className="text-right text-xs font-normal text-gray-400 py-1 px-3">Amount</th>
                 <th></th>
               </tr>
             </thead>
             <tbody>
-              {vendorGroups.map((group) => (
-                <tbody key={group.vendorId || "no-vendor"}>
-                  <tr className="bg-gray-50 dark:bg-gray-900 border-y-2 border-gray-300 dark:border-gray-700">
-                    <td colSpan={9} className="py-3 px-3 font-bold text-gray-900 dark:text-gray-100">
-                      {group.vendorName}
-                    </td>
+              {vendorGroups.flatMap((group) => [
+                <tr key={`header-${group.vendorId || "no-vendor"}`} className="border-t border-gray-200 dark:border-gray-700">
+                  <td colSpan={5} className="pt-5 pb-1 px-3 font-semibold text-gray-900 dark:text-gray-100">
+                    {group.vendorId ? (
+                      <Link href={`/vendors/${group.vendorId}`} className="hover:underline">
+                        {group.vendorName}
+                      </Link>
+                    ) : (
+                      group.vendorName
+                    )}
+                  </td>
+                  <td className="pt-5 pb-1 px-3 text-right tabular-nums font-semibold text-gray-500 dark:text-gray-400"></td>
+                  <td className="border-l border-gray-200"></td>
+                  <td className="pt-5 pb-1 px-3 text-right tabular-nums font-semibold text-gray-500 dark:text-gray-400">{fmt(group.groupTotal)}</td>
+                  <td></td>
+                </tr>,
+                ...group.items.map((item) => (
+                  <tr key={item.key} className="border-b border-gray-100 hover:bg-gray-50 dark:hover:bg-gray-800">
+                    {item.type === "task" ? (
+                      <>
+                        <td className="py-2 px-3 pl-6 font-medium">
+                          <Link href={`/tasks/${item.id}`} className="hover:underline">
+                            {item.title}
+                          </Link>
+                        </td>
+                        <td className="py-2 px-3 text-sm">
+                          {(() => {
+                            const colors = getColorClasses(categoryColors[item.category] || "blue");
+                            return (
+                              <span className={`inline-block px-2 py-0.5 rounded text-xs ${colors.bg} ${colors.text}`}>
+                                {item.category}
+                              </span>
+                            );
+                          })()}
+                        </td>
+                        <td className="py-2 px-3 text-center text-gray-500 text-xs">{item.frequency}</td>
+                        <td className="py-2 px-3 text-right text-gray-500 tabular-nums">{item.unitCost ? fmt(item.unitCost) : "—"}</td>
+                        <td className="py-2 px-3 text-right tabular-nums border-l border-gray-200">{item.budgetCount}</td>
+                        <td className="py-2 px-3 text-right tabular-nums font-medium">{fmt(item.budgetTotal)}</td>
+                        <td className="py-2 px-3 text-right tabular-nums border-l border-gray-200">{item.actualCount}</td>
+                        <td className="py-2 px-3 text-right tabular-nums font-medium">{fmt(item.actualTotal)}</td>
+                        <td className="py-2 px-3 text-center">
+                          <button onClick={() => openEdit(item)} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">✎</button>
+                        </td>
+                      </>
+                    ) : (
+                      <>
+                        <td className="py-2 px-3 pl-6">
+                          <div className="font-medium text-gray-900 dark:text-gray-100">{item.description || "(No description)"}</div>
+                          <div className="text-xs text-gray-500">Paid {item.date_paid}</div>
+                        </td>
+                        <td className="py-2 px-3 text-sm">
+                          {(() => {
+                            const colors = getColorClasses(categoryColors[item.category] || "blue");
+                            return (
+                              <span className={`inline-block px-2 py-0.5 rounded text-xs ${colors.bg} ${colors.text}`}>
+                                {item.category}
+                              </span>
+                            );
+                          })()}
+                        </td>
+                        <td className="py-2 px-3 text-center text-xs text-gray-400">—</td>
+                        <td></td>
+                        <td className="border-l border-gray-200"></td>
+                        <td></td>
+                        <td className="border-l border-gray-200"></td>
+                        <td className="py-2 px-3 text-right tabular-nums font-medium">{fmt(item.amount)}</td>
+                        <td className="py-2 px-3 text-center">
+                          <button onClick={() => openEdit(item)} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">✎</button>
+                        </td>
+                      </>
+                    )}
                   </tr>
-                  {group.items.map((item) => (
-                    <tr key={item.key} className="border-b border-gray-100 hover:bg-gray-50 dark:hover:bg-gray-800">
-                      {item.type === "task" ? (
-                        <>
-                          <td className="py-3 px-3 pl-6 font-medium">{item.title}</td>
-                          <td className="py-3 px-3 text-sm text-gray-500">
-                            <span className="inline-block px-2 py-0.5 bg-gray-100 dark:bg-gray-700 rounded text-xs">{item.category}</span>
-                          </td>
-                          <td className="py-3 px-3 text-center text-gray-500 text-xs">{item.frequency}</td>
-                          <td className="py-3 px-3 text-right text-gray-500 tabular-nums">{item.unitCost ? fmt(item.unitCost) : "—"}</td>
-                          <td className="py-3 px-3 text-right tabular-nums border-l border-gray-200">{item.actualCount}</td>
-                          <td className="py-3 px-3 text-right tabular-nums font-medium">{fmt(item.actualTotal)}</td>
-                          <td className="py-3 px-3 text-right tabular-nums border-l border-gray-200">{item.budgetCount}</td>
-                          <td className="py-3 px-3 text-right tabular-nums font-medium">{fmt(item.budgetTotal)}</td>
-                          <td className="py-3 px-3"></td>
-                        </>
-                      ) : (
-                        <>
-                          <td className="py-3 px-3 pl-6">
-                            <div>
-                              <div className="font-medium text-gray-900 dark:text-gray-100">{item.description || "(No description)"}</div>
-                              <div className="text-xs text-gray-500">Paid {item.date_paid}</div>
-                            </div>
-                          </td>
-                          <td className="py-3 px-3 text-sm">
-                            <span className="inline-block px-2 py-0.5 bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 rounded text-xs">{item.category}</span>
-                          </td>
-                          <td className="py-3 px-3 text-center text-xs text-gray-400">—</td>
-                          <td className="py-3 px-3"></td>
-                          <td className="py-3 px-3 text-right tabular-nums border-l border-gray-200"></td>
-                          <td className="py-3 px-3 text-right tabular-nums font-medium">{fmt(item.amount)}</td>
-                          <td className="py-3 px-3 border-l border-gray-200"></td>
-                          <td className="py-3 px-3"></td>
-                          <td className="py-3 px-3 text-right">
-                            <button
-                              onClick={() => handleDeleteExpense(item.id)}
-                              className="text-xs text-red-600 dark:text-red-400 hover:underline"
-                            >
-                              Delete
-                            </button>
-                          </td>
-                        </>
-                      )}
-                    </tr>
-                  ))}
-                  <tr className="border-b-2 border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900">
-                    <td colSpan={5} className="py-2 px-6 text-right text-sm font-semibold text-gray-700 dark:text-gray-300">
-                      {group.vendorName} Total
-                    </td>
-                    <td className="py-2 px-3 text-right tabular-nums font-semibold border-l border-gray-200">{fmt(group.groupTotal)}</td>
-                    <td colSpan={3}></td>
-                  </tr>
-                </tbody>
-              ))}
+                )),
+              ])}
             </tbody>
             <tfoot>
-              <tr className="border-t-2 border-gray-900">
-                <td colSpan={5} className="py-3 px-3 font-bold">Total Costs</td>
-                <td className="py-3 px-3 text-right tabular-nums font-bold text-lg">{fmt(grandActual)}</td>
-                <td className="py-3 px-3 border-l border-gray-200"></td>
-                <td className="py-3 px-3 text-right tabular-nums font-bold text-lg">{fmt(grandBudget)}</td>
+              <tr className="border-t-2 border-gray-900 dark:border-gray-100">
+                <td colSpan={4} className="pt-4 pb-3 px-3 font-bold">Total</td>
+                <td className="border-l border-gray-200 pt-4 pb-3"></td>
+                <td className="pt-4 pb-3 px-3 text-right tabular-nums font-bold text-lg">{fmt(grandBudget)}</td>
+                <td className="border-l border-gray-200 pt-4 pb-3"></td>
+                <td className="pt-4 pb-3 px-3 text-right tabular-nums font-bold text-lg">{fmt(grandActual)}</td>
                 <td></td>
               </tr>
             </tfoot>
