@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
+import { TaskCard, Task } from "../../components/TaskCard";
 
 interface Vendor {
   id: string;
@@ -14,24 +15,6 @@ interface Vendor {
   notes: string | null;
   archived?: boolean;
 }
-
-interface Task {
-  id: string;
-  title: string;
-  frequency: string;
-  status: "Scheduled" | "In Progress" | "Completed" | "Overdue";
-  due_date: string;
-  last_completed_date: string | null;
-  estimated_cost: number | null;
-  vendor_id: string | null;
-}
-
-const STATUS_STYLES: Record<string, string> = {
-  Overdue: "bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-400",
-  "In Progress": "bg-yellow-100 text-yellow-700 dark:bg-amber-950 dark:text-amber-400",
-  Scheduled: "bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-400",
-  Completed: "bg-green-100 text-green-700 dark:bg-green-950 dark:text-green-400",
-};
 
 const INPUT = "w-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 rounded-md px-3 py-2 text-sm text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-gray-400 dark:focus:ring-gray-600";
 
@@ -49,10 +32,16 @@ export default function VendorDetailPage() {
   const [loading, setLoading] = useState(true);
   const [editOpen, setEditOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [completing, setCompleting] = useState<string | null>(null);
   const [form, setForm] = useState<Partial<Vendor>>({});
   const [originalForm, setOriginalForm] = useState<Partial<Vendor>>({});
   const menuRef = useRef<HTMLDivElement>(null);
   const backdropRef = useRef<HTMLDivElement>(null);
+
+  async function fetchTasks() {
+    const res = await fetch("/api/tasks");
+    setTasks(await res.json());
+  }
 
   useEffect(() => {
     Promise.all([fetch("/api/vendors"), fetch("/api/tasks")])
@@ -63,6 +52,13 @@ export default function VendorDetailPage() {
         setLoading(false);
       });
   }, []);
+
+  async function completeTask(id: string) {
+    setCompleting(id);
+    await fetch(`/api/tasks/${id}/complete`, { method: "POST" });
+    await fetchTasks();
+    setCompleting(null);
+  }
 
   useEffect(() => {
     function onPointerDown(e: PointerEvent) {
@@ -234,27 +230,9 @@ export default function VendorDetailPage() {
         {upcoming.length > 0 && (
           <div className="mb-12">
             <h2 className="text-sm font-semibold uppercase tracking-widest text-gray-400 dark:text-gray-500 mb-6">Upcoming Work</h2>
-            <div className="space-y-4">
+            <div className="space-y-3">
               {upcoming.map((task) => (
-                <div key={task.id} className="flex items-start gap-6 py-4 border-b border-gray-100 dark:border-gray-800 last:border-0">
-                  <div className="w-20 shrink-0 text-center">
-                    <div className="text-2xl font-bold text-gray-900 dark:text-gray-100">
-                      {new Date(task.due_date + "T00:00:00").toLocaleDateString("en-AU", { day: "2-digit" })}
-                    </div>
-                    <div className="text-xs text-gray-400 dark:text-gray-500 font-semibold uppercase mt-1">
-                      {new Date(task.due_date + "T00:00:00").toLocaleDateString("en-AU", { month: "short" })}
-                    </div>
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <a href={`/tasks/${task.id}`} className="font-medium text-gray-900 dark:text-gray-100 hover:underline block mb-2">
-                      {task.title}
-                    </a>
-                    <div className="flex items-center gap-3">
-                      <span className={`text-xs px-2 py-1 rounded font-medium ${STATUS_STYLES[task.status]}`}>{task.status}</span>
-                      {task.estimated_cost && <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">{fmt(task.estimated_cost)}</span>}
-                    </div>
-                  </div>
-                </div>
+                <TaskCard key={task.id} task={task} vendors={vendors.map((v) => ({ id: v.id, name: v.name, service_type: v.service_type }))} onComplete={completeTask} completing={completing} />
               ))}
             </div>
           </div>
@@ -263,23 +241,9 @@ export default function VendorDetailPage() {
         {completed.length > 0 && (
           <div className="mb-8">
             <h2 className="text-sm font-semibold uppercase tracking-widest text-gray-400 dark:text-gray-500 mb-6">Completed Work</h2>
-            <div className="space-y-4">
+            <div className="space-y-3">
               {completed.map((task) => (
-                <div key={task.id} className="flex items-start gap-6 py-4 border-b border-gray-100 dark:border-gray-800 last:border-0">
-                  <div className="w-20 shrink-0">
-                    <div className="text-sm font-semibold text-gray-900 dark:text-gray-100">{task.last_completed_date}</div>
-                    <div className="text-xs text-gray-400 dark:text-gray-500 font-semibold uppercase mt-1">Done</div>
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <a href={`/tasks/${task.id}`} className="font-medium text-gray-900 dark:text-gray-100 hover:underline block mb-2">
-                      {task.title}
-                    </a>
-                    <div className="flex items-center gap-3">
-                      <span className="text-xs px-2 py-1 rounded font-medium bg-green-100 text-green-700 dark:bg-green-950 dark:text-green-400">Completed</span>
-                      {task.estimated_cost && <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">{fmt(task.estimated_cost)}</span>}
-                    </div>
-                  </div>
-                </div>
+                <TaskCard key={task.id} task={task} vendors={vendors.map((v) => ({ id: v.id, name: v.name, service_type: v.service_type }))} onComplete={completeTask} completing={completing} />
               ))}
             </div>
           </div>

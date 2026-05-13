@@ -2,38 +2,21 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-
-interface Task {
-  id: string;
-  title: string;
-  description: string;
-  frequency: string;
-  status: "Scheduled" | "In Progress" | "Completed" | "Overdue";
-  due_date: string;
-  last_completed_date: string | null;
-  estimated_cost: number | null;
-  vendor_id: string | null;
-  archived?: boolean;
-}
-
-interface Vendor {
-  id: string;
-  name: string;
-  service_type: string;
-}
+import { TaskCard, Task, Vendor } from "../../components/TaskCard";
 
 type Frequency = "Weekly" | "Bi-weekly" | "Monthly" | "Quarterly" | "Semi-Annually" | "Annually";
 const FREQUENCIES: Frequency[] = ["Weekly", "Bi-weekly", "Monthly", "Quarterly", "Semi-Annually", "Annually"];
 
-const STATUS_STYLES: Record<string, string> = {
-  Overdue: "bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-400",
-  "In Progress": "bg-yellow-100 text-yellow-700 dark:bg-amber-950 dark:text-amber-400",
-  Scheduled: "bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-400",
-  Completed: "bg-green-100 text-green-700 dark:bg-green-950 dark:text-green-400",
-};
-
 function fmt(n: number): string {
   return n.toLocaleString("en-AU", { style: "currency", currency: "AUD" });
+}
+
+function fiscalYearLabel(): string {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = now.getMonth() + 1;
+  const fyStart = month >= 7 ? year : year - 1;
+  return `FY ${String(fyStart).slice(2)}/${String(fyStart + 1).slice(2)}`;
 }
 
 export default function TaskDetailPage() {
@@ -47,10 +30,16 @@ export default function TaskDetailPage() {
   const [loading, setLoading] = useState(true);
   const [editOpen, setEditOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [completing, setCompleting] = useState<string | null>(null);
   const [form, setForm] = useState<Partial<Task>>({});
   const [originalForm, setOriginalForm] = useState<Partial<Task>>({});
   const menuRef = useRef<HTMLDivElement>(null);
   const backdropRef = useRef<HTMLDivElement>(null);
+
+  async function fetchTasks() {
+    const res = await fetch("/api/tasks");
+    setTasks(await res.json());
+  }
 
   useEffect(() => {
     Promise.all([fetch("/api/tasks"), fetch("/api/vendors"), fetch("/api/categories")])
@@ -62,6 +51,13 @@ export default function TaskDetailPage() {
         setLoading(false);
       });
   }, []);
+
+  async function completeTask(id: string) {
+    setCompleting(id);
+    await fetch(`/api/tasks/${id}/complete`, { method: "POST" });
+    await fetchTasks();
+    setCompleting(null);
+  }
 
   useEffect(() => {
     function onPointerDown(e: PointerEvent) {
@@ -83,7 +79,7 @@ export default function TaskDetailPage() {
   const completed = series.filter((t) => t.status === "Completed");
   const upcoming = series.filter((t) => t.status !== "Completed").sort((a, b) => a.due_date.localeCompare(b.due_date));
 
-  const totalCost = series.reduce((s, t) => s + (t.estimated_cost ?? 0), 0);
+  const totalCost = completed.reduce((s, t) => s + (t.estimated_cost ?? 0), 0);
   const avgCost = completed.length > 0 ? completed.reduce((s, t) => s + (t.estimated_cost ?? 0), 0) / completed.length : 0;
 
   const canDelete = completed.length === 0;
@@ -186,12 +182,12 @@ export default function TaskDetailPage() {
                 <div className="text-2xl font-bold text-gray-900 dark:text-gray-100">{completed.length}</div>
               </div>
               <div>
-                <div className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-widest mb-2">Avg Cost</div>
+                <div className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-widest mb-2">Task Cost</div>
                 <div className="text-2xl font-bold text-gray-900 dark:text-gray-100">{fmt(avgCost)}</div>
               </div>
             </div>
             <div>
-              <div className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-widest mb-2">Total Cost</div>
+              <div className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-widest mb-2">Actuals {fiscalYearLabel()}</div>
               <div className="text-2xl font-bold text-gray-900 dark:text-gray-100">{fmt(totalCost)}</div>
             </div>
           </div>
@@ -278,20 +274,9 @@ export default function TaskDetailPage() {
         {upcoming.length > 0 && (
           <div className="mb-12">
             <h3 className="text-sm font-semibold uppercase tracking-widest text-gray-400 mb-6">Upcoming</h3>
-            <div className="space-y-4">
+            <div className="space-y-3">
               {upcoming.map((task) => (
-                <div key={task.id} className="flex items-start gap-6 py-4 border-b border-gray-100 dark:border-gray-800 last:border-0">
-                  <div className="w-20 shrink-0 text-center">
-                    <div className="text-2xl font-bold text-gray-900 dark:text-gray-100">{new Date(task.due_date + "T00:00:00").toLocaleDateString("en-AU", { day: "2-digit" })}</div>
-                    <div className="text-xs text-gray-400 dark:text-gray-500 font-semibold uppercase mt-1">{new Date(task.due_date + "T00:00:00").toLocaleDateString("en-AU", { month: "short" })}</div>
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-3 mb-2">
-                      <span className={`text-xs px-2 py-1 rounded font-medium ${STATUS_STYLES[task.status]}`}>{task.status}</span>
-                      {task.estimated_cost && <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">{fmt(task.estimated_cost)}</span>}
-                    </div>
-                  </div>
-                </div>
+                <TaskCard key={task.id} task={task} vendors={vendors} onComplete={completeTask} completing={completing} />
               ))}
             </div>
           </div>
@@ -300,19 +285,9 @@ export default function TaskDetailPage() {
         {completed.length > 0 && (
           <div className="mb-8">
             <h3 className="text-sm font-semibold uppercase tracking-widest text-gray-400 dark:text-gray-500 mb-6">Completion History</h3>
-            <div className="space-y-4">
+            <div className="space-y-3">
               {completed.map((task) => (
-                <div key={task.id} className="flex items-start gap-6 py-4 border-b border-gray-100 dark:border-gray-800 last:border-0">
-                  <div className="w-20 shrink-0">
-                    <div className="text-sm font-semibold text-gray-900 dark:text-gray-100">{task.last_completed_date}</div>
-                    <div className="text-xs text-gray-400 dark:text-gray-500 font-semibold uppercase mt-1">Completed</div>
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-3">
-                      {task.estimated_cost && <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">{fmt(task.estimated_cost)}</span>}
-                    </div>
-                  </div>
-                </div>
+                <TaskCard key={task.id} task={task} vendors={vendors} onComplete={completeTask} completing={completing} />
               ))}
             </div>
           </div>
