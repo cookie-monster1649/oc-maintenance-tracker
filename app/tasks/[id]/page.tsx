@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { TaskCard, Task, Vendor } from "../../components/TaskCard";
 import { getColorClasses } from "@/lib/colors";
@@ -57,22 +58,28 @@ export default function TaskDetailPage() {
     setTasks(data);
   }
 
+  async function fetchAll() {
+    const [tasksRes, vendorsRes, categoriesRes] = await Promise.all([
+      fetch("/api/tasks"), fetch("/api/vendors"), fetch("/api/categories"),
+    ]);
+    const [tasksData, vendorsData, categoriesData] = await Promise.all([
+      tasksRes.json(), vendorsRes.json(), categoriesRes.json(),
+    ]) as [Task[], Vendor[], CategoryColor[]];
+    setCached("/api/tasks", tasksData);
+    setCached("/api/vendors", vendorsData);
+    setCached("/api/categories", categoriesData);
+    setTasks(tasksData);
+    setVendors(vendorsData);
+    setCategories(categoriesData.map((c) => c.name));
+    setCategoryColors(categoriesData.reduce((acc: Record<string, string>, c: CategoryColor) => {
+      acc[c.name] = c.color;
+      return acc;
+    }, {}));
+  }
+
   useEffect(() => {
-    Promise.all([fetch("/api/tasks"), fetch("/api/vendors"), fetch("/api/categories")])
-      .then((res) => Promise.all(res.map((r) => r.json())))
-      .then((data) => {
-        const [tasksData, vendorsData, categoriesData] = data as [Task[], Vendor[], CategoryColor[]];
-        setCached("/api/tasks", tasksData);
-        setCached("/api/vendors", vendorsData);
-        setCached("/api/categories", categoriesData);
-        setTasks(tasksData);
-        setVendors(vendorsData);
-        setCategories(categoriesData.map((c) => c.name));
-        setCategoryColors(categoriesData.reduce((acc: Record<string, string>, c: CategoryColor) => {
-          acc[c.name] = c.color;
-          return acc;
-        }, {}));
-      });
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    fetchAll();
   }, []);
 
   async function completeTask(id: string) {
@@ -167,7 +174,7 @@ export default function TaskDetailPage() {
   return (
     <>
     <main className="animate-page max-w-4xl mx-auto px-4 py-8">
-      <a href="/" className="text-sm text-gray-400 hover:text-gray-600 mb-8 inline-block">← Back</a>
+      <Link href="/" className="text-sm text-gray-400 hover:text-gray-600 mb-8 inline-block">← Back</Link>
 
       <div className="mb-12">
         <div className="flex items-start justify-between gap-6 mb-8">

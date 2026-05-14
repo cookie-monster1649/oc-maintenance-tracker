@@ -1,12 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import { getColorClasses } from "@/lib/colors";
-
-interface CategoryColor {
-  name: string;
-  color: string;
-}
 
 export type Status = "Scheduled" | "In Progress" | "Completed" | "Overdue";
 export type Frequency = "Weekly" | "Bi-weekly" | "Monthly" | "Quarterly" | "Semi-Annually" | "Annually";

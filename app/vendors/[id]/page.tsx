@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { TaskCard, Task } from "../../components/TaskCard";
 import { getCached, setCached } from "@/lib/cache";
@@ -56,21 +57,27 @@ export default function VendorDetailPage() {
     setTasks(data);
   }
 
+  async function fetchAll() {
+    const [vendorsRes, tasksRes, categoriesRes] = await Promise.all([
+      fetch("/api/vendors"), fetch("/api/tasks"), fetch("/api/categories"),
+    ]);
+    const [vendorsData, tasksData, categoriesData] = await Promise.all([
+      vendorsRes.json(), tasksRes.json(), categoriesRes.json(),
+    ]) as [Vendor[], Task[], CategoryColor[]];
+    setCached("/api/vendors", vendorsData);
+    setCached("/api/tasks", tasksData);
+    setCached("/api/categories", categoriesData);
+    setVendors(vendorsData);
+    setTasks(tasksData);
+    setCategoryColors(categoriesData.reduce((acc: Record<string, string>, c: CategoryColor) => {
+      acc[c.name] = c.color;
+      return acc;
+    }, {}));
+  }
+
   useEffect(() => {
-    Promise.all([fetch("/api/vendors"), fetch("/api/tasks"), fetch("/api/categories")])
-      .then((res) => Promise.all(res.map((r) => r.json())))
-      .then((data) => {
-        const [vendorsData, tasksData, categoriesData] = data as [Vendor[], Task[], CategoryColor[]];
-        setCached("/api/vendors", vendorsData);
-        setCached("/api/tasks", tasksData);
-        setCached("/api/categories", categoriesData);
-        setVendors(vendorsData);
-        setTasks(tasksData);
-        setCategoryColors(categoriesData.reduce((acc: Record<string, string>, c: CategoryColor) => {
-          acc[c.name] = c.color;
-          return acc;
-        }, {}));
-      });
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    fetchAll();
   }, []);
 
   async function completeTask(id: string) {
@@ -161,9 +168,9 @@ export default function VendorDetailPage() {
   return (
     <>
     <main className="animate-page max-w-4xl mx-auto px-4 py-8">
-      <a href="/vendors" className="text-sm text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 mb-8 inline-block">
+      <Link href="/vendors" className="text-sm text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 mb-8 inline-block">
         ← Back
-      </a>
+      </Link>
 
       {/* Header */}
       <div className="mb-12">

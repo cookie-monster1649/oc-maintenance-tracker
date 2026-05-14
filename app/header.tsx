@@ -48,7 +48,7 @@ export default function Header() {
   const [newCategoryName, setNewCategoryName] = useState("");
   const [newCategoryColor, setNewCategoryColor] = useState<ColorName>("blue");
   const [loadingCategories, setLoadingCategories] = useState(false);
-  const [tasks, setTasks] = useState<any[]>([]);
+  const [tasks, setTasks] = useState<{ id: string; title: string; category: string }[]>([]);
   const [reassigningCategory, setReassigningCategory] = useState<string | null>(null);
   const [reassignTarget, setReassignTarget] = useState("");
   const [importing, setImporting] = useState(false);
@@ -204,6 +204,7 @@ export default function Header() {
   }
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setMounted(true);
     const stored = localStorage.getItem("theme") as Theme | null;
     const initial = stored ?? "system";
@@ -315,7 +316,7 @@ export default function Header() {
       </div>
 
       {reassigningCategory && mounted && (
-        <div className="animate-backdrop fixed inset-0 bg-black/50 flex items-center justify-center z-[60] p-4">
+        <div className="animate-backdrop fixed inset-0 bg-black/50 flex items-center justify-center z-60 p-4">
           <div className="bg-white dark:bg-gray-900 rounded-lg shadow-xl max-w-lg w-full max-h-[90vh] overflow-y-auto flex flex-col p-8">
             <h2 className="text-2xl font-bold mb-6 text-gray-900 dark:text-gray-100 shrink-0">Reassign Tasks</h2>
 

@@ -1,4 +1,4 @@
-import { readCategories, readCategoryColors, writeCategories, writeCategoryColors, colorOptions, ColorName, getCategoryColor } from "@/lib/categoryColors";
+import { readCategories, readCategoryColors, writeCategories, writeCategoryColors, colorOptions, ColorName } from "@/lib/categoryColors";
 import { NextRequest, NextResponse } from "next/server";
 
 export async function PUT(

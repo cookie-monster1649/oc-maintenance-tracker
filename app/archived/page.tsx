@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { getColorClasses } from "@/lib/colors";
 import { getCached, setCached } from "@/lib/cache";
 
@@ -37,7 +37,6 @@ function fmt(n: number): string {
 }
 
 export default function ArchivedPage() {
-  const router = useRouter();
   const [tasks, setTasks] = useState<Task[]>(
     () => (getCached<Task[]>("/api/tasks") ?? []).filter((t) => t.archived),
   );
@@ -75,6 +74,7 @@ export default function ArchivedPage() {
   }
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchAll();
   }, []);
 
@@ -104,9 +104,9 @@ export default function ArchivedPage() {
 
   return (
     <main className="animate-page max-w-4xl mx-auto px-4 py-8">
-      <a href="/" className="text-sm text-gray-400 hover:text-gray-600 mb-8 inline-block">
+      <Link href="/" className="text-sm text-gray-400 hover:text-gray-600 mb-8 inline-block">
         ← Back
-      </a>
+      </Link>
 
       <div className="mb-12">
         <h1 className="text-4xl font-bold mb-2">Archived Items</h1>

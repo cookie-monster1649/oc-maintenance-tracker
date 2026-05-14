@@ -49,7 +49,10 @@ export default function VendorsPage() {
     setTasks(tasksData);
   }
 
-  useEffect(() => { fetchVendors(); }, []);
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    fetchVendors();
+  }, []);
 
   function avgCostForVendor(vendorId: string): number | null {
     const vendorTasks = tasks.filter((t) => t.vendor_id === vendorId && t.estimated_cost != null);

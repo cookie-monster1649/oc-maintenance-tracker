@@ -105,6 +105,18 @@ function fmt(n: number): string {
 
 type EditingItem = { type: "task"; data: Task } | { type: "expense"; data: Expense } | null;
 
+interface EditFormData {
+  title?: string;
+  description?: string;
+  due_date?: string;
+  date_paid?: string;
+  frequency?: string;
+  estimated_cost?: number | string;
+  amount?: number | string;
+  category?: string;
+  vendor_id?: string;
+}
+
 export default function CostsPage() {
   const [tasks, setTasks] = useState<Task[]>(() => getCached<Task[]>("/api/tasks") ?? []);
   const [expenses, setExpenses] = useState<Expense[]>(() => getCached<Expense[]>("/api/expenses") ?? []);
@@ -130,7 +142,7 @@ export default function CostsPage() {
   const [editingItem, setEditingItem] = useState<EditingItem>(null);
   const editBackdropRef = useRef<HTMLDivElement>(null);
   const addBackdropRef = useRef<HTMLDivElement>(null);
-  const [editForm, setEditForm] = useState<any>({});
+  const [editForm, setEditForm] = useState<EditFormData>({});
   const [formData, setFormData] = useState({
     date_paid: new Date().toISOString().split("T")[0],
     amount: "",
@@ -205,17 +217,6 @@ export default function CostsPage() {
     }
   };
 
-  const handleDeleteExpense = async (id: string) => {
-    try {
-      const response = await fetch(`/api/expenses/${id}`, { method: "DELETE" });
-      if (response.ok) {
-        setExpenses(expenses.filter((e) => e.id !== id));
-      }
-    } catch (error) {
-      console.error("Failed to delete expense:", error);
-    }
-  };
-
   const openEdit = (item: LineItem) => {
     if (item.type === "task") {
       const task = tasks.find((t) => t.id === item.id)!;
@@ -261,7 +262,7 @@ export default function CostsPage() {
             description: editForm.description,
             due_date: editForm.due_date,
             frequency: editForm.frequency,
-            estimated_cost: editForm.estimated_cost ? parseFloat(editForm.estimated_cost) : null,
+            estimated_cost: editForm.estimated_cost ? parseFloat(String(editForm.estimated_cost)) : null,
             category: editForm.category,
             vendor_id: editForm.vendor_id || null,
           }),
@@ -279,7 +280,7 @@ export default function CostsPage() {
               description: editForm.description,
               due_date: editForm.date_paid,
               frequency: editForm.frequency,
-              estimated_cost: parseFloat(editForm.amount),
+              estimated_cost: parseFloat(String(editForm.amount ?? 0)),
               category: editForm.category,
               vendor_id: editForm.vendor_id || null,
               status: "Completed",
@@ -293,7 +294,7 @@ export default function CostsPage() {
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
               date_paid: editForm.date_paid,
-              amount: parseFloat(editForm.amount),
+              amount: parseFloat(String(editForm.amount ?? 0)),
               category: editForm.category,
               vendor_id: editForm.vendor_id || null,
               description: editForm.description,
@@ -615,20 +616,20 @@ export default function CostsPage() {
               <>
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Title</label>
-                  <input value={editForm.title ?? ""} onChange={(e) => setEditForm((f: any) => ({ ...f, title: e.target.value }))} className="w-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 rounded-md px-3 py-2 text-sm text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-gray-400" />
+                  <input value={editForm.title ?? ""} onChange={(e) => setEditForm((f) => ({ ...f, title: e.target.value }))} className="w-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 rounded-md px-3 py-2 text-sm text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-gray-400" />
                 </div>
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Description</label>
-                  <textarea value={editForm.description ?? ""} onChange={(e) => setEditForm((f: any) => ({ ...f, description: e.target.value }))} rows={2} className="w-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 rounded-md px-3 py-2 text-sm text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-gray-400" />
+                  <textarea value={editForm.description ?? ""} onChange={(e) => setEditForm((f) => ({ ...f, description: e.target.value }))} rows={2} className="w-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 rounded-md px-3 py-2 text-sm text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-gray-400" />
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Due date</label>
-                    <input type="date" value={editForm.due_date ?? ""} onChange={(e) => setEditForm((f: any) => ({ ...f, due_date: e.target.value }))} className="w-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 rounded-md px-3 py-2 text-sm text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-gray-400" />
+                    <input type="date" value={editForm.due_date ?? ""} onChange={(e) => setEditForm((f) => ({ ...f, due_date: e.target.value }))} className="w-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 rounded-md px-3 py-2 text-sm text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-gray-400" />
                   </div>
                   <div>
                     <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Frequency</label>
-                    <select value={editForm.frequency ?? ""} onChange={(e) => setEditForm((f: any) => ({ ...f, frequency: e.target.value }))} className="w-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 rounded-md px-3 py-2 text-sm text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-gray-400">
+                    <select value={editForm.frequency ?? ""} onChange={(e) => setEditForm((f) => ({ ...f, frequency: e.target.value }))} className="w-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 rounded-md px-3 py-2 text-sm text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-gray-400">
                       {["Weekly", "Bi-weekly", "Monthly", "Quarterly", "Semi-Annually", "Annually"].map((f) => <option key={f}>{f}</option>)}
                     </select>
                   </div>
@@ -636,18 +637,18 @@ export default function CostsPage() {
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Category</label>
-                    <select value={editForm.category ?? ""} onChange={(e) => setEditForm((f: any) => ({ ...f, category: e.target.value }))} className="w-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 rounded-md px-3 py-2 text-sm text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-gray-400">
+                    <select value={editForm.category ?? ""} onChange={(e) => setEditForm((f) => ({ ...f, category: e.target.value }))} className="w-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 rounded-md px-3 py-2 text-sm text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-gray-400">
                       {categories.map((c) => <option key={c}>{c}</option>)}
                     </select>
                   </div>
                   <div>
                     <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Est. cost</label>
-                    <input type="number" value={editForm.estimated_cost ?? ""} onChange={(e) => setEditForm((f: any) => ({ ...f, estimated_cost: e.target.value }))} className="w-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 rounded-md px-3 py-2 text-sm text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-gray-400" />
+                    <input type="number" value={editForm.estimated_cost ?? ""} onChange={(e) => setEditForm((f) => ({ ...f, estimated_cost: e.target.value }))} className="w-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 rounded-md px-3 py-2 text-sm text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-gray-400" />
                   </div>
                 </div>
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Vendor</label>
-                  <select value={editForm.vendor_id ?? ""} onChange={(e) => setEditForm((f: any) => ({ ...f, vendor_id: e.target.value }))} className="w-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 rounded-md px-3 py-2 text-sm text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-gray-400">
+                  <select value={editForm.vendor_id ?? ""} onChange={(e) => setEditForm((f) => ({ ...f, vendor_id: e.target.value }))} className="w-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 rounded-md px-3 py-2 text-sm text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-gray-400">
                     <option value="">None</option>
                     {vendors.map((v) => <option key={v.id} value={v.id}>{v.name}</option>)}
                   </select>
@@ -657,28 +658,28 @@ export default function CostsPage() {
               <>
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Description</label>
-                  <input value={editForm.description ?? ""} onChange={(e) => setEditForm((f: any) => ({ ...f, description: e.target.value }))} className="w-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 rounded-md px-3 py-2 text-sm text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-gray-400" />
+                  <input value={editForm.description ?? ""} onChange={(e) => setEditForm((f) => ({ ...f, description: e.target.value }))} className="w-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 rounded-md px-3 py-2 text-sm text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-gray-400" />
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Date paid</label>
-                    <input type="date" value={editForm.date_paid ?? ""} onChange={(e) => setEditForm((f: any) => ({ ...f, date_paid: e.target.value }))} className="w-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 rounded-md px-3 py-2 text-sm text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-gray-400" />
+                    <input type="date" value={editForm.date_paid ?? ""} onChange={(e) => setEditForm((f) => ({ ...f, date_paid: e.target.value }))} className="w-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 rounded-md px-3 py-2 text-sm text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-gray-400" />
                   </div>
                   <div>
                     <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Amount</label>
-                    <input type="number" step="0.01" value={editForm.amount ?? ""} onChange={(e) => setEditForm((f: any) => ({ ...f, amount: e.target.value }))} className="w-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 rounded-md px-3 py-2 text-sm text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-gray-400" />
+                    <input type="number" step="0.01" value={editForm.amount ?? ""} onChange={(e) => setEditForm((f) => ({ ...f, amount: e.target.value }))} className="w-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 rounded-md px-3 py-2 text-sm text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-gray-400" />
                   </div>
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Category</label>
-                    <select value={editForm.category ?? ""} onChange={(e) => setEditForm((f: any) => ({ ...f, category: e.target.value }))} className="w-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 rounded-md px-3 py-2 text-sm text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-gray-400">
+                    <select value={editForm.category ?? ""} onChange={(e) => setEditForm((f) => ({ ...f, category: e.target.value }))} className="w-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 rounded-md px-3 py-2 text-sm text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-gray-400">
                       {categories.map((c) => <option key={c}>{c}</option>)}
                     </select>
                   </div>
                   <div>
                     <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Vendor</label>
-                    <select value={editForm.vendor_id ?? ""} onChange={(e) => setEditForm((f: any) => ({ ...f, vendor_id: e.target.value }))} className="w-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 rounded-md px-3 py-2 text-sm text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-gray-400">
+                    <select value={editForm.vendor_id ?? ""} onChange={(e) => setEditForm((f) => ({ ...f, vendor_id: e.target.value }))} className="w-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 rounded-md px-3 py-2 text-sm text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-gray-400">
                       <option value="">None</option>
                       {vendors.map((v) => <option key={v.id} value={v.id}>{v.name}</option>)}
                     </select>
@@ -686,7 +687,7 @@ export default function CostsPage() {
                 </div>
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Convert to recurring task</label>
-                  <select value={editForm.frequency ?? ""} onChange={(e) => setEditForm((f: any) => ({ ...f, frequency: e.target.value }))} className="w-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 rounded-md px-3 py-2 text-sm text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-gray-400">
+                  <select value={editForm.frequency ?? ""} onChange={(e) => setEditForm((f) => ({ ...f, frequency: e.target.value }))} className="w-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 rounded-md px-3 py-2 text-sm text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-gray-400">
                     <option value="">Keep as one-off expense</option>
                     {["Weekly", "Bi-weekly", "Monthly", "Quarterly", "Semi-Annually", "Annually"].map((f) => <option key={f} value={f}>{f}</option>)}
                   </select>
