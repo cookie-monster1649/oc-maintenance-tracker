@@ -51,7 +51,56 @@ export default function Header() {
   const [tasks, setTasks] = useState<any[]>([]);
   const [reassigningCategory, setReassigningCategory] = useState<string | null>(null);
   const [reassignTarget, setReassignTarget] = useState("");
+  const [importing, setImporting] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+  const importInputRef = useRef<HTMLInputElement>(null);
+
+  async function handleExport() {
+    const res = await fetch("/api/data");
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `oc-maintenance-backup-${new Date().toISOString().slice(0, 10)}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    setOpen(false);
+  }
+
+  async function handleImportFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    e.target.value = "";
+
+    let data: unknown;
+    try {
+      data = JSON.parse(await file.text());
+    } catch {
+      alert("Could not parse file. Make sure it's a valid JSON export.");
+      return;
+    }
+
+    if (!confirm("This will replace all current data. Are you sure?")) return;
+
+    setImporting(true);
+    try {
+      const res = await fetch("/api/data", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      });
+      if (!res.ok) {
+        const { error } = await res.json();
+        alert(`Import failed: ${error}`);
+        return;
+      }
+      window.location.reload();
+    } catch {
+      alert("Import failed. Check the console for details.");
+    } finally {
+      setImporting(false);
+    }
+  }
 
   async function loadCategories() {
     try {
@@ -238,6 +287,19 @@ export default function Header() {
               >
                 Categories
               </button>
+              <button
+                onClick={handleExport}
+                className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors border-b border-gray-100 dark:border-gray-800"
+              >
+                Export data
+              </button>
+              <button
+                onClick={() => { setOpen(false); importInputRef.current?.click(); }}
+                disabled={importing}
+                className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors border-b border-gray-100 dark:border-gray-800 disabled:opacity-50"
+              >
+                {importing ? "Importing…" : "Import data"}
+              </button>
               <Link
                 href="/archived"
                 onClick={() => setOpen(false)}
@@ -405,6 +467,13 @@ export default function Header() {
           </div>
         </div>
       )}
+      <input
+        ref={importInputRef}
+        type="file"
+        accept="application/json,.json"
+        className="hidden"
+        onChange={handleImportFile}
+      />
     </header>
   );
 }
