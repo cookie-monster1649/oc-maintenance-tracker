@@ -53,6 +53,10 @@ export function readTasks(): Task[] {
 }
 
 export function writeTasks(tasks: Task[]): void {
+  const dir = path.dirname(DATA_PATH);
+  if (!fs.existsSync(dir)) {
+    fs.mkdirSync(dir, { recursive: true });
+  }
   fs.writeFileSync(DATA_PATH, JSON.stringify(tasks, null, 2));
 }
 

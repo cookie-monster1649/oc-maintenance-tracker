@@ -1,4 +1,4 @@
-import { readFileSync, writeFileSync } from "fs";
+import { readFileSync, writeFileSync, existsSync, mkdirSync } from "fs";
 import { join } from "path";
 
 const dataDir = join(process.cwd(), "data");
@@ -39,10 +39,16 @@ export function readCategoryColors(): Record<string, ColorName> {
 }
 
 export function writeCategories(categories: string[]): void {
+  if (!existsSync(dataDir)) {
+    mkdirSync(dataDir, { recursive: true });
+  }
   writeFileSync(categoriesFile, JSON.stringify(categories, null, 2));
 }
 
 export function writeCategoryColors(colors: Record<string, ColorName>): void {
+  if (!existsSync(dataDir)) {
+    mkdirSync(dataDir, { recursive: true });
+  }
   writeFileSync(colorsFile, JSON.stringify(colors, null, 2));
 }
 

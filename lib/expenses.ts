@@ -22,6 +22,10 @@ export function readExpenses(): Expense[] {
 }
 
 export function writeExpenses(expenses: Expense[]): void {
+  const dir = path.dirname(DATA_PATH);
+  if (!fs.existsSync(dir)) {
+    fs.mkdirSync(dir, { recursive: true });
+  }
   fs.writeFileSync(DATA_PATH, JSON.stringify(expenses, null, 2));
 }
 

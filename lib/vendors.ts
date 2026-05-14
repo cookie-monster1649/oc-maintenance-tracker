@@ -24,5 +24,9 @@ export function readVendors(): Vendor[] {
 }
 
 export function writeVendors(vendors: Vendor[]): void {
+  const dir = path.dirname(DATA_PATH);
+  if (!fs.existsSync(dir)) {
+    fs.mkdirSync(dir, { recursive: true });
+  }
   fs.writeFileSync(DATA_PATH, JSON.stringify(vendors, null, 2));
 }

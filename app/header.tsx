@@ -287,19 +287,21 @@ export default function Header() {
               >
                 Categories
               </button>
-              <button
-                onClick={handleExport}
-                className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors border-b border-gray-100 dark:border-gray-800"
-              >
-                Export data
-              </button>
-              <button
-                onClick={() => { setOpen(false); importInputRef.current?.click(); }}
-                disabled={importing}
-                className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors border-b border-gray-100 dark:border-gray-800 disabled:opacity-50"
-              >
-                {importing ? "Importing…" : "Import data"}
-              </button>
+              <div className="flex gap-0 border-b border-gray-100 dark:border-gray-800">
+                <button
+                  onClick={handleExport}
+                  className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors border-r border-gray-100 dark:border-gray-800"
+                >
+                  Export data
+                </button>
+                <button
+                  onClick={() => { setOpen(false); importInputRef.current?.click(); }}
+                  disabled={importing}
+                  className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors disabled:opacity-50"
+                >
+                  {importing ? "Importing…" : "Import data"}
+                </button>
+              </div>
               <Link
                 href="/archived"
                 onClick={() => setOpen(false)}
