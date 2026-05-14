@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { TaskCard, Task, Vendor } from "../../components/TaskCard";
 import { getColorClasses } from "@/lib/colors";
+import { getCached, setCached } from "@/lib/cache";
 
 type Frequency = "Weekly" | "Bi-weekly" | "Monthly" | "Quarterly" | "Semi-Annually" | "Annually";
 const FREQUENCIES: Frequency[] = ["Weekly", "Bi-weekly", "Monthly", "Quarterly", "Semi-Annually", "Annually"];
@@ -30,11 +31,17 @@ export default function TaskDetailPage() {
   const router = useRouter();
   const taskId = params.id as string;
 
-  const [tasks, setTasks] = useState<Task[]>([]);
-  const [vendors, setVendors] = useState<Vendor[]>([]);
-  const [categories, setCategories] = useState<string[]>([]);
-  const [categoryColors, setCategoryColors] = useState<Record<string, string>>({});
-  const [loading, setLoading] = useState(true);
+  const [tasks, setTasks] = useState<Task[]>(() => getCached<Task[]>("/api/tasks") ?? []);
+  const [vendors, setVendors] = useState<Vendor[]>(() => getCached<Vendor[]>("/api/vendors") ?? []);
+  const [categories, setCategories] = useState<string[]>(
+    () => (getCached<CategoryColor[]>("/api/categories") ?? []).map((c) => c.name),
+  );
+  const [categoryColors, setCategoryColors] = useState<Record<string, string>>(
+    () => (getCached<CategoryColor[]>("/api/categories") ?? []).reduce(
+      (acc: Record<string, string>, c) => { acc[c.name] = c.color; return acc; },
+      {},
+    ),
+  );
   const [editOpen, setEditOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [completing, setCompleting] = useState<string | null>(null);
@@ -45,7 +52,9 @@ export default function TaskDetailPage() {
 
   async function fetchTasks() {
     const res = await fetch("/api/tasks");
-    setTasks(await res.json());
+    const data = await res.json();
+    setCached("/api/tasks", data);
+    setTasks(data);
   }
 
   useEffect(() => {
@@ -53,16 +62,16 @@ export default function TaskDetailPage() {
       .then((res) => Promise.all(res.map((r) => r.json())))
       .then((data) => {
         const [tasksData, vendorsData, categoriesData] = data as [Task[], Vendor[], CategoryColor[]];
+        setCached("/api/tasks", tasksData);
+        setCached("/api/vendors", vendorsData);
+        setCached("/api/categories", categoriesData);
         setTasks(tasksData);
         setVendors(vendorsData);
-        const categoryNames = categoriesData.map((c) => c.name);
-        setCategories(categoryNames);
-        const colorMap = categoriesData.reduce((acc: Record<string, string>, c: CategoryColor) => {
+        setCategories(categoriesData.map((c) => c.name));
+        setCategoryColors(categoriesData.reduce((acc: Record<string, string>, c: CategoryColor) => {
           acc[c.name] = c.color;
           return acc;
-        }, {});
-        setCategoryColors(colorMap);
-        setLoading(false);
+        }, {}));
       });
   }, []);
 
@@ -83,10 +92,14 @@ export default function TaskDetailPage() {
     return () => document.removeEventListener("pointerdown", onPointerDown);
   }, []);
 
-  if (loading) return <main className="max-w-3xl mx-auto px-4 py-10"><p className="text-gray-400">Loading…</p></main>;
-
   const currentTask = tasks.find((t) => t.id === taskId);
-  if (!currentTask) return <main className="max-w-3xl mx-auto px-4 py-10"><p className="text-gray-400">Task not found</p></main>;
+  if (!currentTask) {
+    return (
+      <main className="max-w-3xl mx-auto px-4 py-10">
+        <p className="text-gray-400">{tasks.length === 0 ? "Loading…" : "Task not found"}</p>
+      </main>
+    );
+  }
 
   const series = tasks.filter((t) => t.title === currentTask.title).sort((a, b) => a.due_date.localeCompare(b.due_date));
   const vendor = vendors.find((v) => v.id === currentTask.vendor_id);
@@ -130,7 +143,9 @@ export default function TaskDetailPage() {
     });
     setEditOpen(false);
     const res = await fetch("/api/tasks");
-    setTasks(await res.json());
+    const data = await res.json();
+    setCached("/api/tasks", data);
+    setTasks(data);
   };
 
   const handleArchive = async () => {
@@ -150,7 +165,8 @@ export default function TaskDetailPage() {
   };
 
   return (
-    <main className="max-w-4xl mx-auto px-4 py-8">
+    <>
+    <main className="animate-page max-w-4xl mx-auto px-4 py-8">
       <a href="/" className="text-sm text-gray-400 hover:text-gray-600 mb-8 inline-block">← Back</a>
 
       <div className="mb-12">
@@ -238,59 +254,6 @@ export default function TaskDetailPage() {
 
       </div>
 
-      {editOpen && (
-        <div ref={backdropRef} className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={(e) => { if (e.target === backdropRef.current) closeEdit(); }}>
-          <div className="bg-white dark:bg-gray-900 rounded-lg shadow-xl max-w-lg w-full max-h-[90vh] overflow-y-auto flex flex-col p-8">
-            <h2 className="text-2xl font-bold mb-8 text-gray-900 dark:text-gray-100 shrink-0">Edit Task</h2>
-            <div className="space-y-5 flex-1 overflow-y-auto">
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Title</label>
-                <input value={form.title ?? ""} onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))} className="w-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 rounded-md px-3 py-2 text-sm text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-gray-400" />
-              </div>
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Description</label>
-                <textarea value={form.description ?? ""} onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))} rows={3} className="w-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 rounded-md px-3 py-2 text-sm text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-gray-400" />
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Due Date</label>
-                  <input type="date" value={form.due_date ?? ""} onChange={(e) => setForm((f) => ({ ...f, due_date: e.target.value }))} className="w-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 rounded-md px-3 py-2 text-sm text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-gray-400" />
-                </div>
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Frequency</label>
-                  <select value={form.frequency ?? ""} onChange={(e) => setForm((f) => ({ ...f, frequency: e.target.value as Frequency }))} className="w-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 rounded-md px-3 py-2 text-sm text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-gray-400">
-                    {FREQUENCIES.map((f) => <option key={f}>{f}</option>)}
-                  </select>
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Category</label>
-                  <select value={form.category ?? ""} onChange={(e) => setForm((f) => ({ ...f, category: e.target.value }))} className="w-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 rounded-md px-3 py-2 text-sm text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-gray-400">
-                    {categories.map((c) => <option key={c}>{c}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Est. Cost</label>
-                  <input type="number" value={form.estimated_cost ?? ""} onChange={(e) => setForm((f) => ({ ...f, estimated_cost: e.target.value ? Number(e.target.value) : null }))} className="w-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 rounded-md px-3 py-2 text-sm text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-gray-400" />
-                </div>
-              </div>
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Vendor</label>
-                <select value={form.vendor_id ?? ""} onChange={(e) => setForm((f) => ({ ...f, vendor_id: e.target.value || null }))} className="w-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 rounded-md px-3 py-2 text-sm text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-gray-400">
-                  <option value="">None</option>
-                  {vendors.map((v) => <option key={v.id} value={v.id}>{v.name}</option>)}
-                </select>
-              </div>
-            </div>
-            <div className="flex gap-3 mt-8 pt-6 border-t border-gray-100 dark:border-gray-800 shrink-0">
-              <button onClick={saveEdit} className="flex-1 text-sm px-4 py-2 rounded-md bg-gray-900 dark:bg-gray-700 text-white hover:bg-gray-700 dark:hover:bg-gray-600 transition-colors font-medium">Save</button>
-              <button onClick={closeEdit} className="flex-1 text-sm px-4 py-2 rounded-md border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors font-medium">Cancel</button>
-            </div>
-          </div>
-        </div>
-      )}
-
       <section>
         {upcoming.length > 0 && (
           <div className="mb-12">
@@ -315,5 +278,59 @@ export default function TaskDetailPage() {
         )}
       </section>
     </main>
+
+    {editOpen && (
+      <div ref={backdropRef} className="animate-backdrop fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={(e) => { if (e.target === backdropRef.current) closeEdit(); }}>
+        <div className="animate-modal bg-white dark:bg-gray-900 rounded-lg shadow-xl max-w-lg w-full max-h-[90vh] overflow-y-auto flex flex-col p-8">
+          <h2 className="text-2xl font-bold mb-8 text-gray-900 dark:text-gray-100 shrink-0">Edit Task</h2>
+          <div className="space-y-5 flex-1 overflow-y-auto">
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Title</label>
+              <input value={form.title ?? ""} onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))} className="w-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 rounded-md px-3 py-2 text-sm text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-gray-400" />
+            </div>
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Description</label>
+              <textarea value={form.description ?? ""} onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))} rows={3} className="w-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 rounded-md px-3 py-2 text-sm text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-gray-400" />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Due Date</label>
+                <input type="date" value={form.due_date ?? ""} onChange={(e) => setForm((f) => ({ ...f, due_date: e.target.value }))} className="w-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 rounded-md px-3 py-2 text-sm text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-gray-400" />
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Frequency</label>
+                <select value={form.frequency ?? ""} onChange={(e) => setForm((f) => ({ ...f, frequency: e.target.value as Frequency }))} className="w-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 rounded-md px-3 py-2 text-sm text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-gray-400">
+                  {FREQUENCIES.map((f) => <option key={f}>{f}</option>)}
+                </select>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Category</label>
+                <select value={form.category ?? ""} onChange={(e) => setForm((f) => ({ ...f, category: e.target.value }))} className="w-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 rounded-md px-3 py-2 text-sm text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-gray-400">
+                  {categories.map((c) => <option key={c}>{c}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Est. Cost</label>
+                <input type="number" value={form.estimated_cost ?? ""} onChange={(e) => setForm((f) => ({ ...f, estimated_cost: e.target.value ? Number(e.target.value) : null }))} className="w-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 rounded-md px-3 py-2 text-sm text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-gray-400" />
+              </div>
+            </div>
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Vendor</label>
+              <select value={form.vendor_id ?? ""} onChange={(e) => setForm((f) => ({ ...f, vendor_id: e.target.value || null }))} className="w-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 rounded-md px-3 py-2 text-sm text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-gray-400">
+                <option value="">None</option>
+                {vendors.map((v) => <option key={v.id} value={v.id}>{v.name}</option>)}
+              </select>
+            </div>
+          </div>
+          <div className="flex gap-3 mt-8 pt-6 border-t border-gray-100 dark:border-gray-800 shrink-0">
+            <button onClick={saveEdit} className="flex-1 text-sm px-4 py-2 rounded-md bg-gray-900 dark:bg-gray-700 text-white hover:bg-gray-700 dark:hover:bg-gray-600 transition-colors font-medium">Save</button>
+            <button onClick={closeEdit} className="flex-1 text-sm px-4 py-2 rounded-md border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors font-medium">Cancel</button>
+          </div>
+        </div>
+      </div>
+    )}
+    </>
   );
 }

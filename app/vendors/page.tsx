@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { getCached, setCached } from "@/lib/cache";
 
 interface Vendor {
   id: string;
@@ -9,26 +10,30 @@ interface Vendor {
   email: string | null;
   phone: string | null;
   address: string | null;
-  hourly_rate: number | null;
   notes: string | null;
   archived?: boolean;
 }
 
-const EMPTY: Omit<Vendor, "id"> = {
+interface Task {
+  id: string;
+  vendor_id: string | null;
+  estimated_cost: number | null;
+}
+
+const EMPTY = {
   name: "",
   service_type: "",
   email: "",
   phone: "",
   address: "",
-  hourly_rate: null,
   notes: "",
 };
 
 const INPUT = "w-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 rounded-md px-3 py-2 text-sm text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-gray-400 dark:focus:ring-gray-600";
 
 export default function VendorsPage() {
-  const [vendors, setVendors] = useState<Vendor[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [vendors, setVendors] = useState<Vendor[]>(() => getCached<Vendor[]>("/api/vendors") ?? []);
+  const [tasks, setTasks] = useState<Task[]>(() => getCached<Task[]>("/api/tasks") ?? []);
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<Vendor | null>(null);
   const [form, setForm] = useState(EMPTY);
@@ -36,11 +41,21 @@ export default function VendorsPage() {
   const backdropRef = useRef<HTMLDivElement>(null);
 
   async function fetchVendors() {
-    const res = await fetch("/api/vendors");
-    setVendors(await res.json());
+    const [vendorsRes, tasksRes] = await Promise.all([fetch("/api/vendors"), fetch("/api/tasks")]);
+    const [vendorsData, tasksData] = await Promise.all([vendorsRes.json(), tasksRes.json()]);
+    setCached("/api/vendors", vendorsData);
+    setCached("/api/tasks", tasksData);
+    setVendors(vendorsData);
+    setTasks(tasksData);
   }
 
-  useEffect(() => { fetchVendors().then(() => setLoading(false)); }, []);
+  useEffect(() => { fetchVendors(); }, []);
+
+  function avgCostForVendor(vendorId: string): number | null {
+    const vendorTasks = tasks.filter((t) => t.vendor_id === vendorId && t.estimated_cost != null);
+    if (vendorTasks.length === 0) return null;
+    return vendorTasks.reduce((s, t) => s + t.estimated_cost!, 0) / vendorTasks.length;
+  }
 
   function openAdd() {
     setForm(EMPTY);
@@ -50,7 +65,7 @@ export default function VendorsPage() {
   }
 
   function openEdit(v: Vendor) {
-    const initial = { name: v.name, service_type: v.service_type, email: v.email ?? "", phone: v.phone ?? "", address: v.address ?? "", hourly_rate: v.hourly_rate, notes: v.notes ?? "", archived: v.archived };
+    const initial = { name: v.name, service_type: v.service_type, email: v.email ?? "", phone: v.phone ?? "", address: v.address ?? "", notes: v.notes ?? "", archived: v.archived };
     setForm(initial);
     setOriginalForm(initial);
     setEditing(v);
@@ -65,7 +80,7 @@ export default function VendorsPage() {
   }
 
   async function save() {
-    const body = { ...form, hourly_rate: form.hourly_rate ? Number(form.hourly_rate) : null };
+    const body = { ...form };
     if (editing) {
       await fetch(`/api/vendors/${editing.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
     } else {
@@ -85,7 +100,8 @@ export default function VendorsPage() {
   const active = vendors.filter((v) => !v.archived);
 
   return (
-    <main className="max-w-4xl mx-auto px-4 py-8">
+    <>
+    <main className="animate-page max-w-4xl mx-auto px-4 py-8">
       <div className="flex items-start justify-between mb-10">
         <div>
           <h1 className="text-4xl font-bold mb-2 text-gray-900 dark:text-gray-100">Vendors</h1>
@@ -99,9 +115,7 @@ export default function VendorsPage() {
         </button>
       </div>
 
-      {loading ? (
-        <p className="text-gray-400">Loading…</p>
-      ) : active.length === 0 ? (
+      {active.length === 0 ? (
         <p className="text-sm text-gray-400 dark:text-gray-500">No vendors yet.</p>
       ) : (
         <div className="space-y-0">
@@ -122,7 +136,7 @@ export default function VendorsPage() {
                 <div className="flex flex-wrap gap-4 text-xs text-gray-400 dark:text-gray-500">
                   {v.phone && <span>{v.phone}</span>}
                   {v.email && <span>{v.email}</span>}
-                  {v.hourly_rate && <span>${v.hourly_rate}/hr</span>}
+                  {(() => { const avg = avgCostForVendor(v.id); return avg != null ? <span>Avg. ${Math.round(avg)}/task</span> : null; })()}
                   {v.address && <span>{v.address}</span>}
                 </div>
                 {v.notes && <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">{v.notes}</p>}
@@ -146,48 +160,44 @@ export default function VendorsPage() {
         </div>
       )}
 
+    </main>
+
       {modalOpen && (
         <div
           ref={backdropRef}
-          className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
+          className="animate-backdrop fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
           onClick={(e) => { if (e.target === backdropRef.current) closeModal(); }}
         >
-          <div className="bg-white dark:bg-gray-900 rounded-lg shadow-xl max-w-lg w-full max-h-[90vh] overflow-y-auto flex flex-col p-8">
+          <div className="animate-modal bg-white dark:bg-gray-900 rounded-lg shadow-xl max-w-lg w-full max-h-[90vh] overflow-y-auto flex flex-col p-8">
             <h2 className="text-2xl font-bold mb-8 text-gray-900 dark:text-gray-100 shrink-0">
               {editing ? "Edit Vendor" : "New Vendor"}
             </h2>
             <div className="space-y-5 flex-1">
               <div>
                 <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Name</label>
-                <input value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} className={INPUT} />
+                <input placeholder="e.g. ABC Plumbing" value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} className={INPUT} />
               </div>
               <div>
                 <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Service type</label>
-                <input value={form.service_type} onChange={(e) => setForm((f) => ({ ...f, service_type: e.target.value }))} className={INPUT} />
+                <input placeholder="e.g. Plumbing, Electrical, Landscaping" value={form.service_type} onChange={(e) => setForm((f) => ({ ...f, service_type: e.target.value }))} className={INPUT} />
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Phone</label>
-                  <input value={form.phone ?? ""} onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))} className={INPUT} />
+                  <input placeholder="0412 345 678" value={form.phone ?? ""} onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))} className={INPUT} />
                 </div>
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Email</label>
-                  <input type="email" value={form.email ?? ""} onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} className={INPUT} />
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Address</label>
-                  <input value={form.address ?? ""} onChange={(e) => setForm((f) => ({ ...f, address: e.target.value }))} className={INPUT} />
-                </div>
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Hourly rate</label>
-                  <input type="number" value={form.hourly_rate ?? ""} onChange={(e) => setForm((f) => ({ ...f, hourly_rate: e.target.value ? Number(e.target.value) : null }))} className={INPUT} />
+                  <input type="email" placeholder="contact@example.com.au" value={form.email ?? ""} onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} className={INPUT} />
                 </div>
               </div>
               <div>
+                <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Address</label>
+                <input placeholder="123 Collins St, Melbourne VIC 3000" value={form.address ?? ""} onChange={(e) => setForm((f) => ({ ...f, address: e.target.value }))} className={INPUT} />
+              </div>
+              <div>
                 <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Notes</label>
-                <textarea value={form.notes ?? ""} onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))} rows={3} className={INPUT} />
+                <textarea placeholder="Preferred contact times, parking notes, etc." value={form.notes ?? ""} onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))} rows={3} className={INPUT} />
               </div>
             </div>
             <div className="flex gap-3 mt-8 pt-6 border-t border-gray-100 dark:border-gray-800 shrink-0">
@@ -208,6 +218,6 @@ export default function VendorsPage() {
           </div>
         </div>
       )}
-    </main>
+    </>
   );
 }

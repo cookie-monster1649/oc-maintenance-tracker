@@ -257,7 +257,7 @@ export default function Header() {
           </button>
 
           {open && mounted && (
-            <div className="absolute right-0 mt-2 w-56 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-lg shadow-xl z-50">
+            <div className="animate-dropdown absolute right-0 mt-2 w-56 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-lg shadow-xl z-50">
               <div className="px-4 pt-4 pb-3 border-b border-gray-100 dark:border-gray-800">
                 <p className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-widest mb-3">
                   Theme
@@ -315,7 +315,7 @@ export default function Header() {
       </div>
 
       {reassigningCategory && mounted && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60] p-4">
+        <div className="animate-backdrop fixed inset-0 bg-black/50 flex items-center justify-center z-[60] p-4">
           <div className="bg-white dark:bg-gray-900 rounded-lg shadow-xl max-w-lg w-full max-h-[90vh] overflow-y-auto flex flex-col p-8">
             <h2 className="text-2xl font-bold mb-6 text-gray-900 dark:text-gray-100 shrink-0">Reassign Tasks</h2>
 
@@ -377,7 +377,7 @@ export default function Header() {
       )}
 
       {categoriesOpen && mounted && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+        <div className="animate-backdrop fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white dark:bg-gray-900 rounded-lg shadow-xl max-w-lg w-full max-h-[90vh] overflow-y-auto flex flex-col p-8">
             <h2 className="text-2xl font-bold mb-6 text-gray-900 dark:text-gray-100 shrink-0">Categories</h2>
 

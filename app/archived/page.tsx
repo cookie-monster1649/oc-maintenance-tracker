@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { getColorClasses } from "@/lib/colors";
+import { getCached, setCached } from "@/lib/cache";
 
 interface CategoryColor {
   name: string;
@@ -37,10 +38,18 @@ function fmt(n: number): string {
 
 export default function ArchivedPage() {
   const router = useRouter();
-  const [tasks, setTasks] = useState<Task[]>([]);
-  const [vendors, setVendors] = useState<Vendor[]>([]);
-  const [categoryColors, setCategoryColors] = useState<Record<string, string>>({});
-  const [loading, setLoading] = useState(true);
+  const [tasks, setTasks] = useState<Task[]>(
+    () => (getCached<Task[]>("/api/tasks") ?? []).filter((t) => t.archived),
+  );
+  const [vendors, setVendors] = useState<Vendor[]>(
+    () => (getCached<Vendor[]>("/api/vendors") ?? []).filter((v) => v.archived),
+  );
+  const [categoryColors, setCategoryColors] = useState<Record<string, string>>(
+    () => (getCached<{ name: string; color: string }[]>("/api/categories") ?? []).reduce(
+      (acc: Record<string, string>, c) => { acc[c.name] = c.color; return acc; },
+      {},
+    ),
+  );
   const [unarchiving, setUnarchiving] = useState<string | null>(null);
 
   async function fetchAll() {
@@ -54,14 +63,15 @@ export default function ArchivedPage() {
       vendorsRes.json(),
       categoriesRes.json(),
     ]);
+    setCached("/api/tasks", tasksData);
+    setCached("/api/vendors", vendorsData);
+    setCached("/api/categories", categoriesData);
     setTasks(tasksData.filter((t: Task) => t.archived));
     setVendors(vendorsData.filter((v: Vendor) => v.archived));
-    const colorMap = categoriesData.reduce((acc: Record<string, string>, c: CategoryColor) => {
+    setCategoryColors(categoriesData.reduce((acc: Record<string, string>, c: CategoryColor) => {
       acc[c.name] = c.color;
       return acc;
-    }, {});
-    setCategoryColors(colorMap);
-    setLoading(false);
+    }, {}));
   }
 
   useEffect(() => {
@@ -90,18 +100,10 @@ export default function ArchivedPage() {
     setUnarchiving(null);
   }
 
-  if (loading) {
-    return (
-      <main className="max-w-4xl mx-auto px-4 py-8">
-        <p className="text-gray-400">Loading…</p>
-      </main>
-    );
-  }
-
   const isEmpty = tasks.length === 0 && vendors.length === 0;
 
   return (
-    <main className="max-w-4xl mx-auto px-4 py-8">
+    <main className="animate-page max-w-4xl mx-auto px-4 py-8">
       <a href="/" className="text-sm text-gray-400 hover:text-gray-600 mb-8 inline-block">
         ← Back
       </a>

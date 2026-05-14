@@ -64,7 +64,7 @@ export function TaskCard({
     .split(" ");
 
   return (
-    <div className={`border rounded-lg p-4 transition-colors ${isCompleted ? "border-gray-100 dark:border-gray-800 opacity-60" : "border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900"}`}>
+    <div className={`border rounded-lg p-4 transition-[border-color,box-shadow,opacity,transform] duration-150 ${isCompleted ? "border-gray-100 dark:border-gray-800 opacity-60" : "border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 hover:shadow-sm hover:-translate-y-px"}`}>
       <div className="flex items-start justify-between gap-4">
         <div className="flex flex-col items-center justify-center w-12 shrink-0 text-center">
           <span className="text-2xl font-bold leading-none text-gray-900 dark:text-gray-100">{day}</span>
