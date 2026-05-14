@@ -1,36 +1,57 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# OC Maintenance Tracker
+
+A very basic maintenance and expense management system for an owners corporation. Tracks recurring maintenance tasks, vendors, costs and sends email reminders.
+
+## Features
+
+- **Task tracking**: Create recurring maintenance tasks with customizable frequencies (weekly, monthly, quarterly, etc.)
+- **Smart scheduling**: Recurring tasks calculate next due date from the previous due date, not completion date
+- **Vendor management**: Store vendor contact info and track task assignments
+- **Cost tracking**: Monitor maintenance expenses per task and vendor
+- **Category management**: User-defined categories for organising tasks
+- **Dark mode**: Full support with Tailwind v4 custom variants
+- **Data persistence**: JSON-based local storage with export/import via settings
+- **Archiving**: Hide completed or obsolete tasks and vendors without deletion
+
+## Tech Stack
+
+- **Framework**: Next.js 16 (App Router) + TypeScript
+- **Styling**: Tailwind CSS v4
+- **State**: JSON files (`data/tasks.json`, `data/vendors.json`, `data/categories.json`)
 
 ## Getting Started
 
-First, run the development server:
+### Development
 
 ```bash
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000) to see the app. No external services required locally.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### Commands
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+| Command | Purpose |
+|---------|---------|
+| `npm run dev` | Start dev server on http://localhost:3000 |
+| `npm run build` | Build for production |
+| `npm run lint` | Run ESLint + TypeScript checks |
 
-## Learn More
+## Architecture
 
-To learn more about Next.js, take a look at the following resources:
+- **App layer**: Pages and layouts in `app/`. Auth guards and page structure.
+- **API routes**: Backend endpoints in `app/api/`. (Cron jobs and auth hooks when migrating to production)
+- **Components**: Reusable UI in `components/`. No business logic — data passed as props.
+- **Lib**: Data access and utilities in `lib/`. Date math for recurring tasks, JSON I/O.
+- **Types**: TypeScript definitions in `types/`.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Key Constraints
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+1. **Recurring task date math**: Next due date = previous due date + frequency (not completion date)
+2. **Dark mode**: Uses Tailwind v4 `@custom-variant` in globals.css (not `darkMode: "selector"`)
+3. **RLS** (when on Supabase): All authenticated users can read/write tasks and vendors; admin-only delete
 
-## Deploy on Vercel
+## Current Status
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+PoC is feature-complete with full UI built locally. Ready for hosting decision: validate and ship to Supabase + Vercel, or continue local iteration.
