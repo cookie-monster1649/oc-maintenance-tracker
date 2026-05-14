@@ -4,6 +4,7 @@ WORKDIR /app
 COPY package.json package-lock.json* ./
 RUN npm ci
 COPY . .
+RUN mkdir -p data
 RUN npm run build
 
 # Stage 2: runner
