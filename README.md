@@ -13,6 +13,13 @@ A very basic maintenance and expense management system for an owners corporation
 - **Data persistence**: JSON-based local storage with export/import via settings
 - **Archiving**: Hide completed or obsolete tasks and vendors without deletion
 
+
+![Screenshot 2026-05-14 at 9.08.16 pm](/Users/jjmonester/Downloads/Repositories/oc-maintenance-tracker/assets/Screenshot%202026-05-14%20at%209.08.16%E2%80%AFpm.png)
+
+![Screenshot 2026-05-14 at 9.10.30 pm](/Users/jjmonester/Downloads/Repositories/oc-maintenance-tracker/assets/Screenshot%202026-05-14%20at%209.10.30%E2%80%AFpm.png)
+
+![Screenshot 2026-05-14 at 9.10.45 pm](/Users/jjmonester/Downloads/Repositories/oc-maintenance-tracker/assets/Screenshot%202026-05-14%20at%209.10.45%E2%80%AFpm.png)
+
 ## Tech Stack
 
 - **Framework**: Next.js 16 (App Router) + TypeScript
