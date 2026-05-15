@@ -13,6 +13,7 @@ export interface Vendor {
   hourly_rate: number | null;
   notes: string | null;
   archived?: boolean;
+  paperless_correspondent_id?: number | null;
 }
 
 export function readVendors(): Vendor[] {

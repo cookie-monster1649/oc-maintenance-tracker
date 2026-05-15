@@ -7,8 +7,21 @@ import { TaskCard, Task, Vendor } from "../../components/TaskCard";
 import { getColorClasses } from "@/lib/colors";
 import { getCached, setCached } from "@/lib/cache";
 
-type Frequency = "Weekly" | "Bi-weekly" | "Monthly" | "Quarterly" | "Semi-Annually" | "Annually";
-const FREQUENCIES: Frequency[] = ["Weekly", "Bi-weekly", "Monthly", "Quarterly", "Semi-Annually", "Annually"];
+type Frequency =
+  | "Weekly"
+  | "Bi-weekly"
+  | "Monthly"
+  | "Quarterly"
+  | "Semi-Annually"
+  | "Annually";
+const FREQUENCIES: Frequency[] = [
+  "Weekly",
+  "Bi-weekly",
+  "Monthly",
+  "Quarterly",
+  "Semi-Annually",
+  "Annually",
+];
 
 interface CategoryColor {
   name: string;
@@ -32,20 +45,32 @@ export default function TaskDetailPage() {
   const router = useRouter();
   const taskId = params.id as string;
 
-  const [tasks, setTasks] = useState<Task[]>(() => getCached<Task[]>("/api/tasks") ?? []);
-  const [vendors, setVendors] = useState<Vendor[]>(() => getCached<Vendor[]>("/api/vendors") ?? []);
-  const [categories, setCategories] = useState<string[]>(
-    () => (getCached<CategoryColor[]>("/api/categories") ?? []).map((c) => c.name),
+  const [tasks, setTasks] = useState<Task[]>(
+    () => getCached<Task[]>("/api/tasks") ?? [],
+  );
+  const [vendors, setVendors] = useState<Vendor[]>(
+    () => getCached<Vendor[]>("/api/vendors") ?? [],
+  );
+  const [categories, setCategories] = useState<string[]>(() =>
+    (getCached<CategoryColor[]>("/api/categories") ?? []).map((c) => c.name),
   );
   const [categoryColors, setCategoryColors] = useState<Record<string, string>>(
-    () => (getCached<CategoryColor[]>("/api/categories") ?? []).reduce(
-      (acc: Record<string, string>, c) => { acc[c.name] = c.color; return acc; },
-      {},
-    ),
+    () =>
+      (getCached<CategoryColor[]>("/api/categories") ?? []).reduce(
+        (acc: Record<string, string>, c) => {
+          acc[c.name] = c.color;
+          return acc;
+        },
+        {},
+      ),
   );
   const [editOpen, setEditOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [completing, setCompleting] = useState<string | null>(null);
+  const [matching, setMatching] = useState(false);
+  const [autoLinkedCount, setAutoLinkedCount] = useState(0);
+  const [lastAutoLinkedIds, setLastAutoLinkedIds] = useState<number[]>([]);
+  const [suggestions, setSuggestions] = useState<any[]>([]);
   const [form, setForm] = useState<Partial<Task>>({});
   const [originalForm, setOriginalForm] = useState<Partial<Task>>({});
   const menuRef = useRef<HTMLDivElement>(null);
@@ -60,21 +85,74 @@ export default function TaskDetailPage() {
 
   async function fetchAll() {
     const [tasksRes, vendorsRes, categoriesRes] = await Promise.all([
-      fetch("/api/tasks"), fetch("/api/vendors"), fetch("/api/categories"),
+      fetch("/api/tasks"),
+      fetch("/api/vendors"),
+      fetch("/api/categories"),
     ]);
-    const [tasksData, vendorsData, categoriesData] = await Promise.all([
-      tasksRes.json(), vendorsRes.json(), categoriesRes.json(),
-    ]) as [Task[], Vendor[], CategoryColor[]];
+    const [tasksData, vendorsData, categoriesData] = (await Promise.all([
+      tasksRes.json(),
+      vendorsRes.json(),
+      categoriesRes.json(),
+    ])) as [Task[], Vendor[], CategoryColor[]];
     setCached("/api/tasks", tasksData);
     setCached("/api/vendors", vendorsData);
     setCached("/api/categories", categoriesData);
     setTasks(tasksData);
     setVendors(vendorsData);
     setCategories(categoriesData.map((c) => c.name));
-    setCategoryColors(categoriesData.reduce((acc: Record<string, string>, c: CategoryColor) => {
-      acc[c.name] = c.color;
-      return acc;
-    }, {}));
+    setCategoryColors(
+      categoriesData.reduce((acc: Record<string, string>, c: CategoryColor) => {
+        acc[c.name] = c.color;
+        return acc;
+      }, {}),
+    );
+
+    // Trigger matching on page load
+    triggerMatch();
+  }
+
+  async function triggerMatch() {
+    setMatching(true);
+    try {
+      const res = await fetch(`/api/tasks/${taskId}/match-documents`, {
+        method: "POST",
+      });
+      if (res.ok) {
+        const result = await res.json();
+        setSuggestions(result.suggestions || []);
+        if (result.linked && result.linked.length > 0) {
+          setAutoLinkedCount(result.linked.length);
+          setLastAutoLinkedIds(result.linked.map((d: any) => d.id));
+          // Refresh tasks to show the new links
+          const tasksRes = await fetch("/api/tasks");
+          const tasksData = await tasksRes.json();
+          setTasks(tasksData);
+        }
+      }
+    } catch (err) {
+      console.error("Auto-match failed", err);
+    } finally {
+      setMatching(false);
+    }
+  }
+
+  async function undoMatch() {
+    if (lastAutoLinkedIds.length === 0) return;
+
+    try {
+      await Promise.all(
+        lastAutoLinkedIds.map((docId) =>
+          fetch(`/api/tasks/${taskId}/documents/${docId}`, {
+            method: "DELETE",
+          }),
+        ),
+      );
+      setAutoLinkedCount(0);
+      setLastAutoLinkedIds([]);
+      fetchTasks();
+    } catch (err) {
+      console.error("Undo match failed", err);
+    }
   }
 
   useEffect(() => {
@@ -103,18 +181,28 @@ export default function TaskDetailPage() {
   if (!currentTask) {
     return (
       <main className="max-w-3xl mx-auto px-4 py-10">
-        <p className="text-gray-400">{tasks.length === 0 ? "Loading…" : "Task not found"}</p>
+        <p className="text-gray-400">
+          {tasks.length === 0 ? "Loading…" : "Task not found"}
+        </p>
       </main>
     );
   }
 
-  const series = tasks.filter((t) => t.title === currentTask.title).sort((a, b) => a.due_date.localeCompare(b.due_date));
+  const series = tasks
+    .filter((t) => t.title === currentTask.title)
+    .sort((a, b) => a.due_date.localeCompare(b.due_date));
   const vendor = vendors.find((v) => v.id === currentTask.vendor_id);
   const completed = series.filter((t) => t.status === "Completed");
-  const upcoming = series.filter((t) => t.status !== "Completed").sort((a, b) => a.due_date.localeCompare(b.due_date));
+  const upcoming = series
+    .filter((t) => t.status !== "Completed")
+    .sort((a, b) => a.due_date.localeCompare(b.due_date));
 
   const totalCost = completed.reduce((s, t) => s + (t.estimated_cost ?? 0), 0);
-  const avgCost = completed.length > 0 ? completed.reduce((s, t) => s + (t.estimated_cost ?? 0), 0) / completed.length : 0;
+  const avgCost =
+    completed.length > 0
+      ? completed.reduce((s, t) => s + (t.estimated_cost ?? 0), 0) /
+        completed.length
+      : 0;
 
   const canDelete = completed.length === 0;
 
@@ -156,7 +244,12 @@ export default function TaskDetailPage() {
   };
 
   const handleArchive = async () => {
-    if (!confirm(`Archive "${currentTask.title}"? It will be hidden from the main list but remain in the system.`)) return;
+    if (
+      !confirm(
+        `Archive "${currentTask.title}"? It will be hidden from the main list but remain in the system.`,
+      )
+    )
+      return;
     await fetch(`/api/tasks/${taskId}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
@@ -166,178 +259,416 @@ export default function TaskDetailPage() {
   };
 
   const handleDelete = async () => {
-    if (!confirm(`Delete "${currentTask.title}"? This cannot be undone.`)) return;
+    if (!confirm(`Delete "${currentTask.title}"? This cannot be undone.`))
+      return;
     await fetch(`/api/tasks/${taskId}`, { method: "DELETE" });
     router.push("/");
   };
 
   return (
     <>
-    <main className="animate-page max-w-4xl mx-auto px-4 py-8">
-      <Link href="/" className="text-sm text-gray-400 hover:text-gray-600 mb-8 inline-block">← Back</Link>
+      <main className="animate-page max-w-4xl mx-auto px-4 py-8">
+        <Link
+          href="/"
+          className="text-sm text-gray-400 hover:text-gray-600 mb-8 inline-block"
+        >
+          ← Back
+        </Link>
 
-      <div className="mb-12">
-        <div className="flex items-start justify-between gap-6 mb-8">
-          <div className="flex-1">
-            <h1 className="text-4xl font-bold mb-3 text-gray-900 dark:text-gray-100">{currentTask.title}</h1>
-            <p className="text-base text-gray-600 dark:text-gray-400 leading-relaxed">{currentTask.description}</p>
-          </div>
-          <div ref={menuRef} className="relative shrink-0 mt-1">
+        {autoLinkedCount > 0 && (
+          <div className="bg-gray-900 dark:bg-gray-800 text-white px-4 py-3 rounded-lg mb-8 flex items-center justify-between animate-in slide-in-from-top-4 duration-300 shadow-lg">
+            <p className="text-sm font-medium">
+              Auto-linked {autoLinkedCount} document
+              {autoLinkedCount > 1 ? "s" : ""} from Paperless-ngx
+            </p>
             <button
-              onClick={() => setMenuOpen((o) => !o)}
-              className="flex items-center justify-center w-8 h-8 rounded-md border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 hover:border-gray-300 dark:hover:border-gray-600 transition-colors text-base font-bold"
+              onClick={undoMatch}
+              className="text-sm font-bold hover:underline px-2 py-1"
             >
-              ⋮
+              Undo
             </button>
-            {menuOpen && (
-              <div className="absolute right-0 mt-1 w-40 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-lg shadow-lg z-10">
-                <button onClick={() => { openEdit(); setMenuOpen(false); }} className="block w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 border-b border-gray-100 dark:border-gray-800">
-                  Edit
-                </button>
-                {completed.length > 0 && (
-                  <button onClick={() => { handleArchive(); setMenuOpen(false); }} className="block w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 border-b border-gray-100 dark:border-gray-800">
-                    Archive
-                  </button>
-                )}
-                {canDelete && (
-                  <button onClick={() => { handleDelete(); setMenuOpen(false); }} className="block w-full text-left px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950">
-                    Delete
-                  </button>
-                )}
-              </div>
-            )}
           </div>
-        </div>
+        )}
 
-        {/* Stats and Details Grid */}
-        <div className="grid grid-cols-2 gap-12 mb-12">
-          {/* Left: Insights */}
-          <div className="space-y-8">
-            <div className="grid grid-cols-2 gap-8">
-              <div>
-                <div className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-widest mb-2">Total Completed</div>
-                <div className="text-2xl font-bold text-gray-900 dark:text-gray-100">{completed.length}</div>
+        {suggestions.length > 0 && (
+          <div className="bg-amber-50 dark:bg-amber-950 border border-amber-200 dark:border-amber-900 rounded-lg p-4 mb-8 shadow-sm">
+            <h3 className="text-sm font-semibold text-amber-800 dark:text-amber-400 mb-3 flex items-center gap-2">
+              <span>💡</span> Possible matches found
+            </h3>
+            <div className="space-y-2">
+              {suggestions.map((doc) => (
+                <div
+                  key={doc.id}
+                  className="flex items-center justify-between gap-4 bg-white dark:bg-gray-900 p-2 rounded border border-amber-100 dark:border-amber-900/50"
+                >
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium truncate">{doc.title}</p>
+                    <p className="text-[10px] text-gray-500">
+                      {doc.document_type_label || "Document"} • {doc.created}
+                    </p>
+                  </div>
+                  <div className="flex gap-2">
+                    <a
+                      href={doc.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-xs text-blue-600 dark:text-blue-400 hover:underline px-2"
+                    >
+                      View
+                    </a>
+                    <button
+                      onClick={async () => {
+                        await fetch(`/api/tasks/${taskId}/documents`, {
+                          method: "POST",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({ document: doc }),
+                        });
+                        setSuggestions((s) => s.filter((d) => d.id !== doc.id));
+                        fetchTasks();
+                      }}
+                      className="text-xs font-bold text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white px-2"
+                    >
+                      Link
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <div className="mb-12">
+          <div className="flex items-start justify-between gap-6 mb-8">
+            <div className="flex-1">
+              <h1 className="text-4xl font-bold mb-3 text-gray-900 dark:text-gray-100">
+                {currentTask.title}
+              </h1>
+              <p className="text-base text-gray-600 dark:text-gray-400 leading-relaxed">
+                {currentTask.description}
+              </p>
+            </div>
+            <div ref={menuRef} className="relative shrink-0 mt-1">
+              <button
+                onClick={() => setMenuOpen((o) => !o)}
+                className="flex items-center justify-center w-8 h-8 rounded-md border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 hover:border-gray-300 dark:hover:border-gray-600 transition-colors text-base font-bold"
+              >
+                ⋮
+              </button>
+              {menuOpen && (
+                <div className="absolute right-0 mt-1 w-40 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-lg shadow-lg z-10">
+                  <button
+                    onClick={() => {
+                      openEdit();
+                      setMenuOpen(false);
+                    }}
+                    className="block w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 border-b border-gray-100 dark:border-gray-800"
+                  >
+                    Edit
+                  </button>
+                  {completed.length > 0 && (
+                    <button
+                      onClick={() => {
+                        handleArchive();
+                        setMenuOpen(false);
+                      }}
+                      className="block w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 border-b border-gray-100 dark:border-gray-800"
+                    >
+                      Archive
+                    </button>
+                  )}
+                  {canDelete && (
+                    <button
+                      onClick={() => {
+                        handleDelete();
+                        setMenuOpen(false);
+                      }}
+                      className="block w-full text-left px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950"
+                    >
+                      Delete
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Stats and Details Grid */}
+          <div className="grid grid-cols-2 gap-12 mb-12">
+            {/* Left: Insights */}
+            <div className="space-y-8">
+              <div className="grid grid-cols-2 gap-8">
+                <div>
+                  <div className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-widest mb-2">
+                    Total Completed
+                  </div>
+                  <div className="text-2xl font-bold text-gray-900 dark:text-gray-100">
+                    {completed.length}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-widest mb-2">
+                    Task Cost
+                  </div>
+                  <div className="text-2xl font-bold text-gray-900 dark:text-gray-100">
+                    {fmt(avgCost)}
+                  </div>
+                </div>
               </div>
               <div>
-                <div className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-widest mb-2">Task Cost</div>
-                <div className="text-2xl font-bold text-gray-900 dark:text-gray-100">{fmt(avgCost)}</div>
+                <div className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-widest mb-2">
+                  Actuals {fiscalYearLabel()}
+                </div>
+                <div className="text-2xl font-bold text-gray-900 dark:text-gray-100">
+                  {fmt(totalCost)}
+                </div>
               </div>
             </div>
-            <div>
-              <div className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-widest mb-2">Actuals {fiscalYearLabel()}</div>
-              <div className="text-2xl font-bold text-gray-900 dark:text-gray-100">{fmt(totalCost)}</div>
-            </div>
-          </div>
 
-          {/* Right: Task Details */}
-          <div className="space-y-3 text-sm">
-            <div className="flex justify-between gap-4">
-              <span className="text-gray-500 dark:text-gray-400">Category</span>
-              {(() => {
-                const colors = getColorClasses(categoryColors[currentTask.category] || "blue");
-                return (
-                  <span className={`px-2 py-0.5 rounded-full ${colors.bg} ${colors.text} font-medium text-xs`}>
-                    {currentTask.category}
+            {/* Right: Task Details */}
+            <div className="space-y-3 text-sm">
+              <div className="flex justify-between gap-4">
+                <span className="text-gray-500 dark:text-gray-400">
+                  Category
+                </span>
+                {(() => {
+                  const colors = getColorClasses(
+                    categoryColors[currentTask.category] || "blue",
+                  );
+                  return (
+                    <span
+                      className={`px-2 py-0.5 rounded-full ${colors.bg} ${colors.text} font-medium text-xs`}
+                    >
+                      {currentTask.category}
+                    </span>
+                  );
+                })()}
+              </div>
+              <div className="flex justify-between gap-4">
+                <span className="text-gray-500 dark:text-gray-400">
+                  Due Date
+                </span>
+                <span className="font-medium text-gray-900 dark:text-gray-100">
+                  {currentTask.due_date}
+                </span>
+              </div>
+              <div className="flex justify-between gap-4">
+                <span className="text-gray-500 dark:text-gray-400">
+                  Est. Cost
+                </span>
+                <span className="font-medium text-gray-900 dark:text-gray-100">
+                  {currentTask.estimated_cost
+                    ? fmt(currentTask.estimated_cost)
+                    : "—"}
+                </span>
+              </div>
+              {vendor && (
+                <div className="flex justify-between gap-4 pt-3 border-t border-gray-100 dark:border-gray-800">
+                  <span className="text-gray-500 dark:text-gray-400">
+                    Vendor
                   </span>
-                );
-              })()}
+                  <a
+                    href={`/vendors/${vendor.id}`}
+                    className="text-blue-600 dark:text-blue-400 hover:underline font-medium"
+                  >
+                    {vendor.name}
+                  </a>
+                </div>
+              )}
             </div>
-            <div className="flex justify-between gap-4">
-              <span className="text-gray-500 dark:text-gray-400">Due Date</span>
-              <span className="font-medium text-gray-900 dark:text-gray-100">{currentTask.due_date}</span>
-            </div>
-            <div className="flex justify-between gap-4">
-              <span className="text-gray-500 dark:text-gray-400">Est. Cost</span>
-              <span className="font-medium text-gray-900 dark:text-gray-100">{currentTask.estimated_cost ? fmt(currentTask.estimated_cost) : "—"}</span>
-            </div>
-            {vendor && (
-              <div className="flex justify-between gap-4 pt-3 border-t border-gray-100 dark:border-gray-800">
-                <span className="text-gray-500 dark:text-gray-400">Vendor</span>
-                <a href={`/vendors/${vendor.id}`} className="text-blue-600 dark:text-blue-400 hover:underline font-medium">{vendor.name}</a>
-              </div>
-            )}
           </div>
         </div>
 
-      </div>
+        <section>
+          {upcoming.length > 0 && (
+            <div className="mb-12">
+              <h3 className="text-sm font-semibold uppercase tracking-widest text-gray-400 mb-6">
+                Upcoming
+              </h3>
+              <div className="space-y-3">
+                {upcoming.map((task) => (
+                  <TaskCard
+                    key={task.id}
+                    task={task}
+                    vendors={vendors}
+                    onComplete={completeTask}
+                    completing={completing}
+                    categoryColors={categoryColors}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
 
-      <section>
-        {upcoming.length > 0 && (
-          <div className="mb-12">
-            <h3 className="text-sm font-semibold uppercase tracking-widest text-gray-400 mb-6">Upcoming</h3>
-            <div className="space-y-3">
-              {upcoming.map((task) => (
-                <TaskCard key={task.id} task={task} vendors={vendors} onComplete={completeTask} completing={completing} categoryColors={categoryColors} />
-              ))}
+          {completed.length > 0 && (
+            <div className="mb-8">
+              <h3 className="text-sm font-semibold uppercase tracking-widest text-gray-400 dark:text-gray-500 mb-6">
+                Completion History
+              </h3>
+              <div className="space-y-3">
+                {completed.map((task) => (
+                  <TaskCard
+                    key={task.id}
+                    task={task}
+                    vendors={vendors}
+                    onComplete={completeTask}
+                    completing={completing}
+                    categoryColors={categoryColors}
+                  />
+                ))}
+              </div>
             </div>
-          </div>
-        )}
+          )}
+        </section>
+      </main>
 
-        {completed.length > 0 && (
-          <div className="mb-8">
-            <h3 className="text-sm font-semibold uppercase tracking-widest text-gray-400 dark:text-gray-500 mb-6">Completion History</h3>
-            <div className="space-y-3">
-              {completed.map((task) => (
-                <TaskCard key={task.id} task={task} vendors={vendors} onComplete={completeTask} completing={completing} categoryColors={categoryColors} />
-              ))}
-            </div>
-          </div>
-        )}
-      </section>
-    </main>
-
-    {editOpen && (
-      <div ref={backdropRef} className="animate-backdrop fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={(e) => { if (e.target === backdropRef.current) closeEdit(); }}>
-        <div className="animate-modal bg-white dark:bg-gray-900 rounded-lg shadow-xl max-w-lg w-full max-h-[90vh] overflow-y-auto flex flex-col p-8">
-          <h2 className="text-2xl font-bold mb-8 text-gray-900 dark:text-gray-100 shrink-0">Edit Task</h2>
-          <div className="space-y-5 flex-1 overflow-y-auto">
-            <div>
-              <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Title</label>
-              <input value={form.title ?? ""} onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))} className="w-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 rounded-md px-3 py-2 text-sm text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-gray-400" />
-            </div>
-            <div>
-              <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Description</label>
-              <textarea value={form.description ?? ""} onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))} rows={3} className="w-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 rounded-md px-3 py-2 text-sm text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-gray-400" />
-            </div>
-            <div className="grid grid-cols-2 gap-4">
+      {editOpen && (
+        <div
+          ref={backdropRef}
+          className="animate-backdrop fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
+          onClick={(e) => {
+            if (e.target === backdropRef.current) closeEdit();
+          }}
+        >
+          <div className="animate-modal bg-white dark:bg-gray-900 rounded-lg shadow-xl max-w-lg w-full max-h-[90vh] overflow-y-auto flex flex-col p-8">
+            <h2 className="text-2xl font-bold mb-8 text-gray-900 dark:text-gray-100 shrink-0">
+              Edit Task
+            </h2>
+            <div className="space-y-5 flex-1 overflow-y-auto">
               <div>
-                <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Due Date</label>
-                <input type="date" value={form.due_date ?? ""} onChange={(e) => setForm((f) => ({ ...f, due_date: e.target.value }))} className="w-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 rounded-md px-3 py-2 text-sm text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-gray-400" />
+                <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                  Title
+                </label>
+                <input
+                  value={form.title ?? ""}
+                  onChange={(e) =>
+                    setForm((f) => ({ ...f, title: e.target.value }))
+                  }
+                  className="w-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 rounded-md px-3 py-2 text-sm text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-gray-400"
+                />
               </div>
               <div>
-                <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Frequency</label>
-                <select value={form.frequency ?? ""} onChange={(e) => setForm((f) => ({ ...f, frequency: e.target.value as Frequency }))} className="w-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 rounded-md px-3 py-2 text-sm text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-gray-400">
-                  {FREQUENCIES.map((f) => <option key={f}>{f}</option>)}
+                <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                  Description
+                </label>
+                <textarea
+                  value={form.description ?? ""}
+                  onChange={(e) =>
+                    setForm((f) => ({ ...f, description: e.target.value }))
+                  }
+                  rows={3}
+                  className="w-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 rounded-md px-3 py-2 text-sm text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-gray-400"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                    Due Date
+                  </label>
+                  <input
+                    type="date"
+                    value={form.due_date ?? ""}
+                    onChange={(e) =>
+                      setForm((f) => ({ ...f, due_date: e.target.value }))
+                    }
+                    className="w-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 rounded-md px-3 py-2 text-sm text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-gray-400"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                    Frequency
+                  </label>
+                  <select
+                    value={form.frequency ?? ""}
+                    onChange={(e) =>
+                      setForm((f) => ({
+                        ...f,
+                        frequency: e.target.value as Frequency,
+                      }))
+                    }
+                    className="w-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 rounded-md px-3 py-2 text-sm text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-gray-400"
+                  >
+                    {FREQUENCIES.map((f) => (
+                      <option key={f}>{f}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                    Category
+                  </label>
+                  <select
+                    value={form.category ?? ""}
+                    onChange={(e) =>
+                      setForm((f) => ({ ...f, category: e.target.value }))
+                    }
+                    className="w-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 rounded-md px-3 py-2 text-sm text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-gray-400"
+                  >
+                    {categories.map((c) => (
+                      <option key={c}>{c}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                    Est. Cost
+                  </label>
+                  <input
+                    type="number"
+                    value={form.estimated_cost ?? ""}
+                    onChange={(e) =>
+                      setForm((f) => ({
+                        ...f,
+                        estimated_cost: e.target.value
+                          ? Number(e.target.value)
+                          : null,
+                      }))
+                    }
+                    className="w-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 rounded-md px-3 py-2 text-sm text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-gray-400"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                  Vendor
+                </label>
+                <select
+                  value={form.vendor_id ?? ""}
+                  onChange={(e) =>
+                    setForm((f) => ({
+                      ...f,
+                      vendor_id: e.target.value || null,
+                    }))
+                  }
+                  className="w-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 rounded-md px-3 py-2 text-sm text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-gray-400"
+                >
+                  <option value="">None</option>
+                  {vendors.map((v) => (
+                    <option key={v.id} value={v.id}>
+                      {v.name}
+                    </option>
+                  ))}
                 </select>
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Category</label>
-                <select value={form.category ?? ""} onChange={(e) => setForm((f) => ({ ...f, category: e.target.value }))} className="w-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 rounded-md px-3 py-2 text-sm text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-gray-400">
-                  {categories.map((c) => <option key={c}>{c}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Est. Cost</label>
-                <input type="number" value={form.estimated_cost ?? ""} onChange={(e) => setForm((f) => ({ ...f, estimated_cost: e.target.value ? Number(e.target.value) : null }))} className="w-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 rounded-md px-3 py-2 text-sm text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-gray-400" />
-              </div>
+            <div className="flex gap-3 mt-8 pt-6 border-t border-gray-100 dark:border-gray-800 shrink-0">
+              <button
+                onClick={saveEdit}
+                className="flex-1 text-sm px-4 py-2 rounded-md bg-gray-900 dark:bg-gray-700 text-white hover:bg-gray-700 dark:hover:bg-gray-600 transition-colors font-medium"
+              >
+                Save
+              </button>
+              <button
+                onClick={closeEdit}
+                className="flex-1 text-sm px-4 py-2 rounded-md border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors font-medium"
+              >
+                Cancel
+              </button>
             </div>
-            <div>
-              <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Vendor</label>
-              <select value={form.vendor_id ?? ""} onChange={(e) => setForm((f) => ({ ...f, vendor_id: e.target.value || null }))} className="w-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 rounded-md px-3 py-2 text-sm text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-gray-400">
-                <option value="">None</option>
-                {vendors.map((v) => <option key={v.id} value={v.id}>{v.name}</option>)}
-              </select>
-            </div>
-          </div>
-          <div className="flex gap-3 mt-8 pt-6 border-t border-gray-100 dark:border-gray-800 shrink-0">
-            <button onClick={saveEdit} className="flex-1 text-sm px-4 py-2 rounded-md bg-gray-900 dark:bg-gray-700 text-white hover:bg-gray-700 dark:hover:bg-gray-600 transition-colors font-medium">Save</button>
-            <button onClick={closeEdit} className="flex-1 text-sm px-4 py-2 rounded-md border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors font-medium">Cancel</button>
           </div>
         </div>
-      </div>
-    )}
+      )}
     </>
   );
 }

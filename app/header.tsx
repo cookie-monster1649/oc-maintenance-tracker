@@ -4,7 +4,15 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 
 type Theme = "light" | "dark" | "system";
-type ColorName = "blue" | "purple" | "green" | "red" | "amber" | "pink" | "cyan" | "indigo";
+type ColorName =
+  | "blue"
+  | "purple"
+  | "green"
+  | "red"
+  | "amber"
+  | "pink"
+  | "cyan"
+  | "indigo";
 
 interface CategoryItem {
   name: string;
@@ -27,7 +35,16 @@ function applyTheme(newTheme: Theme) {
   }
 }
 
-const colorOptions: ColorName[] = ["blue", "purple", "green", "red", "amber", "pink", "cyan", "indigo"];
+const colorOptions: ColorName[] = [
+  "blue",
+  "purple",
+  "green",
+  "red",
+  "amber",
+  "pink",
+  "cyan",
+  "indigo",
+];
 const colorLabels: Record<ColorName, string> = {
   blue: "Blue",
   purple: "Purple",
@@ -48,8 +65,12 @@ export default function Header() {
   const [newCategoryName, setNewCategoryName] = useState("");
   const [newCategoryColor, setNewCategoryColor] = useState<ColorName>("blue");
   const [loadingCategories, setLoadingCategories] = useState(false);
-  const [tasks, setTasks] = useState<{ id: string; title: string; category: string }[]>([]);
-  const [reassigningCategory, setReassigningCategory] = useState<string | null>(null);
+  const [tasks, setTasks] = useState<
+    { id: string; title: string; category: string }[]
+  >([]);
+  const [reassigningCategory, setReassigningCategory] = useState<string | null>(
+    null,
+  );
   const [reassignTarget, setReassignTarget] = useState("");
   const [importing, setImporting] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -126,7 +147,10 @@ export default function Header() {
       const res = await fetch("/api/categories", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: newCategoryName, color: newCategoryColor }),
+        body: JSON.stringify({
+          name: newCategoryName,
+          color: newCategoryColor,
+        }),
       });
       if (res.ok) {
         await loadCategories();
@@ -179,20 +203,25 @@ export default function Header() {
     if (!reassigningCategory || !reassignTarget) return;
 
     try {
-      const tasksWithCategory = tasks.filter((t) => t.category === reassigningCategory);
+      const tasksWithCategory = tasks.filter(
+        (t) => t.category === reassigningCategory,
+      );
       await Promise.all(
         tasksWithCategory.map((task) =>
           fetch(`/api/tasks/${task.id}`, {
             method: "PUT",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ ...task, category: reassignTarget }),
-          })
-        )
+          }),
+        ),
       );
 
-      const res = await fetch(`/api/categories/${encodeURIComponent(reassigningCategory)}`, {
-        method: "DELETE",
-      });
+      const res = await fetch(
+        `/api/categories/${encodeURIComponent(reassigningCategory)}`,
+        {
+          method: "DELETE",
+        },
+      );
       if (res.ok) {
         await loadCategories();
         setReassigningCategory(null);
@@ -234,13 +263,28 @@ export default function Header() {
     <header className="border-b border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-950 px-4">
       <div className="max-w-6xl mx-auto flex items-center justify-between h-14">
         <nav className="flex gap-8">
-          <Link href="/" className="text-sm font-medium text-gray-900 dark:text-gray-100 hover:text-gray-500 dark:hover:text-gray-400 transition-colors">
+          <Link
+            href="/"
+            className="text-sm font-medium text-gray-900 dark:text-gray-100 hover:text-gray-500 dark:hover:text-gray-400 transition-colors"
+          >
             Tasks
           </Link>
-          <Link href="/vendors" className="text-sm font-medium text-gray-900 dark:text-gray-100 hover:text-gray-500 dark:hover:text-gray-400 transition-colors">
+          <Link
+            href="/vendors"
+            className="text-sm font-medium text-gray-900 dark:text-gray-100 hover:text-gray-500 dark:hover:text-gray-400 transition-colors"
+          >
             Vendors
           </Link>
-          <Link href="/costs" className="text-sm font-medium text-gray-900 dark:text-gray-100 hover:text-gray-500 dark:hover:text-gray-400 transition-colors">
+          <Link
+            href="/documents"
+            className="text-sm font-medium text-gray-900 dark:text-gray-100 hover:text-gray-500 dark:hover:text-gray-400 transition-colors"
+          >
+            Documents
+          </Link>
+          <Link
+            href="/costs"
+            className="text-sm font-medium text-gray-900 dark:text-gray-100 hover:text-gray-500 dark:hover:text-gray-400 transition-colors"
+          >
             Costs
           </Link>
         </nav>
@@ -251,7 +295,17 @@ export default function Header() {
             className="flex items-center justify-center w-8 h-8 rounded-md text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
             aria-label="Settings"
           >
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
               <circle cx="12" cy="12" r="3" />
               <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
             </svg>
@@ -296,7 +350,10 @@ export default function Header() {
                   Export data
                 </button>
                 <button
-                  onClick={() => { setOpen(false); importInputRef.current?.click(); }}
+                  onClick={() => {
+                    setOpen(false);
+                    importInputRef.current?.click();
+                  }}
                   disabled={importing}
                   className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors disabled:opacity-50"
                 >
@@ -318,17 +375,23 @@ export default function Header() {
       {reassigningCategory && mounted && (
         <div className="animate-backdrop fixed inset-0 bg-black/50 flex items-center justify-center z-60 p-4">
           <div className="bg-white dark:bg-gray-900 rounded-lg shadow-xl max-w-lg w-full max-h-[90vh] overflow-y-auto flex flex-col p-8">
-            <h2 className="text-2xl font-bold mb-6 text-gray-900 dark:text-gray-100 shrink-0">Reassign Tasks</h2>
+            <h2 className="text-2xl font-bold mb-6 text-gray-900 dark:text-gray-100 shrink-0">
+              Reassign Tasks
+            </h2>
 
             <p className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">
-              {tasks.filter((t) => t.category === reassigningCategory).length} task(s) to reassign:
+              {tasks.filter((t) => t.category === reassigningCategory).length}{" "}
+              task(s) to reassign:
             </p>
             <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-4 mb-6 max-h-48 overflow-y-auto">
               <ul className="space-y-2">
                 {tasks
                   .filter((t) => t.category === reassigningCategory)
                   .map((task) => (
-                    <li key={task.id} className="text-sm text-gray-700 dark:text-gray-300">
+                    <li
+                      key={task.id}
+                      className="text-sm text-gray-700 dark:text-gray-300"
+                    >
                       • {task.title}
                     </li>
                   ))}
@@ -380,7 +443,9 @@ export default function Header() {
       {categoriesOpen && mounted && (
         <div className="animate-backdrop fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white dark:bg-gray-900 rounded-lg shadow-xl max-w-lg w-full max-h-[90vh] overflow-y-auto flex flex-col p-8">
-            <h2 className="text-2xl font-bold mb-6 text-gray-900 dark:text-gray-100 shrink-0">Categories</h2>
+            <h2 className="text-2xl font-bold mb-6 text-gray-900 dark:text-gray-100 shrink-0">
+              Categories
+            </h2>
 
             {loadingCategories ? (
               <p className="text-gray-400">Loading...</p>
@@ -388,32 +453,71 @@ export default function Header() {
               <>
                 <div className="space-y-3 flex-1 overflow-y-auto mb-6">
                   {categories.map((cat) => {
-                    const colorMap: Record<ColorName, { bg: string; text: string }> = {
-                      blue: { bg: "bg-blue-100 dark:bg-blue-900", text: "text-blue-700 dark:text-blue-300" },
-                      purple: { bg: "bg-purple-100 dark:bg-purple-900", text: "text-purple-700 dark:text-purple-300" },
-                      green: { bg: "bg-green-100 dark:bg-green-900", text: "text-green-700 dark:text-green-300" },
-                      red: { bg: "bg-red-100 dark:bg-red-900", text: "text-red-700 dark:text-red-300" },
-                      amber: { bg: "bg-amber-100 dark:bg-amber-900", text: "text-amber-700 dark:text-amber-300" },
-                      pink: { bg: "bg-pink-100 dark:bg-pink-900", text: "text-pink-700 dark:text-pink-300" },
-                      cyan: { bg: "bg-cyan-100 dark:bg-cyan-900", text: "text-cyan-700 dark:text-cyan-300" },
-                      indigo: { bg: "bg-indigo-100 dark:bg-indigo-900", text: "text-indigo-700 dark:text-indigo-300" },
+                    const colorMap: Record<
+                      ColorName,
+                      { bg: string; text: string }
+                    > = {
+                      blue: {
+                        bg: "bg-blue-100 dark:bg-blue-900",
+                        text: "text-blue-700 dark:text-blue-300",
+                      },
+                      purple: {
+                        bg: "bg-purple-100 dark:bg-purple-900",
+                        text: "text-purple-700 dark:text-purple-300",
+                      },
+                      green: {
+                        bg: "bg-green-100 dark:bg-green-900",
+                        text: "text-green-700 dark:text-green-300",
+                      },
+                      red: {
+                        bg: "bg-red-100 dark:bg-red-900",
+                        text: "text-red-700 dark:text-red-300",
+                      },
+                      amber: {
+                        bg: "bg-amber-100 dark:bg-amber-900",
+                        text: "text-amber-700 dark:text-amber-300",
+                      },
+                      pink: {
+                        bg: "bg-pink-100 dark:bg-pink-900",
+                        text: "text-pink-700 dark:text-pink-300",
+                      },
+                      cyan: {
+                        bg: "bg-cyan-100 dark:bg-cyan-900",
+                        text: "text-cyan-700 dark:text-cyan-300",
+                      },
+                      indigo: {
+                        bg: "bg-indigo-100 dark:bg-indigo-900",
+                        text: "text-indigo-700 dark:text-indigo-300",
+                      },
                     };
                     const colors = colorMap[cat.color as ColorName];
                     return (
-                      <div key={cat.name} className="flex items-center justify-between gap-3">
+                      <div
+                        key={cat.name}
+                        className="flex items-center justify-between gap-3"
+                      >
                         <div className="flex-1 min-w-0">
-                          <span className={`inline-block px-3 py-1.5 rounded-full text-sm font-medium ${colors.bg} ${colors.text}`}>
+                          <span
+                            className={`inline-block px-3 py-1.5 rounded-full text-sm font-medium ${colors.bg} ${colors.text}`}
+                          >
                             {cat.name}
                           </span>
                         </div>
                         <div className="flex gap-2 shrink-0">
                           <select
                             value={cat.color}
-                            onChange={(e) => updateCategoryColor(cat.name, e.target.value as ColorName)}
+                            onChange={(e) =>
+                              updateCategoryColor(
+                                cat.name,
+                                e.target.value as ColorName,
+                              )
+                            }
                             className="border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 rounded px-2 py-1 text-sm text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-gray-400"
                           >
                             {colorOptions.map((color) => (
-                              <option key={color} value={color}>{colorLabels[color]}</option>
+                              <option key={color} value={color}>
+                                {colorLabels[color]}
+                              </option>
                             ))}
                           </select>
                           <button
@@ -429,7 +533,9 @@ export default function Header() {
                 </div>
 
                 <div className="border-t border-gray-200 dark:border-gray-700 pt-6">
-                  <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Add Category</h3>
+                  <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">
+                    Add Category
+                  </h3>
                   <div className="space-y-3">
                     <input
                       type="text"
@@ -440,11 +546,15 @@ export default function Header() {
                     />
                     <select
                       value={newCategoryColor}
-                      onChange={(e) => setNewCategoryColor(e.target.value as ColorName)}
+                      onChange={(e) =>
+                        setNewCategoryColor(e.target.value as ColorName)
+                      }
                       className="w-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 rounded-md px-3 py-2 text-sm text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-gray-400"
                     >
                       {colorOptions.map((color) => (
-                        <option key={color} value={color}>{colorLabels[color]}</option>
+                        <option key={color} value={color}>
+                          {colorLabels[color]}
+                        </option>
                       ))}
                     </select>
                     <button

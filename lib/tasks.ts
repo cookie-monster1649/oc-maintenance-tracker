@@ -22,6 +22,17 @@ export type Frequency =
 
 export type Status = "Scheduled" | "In Progress" | "Completed" | "Overdue";
 
+export interface DocumentRef {
+  id: number;
+  title: string;
+  document_type_id: number | null;
+  document_type_label: string | null;
+  created: string;
+  url: string;
+  auto_linked: boolean;
+  linked_at: string;
+}
+
 export interface Task {
   id: string;
   title: string;
@@ -34,6 +45,7 @@ export interface Task {
   vendor_id: string | null;
   category: string;
   archived?: boolean;
+  documents?: DocumentRef[];
 }
 
 export function readTasks(): Task[] {
