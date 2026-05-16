@@ -66,7 +66,7 @@ export async function POST(
         task.last_completed_date = task.start_date;
         task.documents = [...(task.documents || []), ...result.linked];
 
-        // Create next occurrence without documents
+        // Create next occurrence without documents and extrapolate future occurrences
         const nextDate = nextStartDate(task.start_date, task.frequency);
         const nextTask: typeof task = {
           ...task,
@@ -79,6 +79,13 @@ export async function POST(
 
         if (!tasks.find((t) => t.id === nextTask.id)) {
           tasks.push(nextTask);
+          // Extrapolate future tasks from the next occurrence
+          const futureTasks = extrapolateFutureTasks(nextTask);
+          for (const fTask of futureTasks) {
+            if (!tasks.find((t) => t.id === fTask.id)) {
+              tasks.push(fTask);
+            }
+          }
         }
       } else {
         // Current task is in future, link documents and extrapolate
