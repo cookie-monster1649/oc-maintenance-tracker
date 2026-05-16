@@ -62,10 +62,11 @@ export default function DocumentsPage() {
     refreshTrigger,
   );
 
-  const documents: Document[] = (documentsData as Document[]) || [];
-  const tasks: Task[] = (tasksData as Task[]) || [];
-  const categories: string[] =
-    (categoriesData as { name: string }[])?.map((c) => c.name) || [];
+  const documents: Document[] = Array.isArray(documentsData) ? documentsData : [];
+  const tasks: Task[] = Array.isArray(tasksData) ? tasksData : [];
+  const categories: string[] = Array.isArray(categoriesData)
+    ? (categoriesData as { name: string }[]).map((c) => c.name)
+    : [];
 
   const [unmatchedOnly, setUnmatchedOnly] = useState(true);
   const [matchingDoc, setMatchingDoc] = useState<Document | null>(null);

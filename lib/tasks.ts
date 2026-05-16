@@ -54,7 +54,24 @@ export function readTasks(): Task[] {
     return [];
   }
   const raw = fs.readFileSync(DATA_PATH, "utf-8");
-  const tasks: Task[] = JSON.parse(raw);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const raw_tasks: any[] = JSON.parse(raw);
+
+  // Migrate due_date → start_date for tasks created before the field rename
+  let needsWrite = false;
+  const migrated = raw_tasks.map((t) => {
+    if (!t.start_date && t.due_date) {
+      needsWrite = true;
+      const { due_date, ...rest } = t;
+      return { ...rest, start_date: due_date };
+    }
+    return t;
+  });
+  if (needsWrite) {
+    fs.writeFileSync(DATA_PATH, JSON.stringify(migrated, null, 2));
+  }
+
+  const tasks: Task[] = migrated;
   const today = startOfDay(new Date());
   return tasks.map((t) => ({
     ...t,

@@ -15,10 +15,12 @@ export function useCachedData(endpoint: string, refreshTrigger?: number) {
         fetchPromises.set(
           endpoint,
           fetch(endpoint)
-            .then((res) => res.json())
+            .then((res) => (res.ok ? res.json() : null))
             .then((freshData) => {
-              cache.set(endpoint, freshData);
-              setData(freshData);
+              if (freshData !== null) {
+                cache.set(endpoint, freshData);
+                setData(freshData);
+              }
               setIsRefreshing(false);
               fetchPromises.delete(endpoint);
               return freshData;
