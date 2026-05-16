@@ -7,7 +7,7 @@ export interface PaperlessDocument {
   correspondent: number | null;
   document_type: number | null;
   tags: number[];
-  created: string;
+  created?: string;
   added: string;
 }
 
