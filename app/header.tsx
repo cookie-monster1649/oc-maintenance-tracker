@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { useGodMode } from "./contexts/god-mode";
 
 type Theme = "light" | "dark" | "system";
 type ColorName =
@@ -57,6 +58,7 @@ const colorLabels: Record<ColorName, string> = {
 };
 
 export default function Header() {
+  const { godMode, enable: enableGodMode, disable: disableGodMode } = useGodMode();
   const [theme, setTheme] = useState<Theme>("system");
   const [open, setOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
@@ -73,6 +75,9 @@ export default function Header() {
   );
   const [reassignTarget, setReassignTarget] = useState("");
   const [importing, setImporting] = useState(false);
+  const [godModeOpen, setGodModeOpen] = useState(false);
+  const [godModePassword, setGodModePassword] = useState("");
+  const [godModeError, setGodModeError] = useState("");
   const ref = useRef<HTMLDivElement>(null);
   const importInputRef = useRef<HTMLInputElement>(null);
 
@@ -259,6 +264,17 @@ export default function Header() {
     applyTheme(newTheme);
   }
 
+  function handleGodModeEnable() {
+    setGodModeError("");
+    if (enableGodMode(godModePassword)) {
+      setGodModePassword("");
+      setGodModeOpen(false);
+      setOpen(false);
+    } else {
+      setGodModeError("Incorrect password");
+    }
+  }
+
   return (
     <header className="border-b border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-950 px-4">
       <div className="content-container flex items-center justify-between h-14">
@@ -333,33 +349,86 @@ export default function Header() {
                   ))}
                 </div>
               </div>
+              {godMode && (
+                <button
+                  onClick={() => {
+                    setCategoriesOpen(true);
+                    setOpen(false);
+                  }}
+                  className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors border-b border-gray-100 dark:border-gray-800"
+                >
+                  Categories
+                </button>
+              )}
+              {godMode && (
+                <div className="flex gap-0 border-b border-gray-100 dark:border-gray-800">
+                  <button
+                    onClick={handleExport}
+                    className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors border-r border-gray-100 dark:border-gray-800"
+                  >
+                    Export data
+                  </button>
+                  <button
+                    onClick={() => {
+                      setOpen(false);
+                      importInputRef.current?.click();
+                    }}
+                    disabled={importing}
+                    className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors disabled:opacity-50"
+                  >
+                    {importing ? "Importing…" : "Import data"}
+                  </button>
+                </div>
+              )}
               <button
                 onClick={() => {
-                  setCategoriesOpen(true);
-                  setOpen(false);
+                  if (godMode) {
+                    disableGodMode();
+                    setOpen(false);
+                  } else {
+                    setGodModeOpen(true);
+                  }
                 }}
                 className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors border-b border-gray-100 dark:border-gray-800"
               >
-                Categories
+                {godMode ? (
+                  <>
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      width="16"
+                      height="16"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                      <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                    </svg>
+                    <span>Disable God mode</span>
+                  </>
+                ) : (
+                  <>
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      width="16"
+                      height="16"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                      <path d="M7 11V7a5 5 0 0 1 9.2-1" />
+                    </svg>
+                    <span>Enable God mode</span>
+                  </>
+                )}
               </button>
-              <div className="flex gap-0 border-b border-gray-100 dark:border-gray-800">
-                <button
-                  onClick={handleExport}
-                  className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors border-r border-gray-100 dark:border-gray-800"
-                >
-                  Export data
-                </button>
-                <button
-                  onClick={() => {
-                    setOpen(false);
-                    importInputRef.current?.click();
-                  }}
-                  disabled={importing}
-                  className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors disabled:opacity-50"
-                >
-                  {importing ? "Importing…" : "Import data"}
-                </button>
-              </div>
               <Link
                 href="/archived"
                 onClick={() => setOpen(false)}
@@ -430,6 +499,57 @@ export default function Header() {
                 onClick={() => {
                   setReassigningCategory(null);
                   setReassignTarget("");
+                }}
+                className="flex-1 text-sm px-4 py-2 rounded-md border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors font-medium"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {godModeOpen && mounted && (
+        <div className="animate-backdrop fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-gray-900 rounded-lg shadow-xl max-w-sm w-full flex flex-col p-8">
+            <h2 className="text-2xl font-bold mb-6 text-gray-900 dark:text-gray-100">
+              Enable God Mode
+            </h2>
+            <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+              Enter password to access administrative functions.
+            </p>
+            <input
+              type="password"
+              value={godModePassword}
+              onChange={(e) => {
+                setGodModePassword(e.target.value);
+                setGodModeError("");
+              }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  handleGodModeEnable();
+                }
+              }}
+              placeholder="Password"
+              className="w-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 rounded-md px-3 py-2 text-sm text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-gray-400 mb-2"
+            />
+            {godModeError && (
+              <p className="text-sm text-red-600 dark:text-red-400 mb-4">
+                {godModeError}
+              </p>
+            )}
+            <div className="flex gap-3 mt-6">
+              <button
+                onClick={handleGodModeEnable}
+                className="flex-1 text-sm px-4 py-2 rounded-md bg-gray-900 dark:bg-gray-700 text-white hover:bg-gray-700 dark:hover:bg-gray-600 transition-colors font-medium"
+              >
+                Enable
+              </button>
+              <button
+                onClick={() => {
+                  setGodModeOpen(false);
+                  setGodModePassword("");
+                  setGodModeError("");
                 }}
                 className="flex-1 text-sm px-4 py-2 rounded-md border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors font-medium"
               >

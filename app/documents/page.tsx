@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { badgeColour } from "@/lib/badge-colour";
 import { format, parseISO } from "date-fns";
 import { useCachedData, invalidateCache } from "@/lib/data";
+import { useGodMode } from "@/app/contexts/god-mode";
 
 interface SmartAction {
   type: "MATCH_COMPLETED" | "COMPLETE_SCHEDULED";
@@ -47,6 +48,7 @@ interface Task {
 }
 
 export default function DocumentsPage() {
+  const { godMode } = useGodMode();
   const [refreshTrigger, setRefreshTrigger] = useState(0);
 
   const { data: documentsData, isRefreshing: isDocsRefreshing } = useCachedData(
@@ -401,7 +403,8 @@ export default function DocumentsPage() {
                                 {doc.title}
                               </h3>
                               <div className="flex flex-wrap gap-2 mt-2">
-                                {!doc.is_matched &&
+                                {godMode &&
+                                  !doc.is_matched &&
                                   !doc.is_dismissed &&
                                   doc.smart_actions.map((action, i) => (
                                     <button
@@ -445,7 +448,7 @@ export default function DocumentsPage() {
                                 Undo Dismiss
                               </button>
                             )}
-                            {!doc.is_matched && !doc.is_dismissed && (
+                            {godMode && !doc.is_matched && !doc.is_dismissed && (
                               <button
                                 onClick={() => setMatchingDoc(doc)}
                                 className="text-xs text-blue-600 dark:text-blue-400 hover:underline px-2 py-1"

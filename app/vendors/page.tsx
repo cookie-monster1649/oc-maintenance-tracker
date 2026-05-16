@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { getCached, setCached } from "@/lib/cache";
+import { useGodMode } from "@/app/contexts/god-mode";
 
 interface Vendor {
   id: string;
@@ -40,6 +41,7 @@ const INPUT =
   "w-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 rounded-md px-3 py-2 text-sm text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-gray-400 dark:focus:ring-gray-600";
 
 export default function VendorsPage() {
+  const { godMode } = useGodMode();
   const [vendors, setVendors] = useState<Vendor[]>(
     () => getCached<Vendor[]>("/api/vendors") ?? [],
   );
@@ -160,12 +162,14 @@ export default function VendorsPage() {
               Service providers for the building
             </p>
           </div>
-          <button
-            onClick={openAdd}
-            className="text-sm px-3 py-1.5 rounded-md bg-gray-900 dark:bg-gray-700 text-white hover:bg-gray-700 dark:hover:bg-gray-600 transition-colors"
-          >
-            Add vendor
-          </button>
+          {godMode && (
+            <button
+              onClick={openAdd}
+              className="text-sm px-3 py-1.5 rounded-md bg-gray-900 dark:bg-gray-700 text-white hover:bg-gray-700 dark:hover:bg-gray-600 transition-colors"
+            >
+              Add vendor
+            </button>
+          )}
         </div>
 
         {active.length === 0 ? (
@@ -209,18 +213,22 @@ export default function VendorsPage() {
                   )}
                 </div>
                 <div className="flex gap-2 shrink-0">
-                  <button
-                    onClick={() => openEdit(v)}
-                    className="text-sm px-3 py-1.5 rounded-md border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
-                  >
-                    Edit
-                  </button>
-                  <button
-                    onClick={() => remove(v.id, v.name)}
-                    className="text-sm px-3 py-1.5 rounded-md border border-red-200 dark:border-red-900 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950 transition-colors"
-                  >
-                    Delete
-                  </button>
+                  {godMode && (
+                    <>
+                      <button
+                        onClick={() => openEdit(v)}
+                        className="text-sm px-3 py-1.5 rounded-md border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+                      >
+                        Edit
+                      </button>
+                      <button
+                        onClick={() => remove(v.id, v.name)}
+                        className="text-sm px-3 py-1.5 rounded-md border border-red-200 dark:border-red-900 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950 transition-colors"
+                      >
+                        Delete
+                      </button>
+                    </>
+                  )}
                 </div>
               </div>
             ))}

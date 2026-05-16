@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { TaskCard, Task, Vendor } from "./components/TaskCard";
 import { getCached, setCached } from "@/lib/cache";
+import { useGodMode } from "./contexts/god-mode";
 
 type Frequency =
   | "Weekly"
@@ -27,6 +28,7 @@ const FREQUENCIES: Frequency[] = [
 ];
 
 export default function Home() {
+  const { godMode } = useGodMode();
   const [tasks, setTasks] = useState<Task[]>(
     () => getCached<Task[]>("/api/tasks") ?? [],
   );
@@ -170,12 +172,14 @@ export default function Home() {
               Active, completed and pending tasks
             </p>
           </div>
-          <button
-            onClick={() => setAdding(true)}
-            className="shrink-0 text-sm px-3 py-1.5 rounded-md bg-gray-900 dark:bg-gray-700 text-white hover:bg-gray-700 dark:hover:bg-gray-600 transition-colors"
-          >
-            Add task
-          </button>
+          {godMode && (
+            <button
+              onClick={() => setAdding(true)}
+              className="shrink-0 text-sm px-3 py-1.5 rounded-md bg-gray-900 dark:bg-gray-700 text-white hover:bg-gray-700 dark:hover:bg-gray-600 transition-colors"
+            >
+              Add task
+            </button>
+          )}
         </div>
 
         <section>

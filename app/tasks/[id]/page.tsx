@@ -6,6 +6,7 @@ import { useParams, useRouter } from "next/navigation";
 import { TaskCard, Task, Vendor, DocumentRef } from "../../components/TaskCard";
 import { getColorClasses } from "@/lib/colors";
 import { getCached, setCached } from "@/lib/cache";
+import { useGodMode } from "@/app/contexts/god-mode";
 
 type Frequency =
   | "Weekly"
@@ -41,6 +42,7 @@ function fiscalYearLabel(): string {
 }
 
 export default function TaskDetailPage() {
+  const { godMode } = useGodMode();
   const params = useParams();
   const router = useRouter();
   const taskId = params.id as string;
@@ -447,49 +449,51 @@ export default function TaskDetailPage() {
                 {currentTask.description}
               </p>
             </div>
-            <div ref={menuRef} className="relative shrink-0 mt-1">
-              <button
-                onClick={() => setMenuOpen((o) => !o)}
-                className="flex items-center justify-center w-8 h-8 rounded-md border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 hover:border-gray-300 dark:hover:border-gray-600 transition-colors text-base font-bold"
-              >
-                ⋮
-              </button>
-              {menuOpen && (
-                <div className="absolute right-0 mt-1 w-40 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-lg shadow-lg z-10">
-                  <button
-                    onClick={() => {
-                      openEdit();
-                      setMenuOpen(false);
-                    }}
-                    className="block w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 border-b border-gray-100 dark:border-gray-800"
-                  >
-                    Edit
-                  </button>
-                  {completed.length > 0 && (
+            {godMode && (
+              <div ref={menuRef} className="relative shrink-0 mt-1">
+                <button
+                  onClick={() => setMenuOpen((o) => !o)}
+                  className="flex items-center justify-center w-8 h-8 rounded-md border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 hover:border-gray-300 dark:hover:border-gray-600 transition-colors text-base font-bold"
+                >
+                  ⋮
+                </button>
+                {menuOpen && (
+                  <div className="absolute right-0 mt-1 w-40 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-lg shadow-lg z-10">
                     <button
                       onClick={() => {
-                        handleArchive();
+                        openEdit();
                         setMenuOpen(false);
                       }}
                       className="block w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 border-b border-gray-100 dark:border-gray-800"
                     >
-                      Archive
+                      Edit
                     </button>
-                  )}
-                  {canDelete && (
-                    <button
-                      onClick={() => {
-                        handleDelete();
-                        setMenuOpen(false);
-                      }}
-                      className="block w-full text-left px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950"
-                    >
-                      Delete
-                    </button>
-                  )}
-                </div>
-              )}
-            </div>
+                    {completed.length > 0 && (
+                      <button
+                        onClick={() => {
+                          handleArchive();
+                          setMenuOpen(false);
+                        }}
+                        className="block w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 border-b border-gray-100 dark:border-gray-800"
+                      >
+                        Archive
+                      </button>
+                    )}
+                    {canDelete && (
+                      <button
+                        onClick={() => {
+                          handleDelete();
+                          setMenuOpen(false);
+                        }}
+                        className="block w-full text-left px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950"
+                      >
+                        Delete
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Stats and Details Grid */}

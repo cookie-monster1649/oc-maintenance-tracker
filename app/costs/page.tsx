@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Vendor } from "@/lib/vendors";
 import { getColorClasses } from "@/lib/colors";
 import { getCached, setCached } from "@/lib/cache";
+import { useGodMode } from "@/app/contexts/god-mode";
 
 interface CategoryColor {
   name: string;
@@ -118,6 +119,7 @@ interface EditFormData {
 }
 
 export default function CostsPage() {
+  const { godMode } = useGodMode();
   const [tasks, setTasks] = useState<Task[]>(() => getCached<Task[]>("/api/tasks") ?? []);
   const [expenses, setExpenses] = useState<Expense[]>(() => getCached<Expense[]>("/api/expenses") ?? []);
   const [vendors, setVendors] = useState<Vendor[]>(() => getCached<Vendor[]>("/api/vendors") ?? []);
@@ -424,12 +426,14 @@ export default function CostsPage() {
               <option key={y} value={y}>FY{y}</option>
             ))}
           </select>
-          <button
-            onClick={() => setShowForm(true)}
-            className="border border-gray-200 dark:border-gray-700 px-3 py-1.5 rounded-md text-sm hover:bg-gray-50 dark:hover:bg-gray-800"
-          >
-            Add expense
-          </button>
+          {godMode && (
+            <button
+              onClick={() => setShowForm(true)}
+              className="border border-gray-200 dark:border-gray-700 px-3 py-1.5 rounded-md text-sm hover:bg-gray-50 dark:hover:bg-gray-800"
+            >
+              Add expense
+            </button>
+          )}
         </div>
       </div>
 
@@ -500,7 +504,9 @@ export default function CostsPage() {
                         <td className="py-2 px-3 text-right tabular-nums border-l border-gray-200">{item.actualCount}</td>
                         <td className="py-2 px-3 text-right tabular-nums font-medium">{fmt(item.actualTotal)}</td>
                         <td className="py-2 px-3 text-center">
-                          <button onClick={() => openEdit(item)} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">✎</button>
+                          {godMode && (
+                            <button onClick={() => openEdit(item)} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">✎</button>
+                          )}
                         </td>
                       </>
                     ) : (
@@ -526,7 +532,9 @@ export default function CostsPage() {
                         <td className="border-l border-gray-200"></td>
                         <td className="py-2 px-3 text-right tabular-nums font-medium">{fmt(item.amount)}</td>
                         <td className="py-2 px-3 text-center">
-                          <button onClick={() => openEdit(item)} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">✎</button>
+                          {godMode && (
+                            <button onClick={() => openEdit(item)} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">✎</button>
+                          )}
                         </td>
                       </>
                     )}

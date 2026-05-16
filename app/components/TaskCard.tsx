@@ -2,6 +2,7 @@
 
 import { getColorClasses } from "@/lib/colors";
 import { badgeColour } from "@/lib/badge-colour";
+import { useGodMode } from "@/app/contexts/god-mode";
 
 export type Status = "Scheduled" | "In Progress" | "Completed" | "Overdue";
 export type Frequency =
@@ -68,6 +69,7 @@ export function TaskCard({
   categoryColors?: Record<string, string>;
   onUnlinkDocumentAction?: (taskId: string, docId: number) => void;
 }) {
+  const { godMode } = useGodMode();
   const vendor = vendors.find((v) => v.id === task.vendor_id);
   const isCompleted = task.status === "Completed";
 
@@ -188,7 +190,7 @@ export function TaskCard({
           )}
         </div>
         <div className="flex gap-2 shrink-0">
-          {!isCompleted && onCompleteAction && (
+          {!isCompleted && onCompleteAction && godMode && (
             <button
               onClick={() => onCompleteAction(task.id)}
               disabled={completing === task.id}
