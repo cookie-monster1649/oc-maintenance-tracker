@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { readTasks, writeTasks, extrapolateFutureTasks } from "@/lib/tasks";
+import { readTasks, writeTasks, extrapolateFutureTasks, nextStartDate } from "@/lib/tasks";
 import { readVendors } from "@/lib/vendors";
 import {
   listAllDocuments,
@@ -8,6 +8,7 @@ import {
   getDocumentUrl,
 } from "@/lib/paperless";
 import { matchDocumentsToCompletion } from "@/lib/matching";
+import { parseISO, startOfDay, isBefore } from "date-fns";
 
 export async function POST(
   request: Request,
@@ -21,10 +22,6 @@ export async function POST(
 
     if (!task) {
       return NextResponse.json({ error: "Task not found" }, { status: 404 });
-    }
-
-    if (!task.last_completed_date) {
-      return NextResponse.json({ linked: [], suggestions: [] });
     }
 
     const vendors = readVendors();
@@ -59,13 +56,39 @@ export async function POST(
     );
 
     if (result.linked.length > 0) {
-      task.documents = [...(task.documents || []), ...result.linked];
+      const today = startOfDay(new Date());
+      const taskDate = parseISO(task.start_date);
+      const isPastDate = isBefore(taskDate, today);
 
-      // Extrapolate recurring tasks if not already present
-      const futureTasks = extrapolateFutureTasks(task);
-      for (const fTask of futureTasks) {
-        if (!tasks.find((t) => t.id === fTask.id)) {
-          tasks.push(fTask);
+      if (isPastDate) {
+        // Mark as completed and link documents
+        task.status = "Completed";
+        task.last_completed_date = task.start_date;
+        task.documents = [...(task.documents || []), ...result.linked];
+
+        // Create next occurrence without documents
+        const nextDate = nextStartDate(task.start_date, task.frequency);
+        const nextTask: typeof task = {
+          ...task,
+          id: `${task.id}-${nextDate}`,
+          start_date: nextDate,
+          status: "Scheduled",
+          last_completed_date: null,
+          documents: [],
+        };
+
+        if (!tasks.find((t) => t.id === nextTask.id)) {
+          tasks.push(nextTask);
+        }
+      } else {
+        // Current task is in future, link documents and extrapolate
+        task.documents = [...(task.documents || []), ...result.linked];
+
+        const futureTasks = extrapolateFutureTasks(task);
+        for (const fTask of futureTasks) {
+          if (!tasks.find((t) => t.id === fTask.id)) {
+            tasks.push(fTask);
+          }
         }
       }
 
