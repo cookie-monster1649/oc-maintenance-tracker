@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { badgeColour } from "@/lib/badge-colour";
 import { format, parseISO } from "date-fns";
 import { useCachedData, invalidateCache } from "@/lib/data";
@@ -93,6 +93,7 @@ export default function DocumentsPage() {
 
   const [createAsOccurrence, setCreateAsOccurrence] = useState(false);
   const [occurrenceDate, setOccurrenceDate] = useState("");
+  const [selectedTab, setSelectedTab] = useState<string>("");
 
   const refreshAll = () => {
     invalidateCache("/api/paperless/documents");
@@ -259,30 +260,28 @@ export default function DocumentsPage() {
     ? documents.filter((doc) => !doc.is_matched && !doc.is_dismissed)
     : documents;
 
-  const groupedByTag: Record<string, Document[]> = {};
+  const groupedByType: Record<string, Document[]> = {};
   filteredDocs.forEach((doc) => {
-    const tags = doc.tag_names.length > 0 ? doc.tag_names : ["No Tag"];
-    tags.forEach((tag) => {
-      if (!groupedByTag[tag]) groupedByTag[tag] = [];
-      groupedByTag[tag].push(doc);
-    });
+    const type = doc.document_type_label || "Uncategorized";
+    if (!groupedByType[type]) groupedByType[type] = [];
+    groupedByType[type].push(doc);
   });
 
-  const statsByTag: Record<string, { matched: number; total: number }> = {};
+  const statsByType: Record<string, { matched: number; total: number }> = {};
   documents.forEach((doc) => {
-    const tags = doc.tag_names.length > 0 ? doc.tag_names : ["No Tag"];
-    tags.forEach((tag) => {
-      if (!statsByTag[tag]) statsByTag[tag] = { matched: 0, total: 0 };
-      statsByTag[tag].total++;
-      if (doc.is_matched) statsByTag[tag].matched++;
-    });
+    const type = doc.document_type_label || "Uncategorized";
+    if (!statsByType[type]) statsByType[type] = { matched: 0, total: 0 };
+    statsByType[type].total++;
+    if (doc.is_matched) statsByType[type].matched++;
   });
 
-  const sortedTags = Object.keys(groupedByTag).sort((a, b) => {
-    if (a === "No Tag") return 1;
-    if (b === "No Tag") return -1;
-    return a.localeCompare(b);
-  });
+  const sortedTypes = Object.keys(groupedByType).sort();
+
+  useEffect(() => {
+    if (!selectedTab && sortedTypes.length > 0) {
+      setSelectedTab(sortedTypes[0]);
+    }
+  }, [sortedTypes, selectedTab]);
 
   const isRefreshing =
     isDocsRefreshing || isTasksRefreshing || isCatsRefreshing;
@@ -353,23 +352,35 @@ export default function DocumentsPage() {
             <p>No {unmatchedOnly ? "unmatched" : ""} documents found.</p>
           </div>
         ) : (
-          <div className="space-y-12">
-            {sortedTags.map((tag) => (
-              <section key={tag}>
-                <h2 className="text-xs font-semibold uppercase tracking-widest text-gray-400 dark:text-gray-500 mb-4 px-1 flex justify-between">
-                  <span>{tag}</span>
-                  <span className="font-mono text-[10px]">
-                    Unmatched: {statsByTag[tag].total - statsByTag[tag].matched}{" "}
-                    / Total: {statsByTag[tag].total}
+          <div>
+            <div className="flex gap-2 border-b border-gray-200 dark:border-gray-800 mb-8 overflow-x-auto">
+              {sortedTypes.map((type) => (
+                <button
+                  key={type}
+                  onClick={() => setSelectedTab(type)}
+                  className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
+                    selectedTab === type
+                      ? "border-gray-900 dark:border-gray-100 text-gray-900 dark:text-gray-100"
+                      : "border-transparent text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100"
+                  }`}
+                >
+                  <span>{type}</span>
+                  <span className="ml-2 text-[10px] font-mono text-gray-400 dark:text-gray-500">
+                    ({statsByType[type].total - statsByType[type].matched}/{statsByType[type].total})
                   </span>
-                </h2>
+                </button>
+              ))}
+            </div>
+
+            {selectedTab && (
+              <div>
                 <div className="bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 rounded-lg overflow-hidden shadow-sm">
                   <ul className="divide-y divide-gray-50 dark:divide-gray-800">
-                    {groupedByTag[tag]
+                    {groupedByType[selectedTab]
                       .sort((a, b) => (b.created || "").localeCompare(a.created || ""))
                       .map((doc) => (
                         <li
-                          key={`${tag}-${doc.id}`}
+                          key={`${selectedTab}-${doc.id}`}
                           className="group flex items-center justify-between p-4 hover:bg-gray-50/50 dark:hover:bg-gray-800/50 transition-colors"
                         >
                           <div className="min-w-0 flex-1 flex items-center gap-4">
@@ -447,8 +458,8 @@ export default function DocumentsPage() {
                       ))}
                   </ul>
                 </div>
-              </section>
-            ))}
+              </div>
+            )}
           </div>
         )}
       </main>
