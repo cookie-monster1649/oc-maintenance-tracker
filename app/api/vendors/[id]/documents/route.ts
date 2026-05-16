@@ -2,11 +2,13 @@ import { NextResponse } from "next/server";
 import { readVendors } from "@/lib/vendors";
 import { readTasks } from "@/lib/tasks";
 import {
+  listCorrespondents,
   listDocumentsForCorrespondent,
   listTags,
   listDocumentTypes,
   getDocumentUrl,
   type PaperlessDocument,
+  type PaperlessCorrespondent,
 } from "@/lib/paperless";
 
 interface VendorDocument {
@@ -35,20 +37,34 @@ export async function GET(
     const vendorTasks = tasks.filter((t) => t.vendor_id === id);
     const taskDocs = vendorTasks.flatMap((t) => t.documents || []);
 
-    const [tags, docTypes] = await Promise.all([
+    const [tags, docTypes, correspondents] = await Promise.all([
       listTags(),
       listDocumentTypes(),
+      listCorrespondents(),
     ]);
 
     const tagMap = new Map(tags.map((t) => [t.id, t.name]));
     const typeMap = new Map(docTypes.map((t) => [t.id, t.name]));
 
-    // Fetch correspondent docs if linked
+    // Resolve correspondent: use explicit ID or fuzzy-match on vendor name/email
+    let correspondentId: number | null = vendor.paperless_correspondent_id ?? null;
+    if (correspondentId === null) {
+      const vName = vendor.name.toLowerCase();
+      const vEmail = vendor.email?.toLowerCase();
+      const match = correspondents.find((c: PaperlessCorrespondent) => {
+        const name = c.name.toLowerCase();
+        if (vEmail && name === vEmail) return true;
+        if (vEmail && vEmail.includes("@") && name === vEmail.split("@")[0]) return true;
+        if (name.includes(vName) || vName.includes(name)) return true;
+        return false;
+      });
+      if (match) correspondentId = match.id;
+    }
+
+    // Fetch all docs for the resolved correspondent
     let paperlessDocs: PaperlessDocument[] = [];
-    if (vendor.paperless_correspondent_id) {
-      paperlessDocs = await listDocumentsForCorrespondent(
-        vendor.paperless_correspondent_id,
-      );
+    if (correspondentId !== null) {
+      paperlessDocs = await listDocumentsForCorrespondent(correspondentId);
     }
 
     // Use a map to deduplicate and merge metadata
