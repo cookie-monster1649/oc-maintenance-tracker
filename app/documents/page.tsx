@@ -89,10 +89,12 @@ export default function DocumentsPage() {
 
   const [newTaskForm, setNewTaskForm] = useState({
     title: "",
+    description: "",
     category: "",
     start_date: "",
     frequency: "",
     vendor_id: "",
+    estimated_cost: "",
   });
 
   const [newVendorForm, setNewVendorForm] = useState({
@@ -226,12 +228,18 @@ export default function DocumentsPage() {
     try {
       const taskBody: Record<string, unknown> = {
         title: newTaskForm.title,
+        description: newTaskForm.description || "",
         category: newTaskForm.category,
         start_date: newTaskForm.start_date,
         frequency: newTaskForm.frequency || "Monthly",
+        status: "Completed",
+        last_completed_date: newTaskForm.start_date,
       };
       if (newTaskForm.vendor_id) {
         taskBody.vendor_id = newTaskForm.vendor_id;
+      }
+      if (newTaskForm.estimated_cost) {
+        taskBody.estimated_cost = Number(newTaskForm.estimated_cost);
       }
 
       const taskRes = await fetch("/api/tasks", {
@@ -556,10 +564,12 @@ export default function DocumentsPage() {
                           if (val === "NEW TASK") {
                             setNewTaskForm({
                               title: matchingDoc.title,
+                              description: "",
                               category: categories[0] || "",
                               start_date: matchingDoc.created ? matchingDoc.created.split("T")[0] : "",
                               frequency: "",
                               vendor_id: "",
+                              estimated_cost: "",
                             });
                           }
                         }}
@@ -595,6 +605,23 @@ export default function DocumentsPage() {
                               }))
                             }
                             className="w-full border border-blue-100 dark:border-blue-900 bg-white dark:bg-gray-900 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[10px] uppercase font-bold text-blue-400 mb-1">
+                            Description
+                          </label>
+                          <textarea
+                            value={newTaskForm.description}
+                            onChange={(e) =>
+                              setNewTaskForm((f) => ({
+                                ...f,
+                                description: e.target.value,
+                              }))
+                            }
+                            placeholder="Task details and notes..."
+                            rows={2}
+                            className="w-full border border-blue-100 dark:border-blue-900 bg-white dark:bg-gray-900 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400 resize-none"
                           />
                         </div>
                         <div className="grid grid-cols-2 gap-4">
@@ -660,27 +687,46 @@ export default function DocumentsPage() {
                             <option value="Annually">Annually</option>
                           </select>
                         </div>
-                        <div>
-                          <label className="block text-[10px] uppercase font-bold text-blue-400 mb-1">
-                            Vendor (optional)
-                          </label>
-                          <select
-                            value={newTaskForm.vendor_id}
-                            onChange={(e) =>
-                              setNewTaskForm((f) => ({
-                                ...f,
-                                vendor_id: e.target.value,
-                              }))
-                            }
-                            className="w-full border border-blue-100 dark:border-blue-900 bg-white dark:bg-gray-900 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400"
-                          >
-                            <option value="">No vendor</option>
-                            {vendors.map((v: { id: string; name: string; service_type: string }) => (
-                              <option key={v.id} value={v.id}>
-                                {v.name} ({v.service_type})
-                              </option>
-                            ))}
-                          </select>
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <label className="block text-[10px] uppercase font-bold text-blue-400 mb-1">
+                              Vendor (optional)
+                            </label>
+                            <select
+                              value={newTaskForm.vendor_id}
+                              onChange={(e) =>
+                                setNewTaskForm((f) => ({
+                                  ...f,
+                                  vendor_id: e.target.value,
+                                }))
+                              }
+                              className="w-full border border-blue-100 dark:border-blue-900 bg-white dark:bg-gray-900 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400"
+                            >
+                              <option value="">No vendor</option>
+                              {vendors.map((v: { id: string; name: string; service_type: string }) => (
+                                <option key={v.id} value={v.id}>
+                                  {v.name} ({v.service_type})
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                          <div>
+                            <label className="block text-[10px] uppercase font-bold text-blue-400 mb-1">
+                              Estimated Cost (optional)
+                            </label>
+                            <input
+                              type="number"
+                              value={newTaskForm.estimated_cost}
+                              onChange={(e) =>
+                                setNewTaskForm((f) => ({
+                                  ...f,
+                                  estimated_cost: e.target.value,
+                                }))
+                              }
+                              placeholder="0.00"
+                              className="w-full border border-blue-100 dark:border-blue-900 bg-white dark:bg-gray-900 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400"
+                            />
+                          </div>
                         </div>
                       </div>
                     )}
