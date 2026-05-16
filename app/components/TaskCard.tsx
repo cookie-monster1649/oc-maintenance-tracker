@@ -159,29 +159,17 @@ export function TaskCard({
                       {doc.title}
                     </span>
                   </a>
-                  {onUnlinkDocumentAction && (
+                  {godMode && onUnlinkDocumentAction && (
                     <button
                       onClick={(e) => {
                         e.preventDefault();
                         onUnlinkDocumentAction(task.id, doc.id);
                       }}
-                      className="ml-1 p-0.5 text-gray-400 hover:text-rose-600 dark:hover:text-rose-400 opacity-0 group-hover:opacity-100 transition-opacity"
-                      title="Unlink document"
+                      className="hidden group-hover:inline ml-1 text-gray-400 hover:text-rose-600 dark:hover:text-rose-400 transition-colors text-xs leading-none h-3 flex items-center"
+                      title="Remove document"
+                      aria-label="Remove document"
                     >
-                      <svg
-                        xmlns="http://www.w3.org/2000/svg"
-                        width="12"
-                        height="12"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="3"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      >
-                        <path d="M18 6 6 18" />
-                        <path d="m6 6 12 12" />
-                      </svg>
+                      ✕
                     </button>
                   )}
                 </div>

@@ -126,6 +126,21 @@ export default function Home() {
     setCompleting(null);
   }
 
+  async function handleUnlinkDocument(tId: string, docId: number) {
+    if (!confirm("Remove this document link?")) return;
+
+    try {
+      const res = await fetch(`/api/tasks/${tId}/documents/${docId}`, {
+        method: "DELETE",
+      });
+      if (res.ok) {
+        fetchAll();
+      }
+    } catch (err) {
+      console.error("Unlink failed", err);
+    }
+  }
+
   const active = tasks.filter((t) => t.status !== "Completed" && !t.archived);
   const done = tasks.filter((t) => t.status === "Completed" && !t.archived);
 
@@ -204,6 +219,7 @@ export default function Home() {
                     onCompleteAction={completeTask}
                     completing={completing}
                     categoryColors={categoryColors}
+                    onUnlinkDocumentAction={handleUnlinkDocument}
                   />
                 ))}
               </div>
@@ -247,6 +263,7 @@ export default function Home() {
                           onCompleteAction={completeTask}
                           completing={completing}
                           categoryColors={categoryColors}
+                          onUnlinkDocumentAction={handleUnlinkDocument}
                         />
                       ))}
                     </div>

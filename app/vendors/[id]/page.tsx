@@ -165,6 +165,21 @@ export default function VendorDetailPage() {
     setCompleting(null);
   }
 
+  async function handleUnlinkDocument(tId: string, docId: number) {
+    if (!confirm("Remove this document link?")) return;
+
+    try {
+      const res = await fetch(`/api/tasks/${tId}/documents/${docId}`, {
+        method: "DELETE",
+      });
+      if (res.ok) {
+        fetchAll();
+      }
+    } catch (err) {
+      console.error("Unlink failed", err);
+    }
+  }
+
   useEffect(() => {
     function onPointerDown(e: PointerEvent) {
       if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
@@ -281,10 +296,22 @@ export default function VendorDetailPage() {
     }
   }
 
-  const distinctTaskTitles = Array.from(new Set(tasks.map((t) => t.title))).sort();
+  const latestByTitle = tasks.reduce(
+    (acc, t) => {
+      if (!acc[t.title] || (t.start_date || "") > (acc[t.title].start_date || "")) {
+        acc[t.title] = t;
+      }
+      return acc;
+    },
+    {} as Record<string, Task>,
+  );
+  const distinctTaskTitles = Object.entries(latestByTitle)
+    .filter(([, t]) => t.archived !== true)
+    .map(([title]) => title)
+    .sort();
   const recurrences = selectedTaskTitle
     ? tasks
-        .filter((t) => t.title === selectedTaskTitle)
+        .filter((t) => t.title === selectedTaskTitle && t.archived !== true)
         .sort((a, b) => (b.start_date || "").localeCompare(a.start_date || ""))
     : [];
   const past = recurrences.filter((t) => t.status === "Completed");
@@ -543,6 +570,7 @@ export default function VendorDetailPage() {
                       onCompleteAction={completeTask}
                       completing={completing}
                       categoryColors={categoryColors}
+                      onUnlinkDocumentAction={handleUnlinkDocument}
                     />
                   ))}
                 </div>
@@ -567,6 +595,7 @@ export default function VendorDetailPage() {
                       onCompleteAction={completeTask}
                       completing={completing}
                       categoryColors={categoryColors}
+                      onUnlinkDocumentAction={handleUnlinkDocument}
                     />
                   ))}
                 </div>
