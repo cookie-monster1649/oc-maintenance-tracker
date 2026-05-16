@@ -2,7 +2,8 @@
 
 import { createContext, useContext, useEffect, useState } from 'react';
 
-const GOD_MODE_PASSWORD = 'eastmentbabes';
+const GOD_MODE_PASSWORD = process.env.NEXT_PUBLIC_GOD_MODE_PASSWORD || 'eastmentbabes';
+// Note: Uses NEXT_PUBLIC_ prefix to be accessible in client-side code
 
 interface GodModeContextType {
   godMode: boolean;
