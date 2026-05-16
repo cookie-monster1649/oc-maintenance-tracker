@@ -134,11 +134,12 @@ export default function Home() {
   ) => {
     const groups: { year: string; tasks: Task[] }[] = [];
     items.forEach((task) => {
-      const date =
+      const date = (
         dateField === "date"
           ? task.last_completed_date || task.start_date
-          : task.start_date;
-      const year = date ? date.split("-")[0] : "0000";
+          : task.start_date
+      ) || "0000";
+      const year = date.split("-")[0];
       const lastGroup = groups[groups.length - 1];
       if (lastGroup && lastGroup.year === year) {
         lastGroup.tasks.push(task);
