@@ -80,6 +80,7 @@ export default function DocumentsPage() {
     title: string;
     docUrl: string;
   } | null>(null);
+  const [vendorError, setVendorError] = useState<string>("");
 
   const [newTaskForm, setNewTaskForm] = useState({
     title: "",
@@ -183,6 +184,7 @@ export default function DocumentsPage() {
     if (!newVendorForm.name || !matchingDoc?.correspondent) return;
 
     try {
+      setVendorError("");
       const res = await fetch("/api/vendors", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -196,9 +198,13 @@ export default function DocumentsPage() {
         setIsCreatingVendor(false);
         setNewVendorForm({ name: "", service_type: "" });
         refreshAll();
+      } else {
+        const error = await res.text();
+        setVendorError(`Failed to create vendor: ${res.status} ${error}`);
       }
     } catch (err) {
       console.error("Create vendor failed", err);
+      setVendorError(`Error creating vendor: ${err instanceof Error ? err.message : String(err)}`);
     }
   }
 
@@ -490,6 +496,7 @@ export default function DocumentsPage() {
                 <button
                   onClick={() => {
                     setNewVendorForm({ name: "", service_type: "" });
+                    setVendorError("");
                     setIsCreatingVendor(true);
                   }}
                   className="text-[10px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400 border border-emerald-100 dark:border-emerald-900 px-2 py-1 rounded hover:bg-emerald-50 dark:hover:bg-emerald-950 transition-colors"
@@ -499,7 +506,10 @@ export default function DocumentsPage() {
               )}
               {isCreatingVendor && (
                 <button
-                  onClick={() => setIsCreatingVendor(false)}
+                  onClick={() => {
+                    setIsCreatingVendor(false);
+                    setVendorError("");
+                  }}
                   className="text-xs font-bold text-gray-500 hover:underline"
                 >
                   Back to matching
@@ -760,6 +770,11 @@ export default function DocumentsPage() {
                 </>
               ) : (
                 <>
+                  {vendorError && (
+                    <div className="p-3 bg-rose-50 dark:bg-rose-950 border border-rose-200 dark:border-rose-800 rounded-md">
+                      <p className="text-sm text-rose-700 dark:text-rose-400">{vendorError}</p>
+                    </div>
+                  )}
                   <div className="space-y-4">
                     <div>
                       <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">

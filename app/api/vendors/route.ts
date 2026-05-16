@@ -18,6 +18,7 @@ export async function POST(req: Request) {
     address: body.address ?? null,
     hourly_rate: body.hourly_rate ? Number(body.hourly_rate) : null,
     notes: body.notes ?? null,
+    paperless_correspondent_id: body.paperless_correspondent_id ?? null,
   };
 
   vendors.push(vendor);
