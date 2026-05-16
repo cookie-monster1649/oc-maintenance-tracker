@@ -63,12 +63,17 @@ export default function DocumentsPage() {
     "/api/categories",
     refreshTrigger,
   );
+  const { data: vendorsData, isRefreshing: isVendorsRefreshing } = useCachedData(
+    "/api/vendors",
+    refreshTrigger,
+  );
 
   const documents: Document[] = Array.isArray(documentsData) ? documentsData : [];
   const tasks: Task[] = Array.isArray(tasksData) ? tasksData : [];
   const categories: string[] = Array.isArray(categoriesData)
     ? (categoriesData as { name: string }[]).map((c) => c.name)
     : [];
+  const vendors = Array.isArray(vendorsData) ? vendorsData : [];
 
   const [unmatchedOnly, setUnmatchedOnly] = useState(true);
   const [matchingDoc, setMatchingDoc] = useState<Document | null>(null);
@@ -87,6 +92,7 @@ export default function DocumentsPage() {
     category: "",
     start_date: "",
     frequency: "",
+    vendor_id: "",
   });
 
   const [newVendorForm, setNewVendorForm] = useState({
@@ -218,13 +224,20 @@ export default function DocumentsPage() {
       return;
 
     try {
+      const taskBody: Record<string, unknown> = {
+        title: newTaskForm.title,
+        category: newTaskForm.category,
+        start_date: newTaskForm.start_date,
+        frequency: newTaskForm.frequency || "Monthly",
+      };
+      if (newTaskForm.vendor_id) {
+        taskBody.vendor_id = newTaskForm.vendor_id;
+      }
+
       const taskRes = await fetch("/api/tasks", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          ...newTaskForm,
-          frequency: newTaskForm.frequency || "Monthly",
-        }),
+        body: JSON.stringify(taskBody),
       });
 
       if (!taskRes.ok) throw new Error("Failed to create task");
@@ -546,6 +559,7 @@ export default function DocumentsPage() {
                               category: categories[0] || "",
                               start_date: matchingDoc.created ? matchingDoc.created.split("T")[0] : "",
                               frequency: "",
+                              vendor_id: "",
                             });
                           }
                         }}
@@ -644,6 +658,28 @@ export default function DocumentsPage() {
                             <option value="Quarterly">Quarterly</option>
                             <option value="Semi-Annually">Semi-Annually</option>
                             <option value="Annually">Annually</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block text-[10px] uppercase font-bold text-blue-400 mb-1">
+                            Vendor (optional)
+                          </label>
+                          <select
+                            value={newTaskForm.vendor_id}
+                            onChange={(e) =>
+                              setNewTaskForm((f) => ({
+                                ...f,
+                                vendor_id: e.target.value,
+                              }))
+                            }
+                            className="w-full border border-blue-100 dark:border-blue-900 bg-white dark:bg-gray-900 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400"
+                          >
+                            <option value="">No vendor</option>
+                            {vendors.map((v: { id: string; name: string; service_type: string }) => (
+                              <option key={v.id} value={v.id}>
+                                {v.name} ({v.service_type})
+                              </option>
+                            ))}
                           </select>
                         </div>
                       </div>
