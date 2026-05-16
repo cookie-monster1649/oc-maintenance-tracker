@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { readTasks, writeTasks, nextStartDate } from "@/lib/tasks";
+import { readTasks, writeTasks, nextStartDate, extrapolateFutureTasks } from "@/lib/tasks";
 
 export async function POST(
   _req: Request,
@@ -34,6 +34,15 @@ export async function POST(
   };
 
   tasks.push(newTask);
+
+  // Extrapolate future tasks to ensure multiple occurrences are always scheduled
+  const futureTasks = extrapolateFutureTasks(newTask);
+  for (const fTask of futureTasks) {
+    if (!tasks.find((t) => t.id === fTask.id)) {
+      tasks.push(fTask);
+    }
+  }
+
   writeTasks(tasks);
 
   return NextResponse.json({ completed: tasks[idx], next: newTask });
