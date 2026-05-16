@@ -391,7 +391,7 @@ export default function TaskDetailPage() {
                   <div className="min-w-0">
                     <p className="text-sm font-medium truncate">{doc.title}</p>
                     <p className="text-[10px] text-gray-500">
-                      {doc.document_type_label || "Document"} • {doc.created}
+                      {doc.document_type_label || "Document"} • {doc.created || "—"}
                     </p>
                   </div>
                   <div className="flex gap-2">
