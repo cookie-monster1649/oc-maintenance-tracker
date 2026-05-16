@@ -9,31 +9,26 @@ export function useCachedData(endpoint: string, refreshTrigger?: number) {
   const [isRefreshing, setIsRefreshing] = useState(false);
 
   useEffect(() => {
-    // Return cached data immediately
-    if (cache.has(endpoint)) {
-      setData(cache.get(endpoint));
-    }
+    (async () => {
+      // Fetch fresh data in background
+      if (!fetchPromises.has(endpoint)) {
+        fetchPromises.set(
+          endpoint,
+          fetch(endpoint)
+            .then((res) => res.json())
+            .then((freshData) => {
+              cache.set(endpoint, freshData);
+              setData(freshData);
+              setIsRefreshing(false);
+              fetchPromises.delete(endpoint);
+              return freshData;
+            }),
+        );
+      }
 
-    // Fetch fresh data in background
-    if (!fetchPromises.has(endpoint)) {
-      fetchPromises.set(
-        endpoint,
-        fetch(endpoint)
-          .then((res) => res.json())
-          .then((freshData) => {
-            cache.set(endpoint, freshData);
-            setData(freshData);
-            setIsRefreshing(false);
-            fetchPromises.delete(endpoint);
-            return freshData;
-          }),
-      );
-    }
-
-    setIsRefreshing(true);
-    fetchPromises.get(endpoint)?.finally(() => {
-      setIsRefreshing(false);
-    });
+      setIsRefreshing(true);
+      await fetchPromises.get(endpoint);
+    })();
   }, [endpoint, refreshTrigger]);
 
   return { data, isRefreshing };

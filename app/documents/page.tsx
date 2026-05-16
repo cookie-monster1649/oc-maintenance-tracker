@@ -20,7 +20,7 @@ interface Document {
   tag_names: string[];
   document_type_id: number | null;
   document_type_label: string | null;
-  created: string;
+  created?: string;
   url: string;
   is_matched: boolean;
   is_dismissed: boolean;
@@ -365,7 +365,7 @@ export default function DocumentsPage() {
                 <div className="bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 rounded-lg overflow-hidden shadow-sm">
                   <ul className="divide-y divide-gray-50 dark:divide-gray-800">
                     {groupedByTag[tag]
-                      .sort((a, b) => b.created.localeCompare(a.created))
+                      .sort((a, b) => (b.created || "").localeCompare(a.created || ""))
                       .map((doc) => (
                         <li
                           key={`${tag}-${doc.id}`}
@@ -381,7 +381,7 @@ export default function DocumentsPage() {
                                 {doc.document_type_label || "Document"}
                               </span>
                               <span className="text-[10px] text-gray-400 font-mono">
-                                {format(parseISO(doc.created), "dd MMM yyyy")}
+                                {doc.created ? format(parseISO(doc.created), "dd MMM yyyy") : "—"}
                               </span>
                             </div>
                             <div className="min-w-0">
@@ -509,7 +509,7 @@ export default function DocumentsPage() {
                             setNewTaskForm({
                               title: matchingDoc.title,
                               category: categories[0] || "",
-                              start_date: matchingDoc.created.split("T")[0],
+                              start_date: matchingDoc.created ? matchingDoc.created.split("T")[0] : "",
                               frequency: "",
                             });
                           }

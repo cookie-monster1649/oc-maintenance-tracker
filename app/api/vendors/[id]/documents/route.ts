@@ -14,7 +14,7 @@ interface VendorDocument {
   title: string;
   tag_names: string[];
   document_type_label: string | null;
-  created: string;
+  created?: string;
   url: string;
 }
 
@@ -83,7 +83,7 @@ export async function GET(
     });
 
     const result = Array.from(mergedDocs.values()).sort((a, b) =>
-      b.created.localeCompare(a.created),
+      (b.created || "").localeCompare(a.created || ""),
     );
 
     return NextResponse.json(result);

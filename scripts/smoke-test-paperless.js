@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-require-imports */
 const { listAllDocuments, listCorrespondents } = require('./lib/paperless');
 require('dotenv').config({ path: '.env.local' });
 

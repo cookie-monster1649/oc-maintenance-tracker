@@ -32,7 +32,7 @@ interface Document {
   title: string;
   tag_names: string[];
   document_type_label: string | null;
-  created: string;
+  created?: string;
   url: string;
 }
 
@@ -129,7 +129,9 @@ export default function VendorDetailPage() {
   }, [vendorId]);
 
   useEffect(() => {
-    fetchAll();
+    (async () => {
+      await fetchAll();
+    })();
   }, [fetchAll]);
 
   async function completeTask(id: string) {
@@ -466,7 +468,7 @@ export default function VendorDetailPage() {
               <div className="bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 rounded-lg overflow-hidden shadow-sm">
                 <ul className="divide-y divide-gray-50 dark:divide-gray-800">
                   {vendorDocs
-                    .sort((a, b) => b.created.localeCompare(a.created))
+                    .sort((a, b) => (b.created || "").localeCompare(a.created || ""))
                     .map((doc) => (
                       <li
                         key={doc.id}
@@ -483,7 +485,7 @@ export default function VendorDetailPage() {
                                 {doc.document_type_label || "Document"}
                               </span>
                               <span className="text-[9px] text-gray-400 font-mono">
-                                {format(parseISO(doc.created), "dd MMM yyyy")}
+                                {doc.created ? format(parseISO(doc.created), "dd MMM yyyy") : "—"}
                               </span>
                             </div>
                             <h3 className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">

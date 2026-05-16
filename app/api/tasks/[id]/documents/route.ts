@@ -28,7 +28,7 @@ export async function POST(
       document_type_label: document.document_type
         ? typeMap.get(document.document_type) || null
         : null,
-      created: document.created.split("T")[0],
+      created: document.created ? document.created.split("T")[0] : "",
       url: getDocumentUrl(document.id),
       auto_linked: false,
       linked_at: new Date().toISOString(),

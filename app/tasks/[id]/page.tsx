@@ -172,7 +172,9 @@ export default function TaskDetailPage() {
   }
 
   useEffect(() => {
-    fetchAll();
+    (async () => {
+      await fetchAll();
+    })();
   }, [fetchAll]);
 
   async function completeTask(id: string) {
