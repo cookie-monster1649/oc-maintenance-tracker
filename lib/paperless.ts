@@ -58,7 +58,6 @@ async function paperlessFetch<T>(path: string): Promise<T> {
         "User-Agent": "OC-Maintenance-Tracker/1.0",
       },
       // Force IPv4 if Node is having trouble on Mac
-      // @ts-ignore - next/node specific or experimental
       next: { revalidate: 0 },
     });
 
@@ -70,8 +69,9 @@ async function paperlessFetch<T>(path: string): Promise<T> {
     }
 
     return response.json();
-  } catch (error: any) {
-    console.error(`[Paperless] Connection failed to ${url}:`, error.message);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.error(`[Paperless] Connection failed to ${url}:`, message);
     throw error;
   }
 }

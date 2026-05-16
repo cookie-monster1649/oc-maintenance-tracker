@@ -7,7 +7,7 @@ export async function GET() {
   try {
     const correspondents = await listCorrespondents();
     return NextResponse.json(correspondents);
-  } catch (error: any) {
+  } catch (error) {
     console.error("Paperless API error:", error);
     return NextResponse.json(
       { error: "Paperless-ngx unreachable" },

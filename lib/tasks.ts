@@ -4,10 +4,11 @@ import {
   addWeeks,
   addMonths,
   addYears,
+  addDays,
   parseISO,
   format,
   isBefore,
-  startOfToday,
+  startOfDay,
 } from "date-fns";
 
 const DATA_PATH = path.join(process.cwd(), "data/tasks.json");
@@ -39,7 +40,7 @@ export interface Task {
   description: string;
   frequency: Frequency;
   status: Status;
-  due_date: string;
+  start_date: string;
   last_completed_date: string | null;
   estimated_cost: number | null;
   vendor_id: string | null;
@@ -54,11 +55,11 @@ export function readTasks(): Task[] {
   }
   const raw = fs.readFileSync(DATA_PATH, "utf-8");
   const tasks: Task[] = JSON.parse(raw);
-  const today = startOfToday();
+  const today = startOfDay(new Date());
   return tasks.map((t) => ({
     ...t,
     status:
-      t.status !== "Completed" && isBefore(parseISO(t.due_date), today)
+      t.status !== "Completed" && isBefore(parseISO(t.start_date), today)
         ? "Overdue"
         : t.status,
   }));
@@ -72,8 +73,8 @@ export function writeTasks(tasks: Task[]): void {
   fs.writeFileSync(DATA_PATH, JSON.stringify(tasks, null, 2));
 }
 
-export function nextDueDate(dueDate: string, frequency: Frequency): string {
-  const d = parseISO(dueDate);
+export function nextStartDate(startDate: string, frequency: Frequency): string {
+  const d = parseISO(startDate);
   switch (frequency) {
     case "Weekly":
       return format(addWeeks(d, 1), "yyyy-MM-dd");
@@ -88,4 +89,24 @@ export function nextDueDate(dueDate: string, frequency: Frequency): string {
     case "Annually":
       return format(addYears(d, 1), "yyyy-MM-dd");
   }
+}
+
+export function extrapolateFutureTasks(task: Task): Task[] {
+  const futureTasks: Task[] = [];
+  const start = parseISO(task.start_date);
+  const end = addDays(addYears(start, 1), 1);
+  let current = nextStartDate(task.start_date, task.frequency);
+
+  while (isBefore(parseISO(current), end)) {
+    futureTasks.push({
+      ...task,
+      id: `${task.id}-${current}`,
+      start_date: current,
+      status: "Scheduled",
+      last_completed_date: null,
+      documents: [],
+    });
+    current = nextStartDate(current, task.frequency);
+  }
+  return futureTasks;
 }

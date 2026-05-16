@@ -17,7 +17,7 @@ interface Task {
   description: string;
   frequency: string;
   status: "Scheduled" | "In Progress" | "Completed" | "Overdue";
-  due_date: string;
+  start_date: string;
   estimated_cost: number | null;
   category: string;
   vendor_id: string | null;
@@ -108,7 +108,7 @@ type EditingItem = { type: "task"; data: Task } | { type: "expense"; data: Expen
 interface EditFormData {
   title?: string;
   description?: string;
-  due_date?: string;
+  start_date?: string;
   date_paid?: string;
   frequency?: string;
   estimated_cost?: number | string;
@@ -134,7 +134,7 @@ export default function CostsPage() {
   const [availableFYs, setAvailableFYs] = useState<number[]>(() => {
     const cachedTasks = getCached<Task[]>("/api/tasks") ?? [];
     const cachedExpenses = getCached<Expense[]>("/api/expenses") ?? [];
-    const allDates = [...cachedTasks.map((t) => t.due_date), ...cachedExpenses.map((e) => e.date_paid)];
+    const allDates = [...cachedTasks.map((t) => t.start_date), ...cachedExpenses.map((e) => e.date_paid)].filter(Boolean);
     if (!allDates.length) return [];
     return [...new Set(allDates.map((d) => fyForDate(d)))].sort();
   });
@@ -172,9 +172,9 @@ export default function CostsPage() {
       }, {}));
 
       const allDates = [
-        ...tasksData.map((t) => t.due_date),
+        ...tasksData.map((t) => t.start_date),
         ...expensesData.map((e) => e.date_paid),
-      ];
+      ].filter(Boolean);
       const fys = [...new Set(allDates.map((d) => fyForDate(d)))].sort();
       setAvailableFYs(fys);
 
@@ -224,7 +224,7 @@ export default function CostsPage() {
       setEditForm({
         title: task.title,
         description: task.description || "",
-        due_date: task.due_date,
+        start_date: task.start_date,
         frequency: task.frequency,
         estimated_cost: task.estimated_cost || "",
         category: task.category,
@@ -260,7 +260,7 @@ export default function CostsPage() {
           body: JSON.stringify({
             title: editForm.title,
             description: editForm.description,
-            due_date: editForm.due_date,
+            start_date: editForm.start_date,
             frequency: editForm.frequency,
             estimated_cost: editForm.estimated_cost ? parseFloat(String(editForm.estimated_cost)) : null,
             category: editForm.category,
@@ -278,7 +278,7 @@ export default function CostsPage() {
             body: JSON.stringify({
               title: editForm.description,
               description: editForm.description,
-              due_date: editForm.date_paid,
+              start_date: editForm.date_paid,
               frequency: editForm.frequency,
               estimated_cost: parseFloat(String(editForm.amount ?? 0)),
               category: editForm.category,
@@ -314,7 +314,7 @@ export default function CostsPage() {
   const daysInFY = daysInRange(start, end);
 
   // Filter tasks and expenses by FY
-  const inFY_tasks = tasks.filter((t) => fyForDate(t.due_date) === fy);
+  const inFY_tasks = tasks.filter((t) => fyForDate(t.start_date) === fy);
   const inFY_expenses = expenses.filter((e) => fyForDate(e.date_paid) === fy);
 
   // Group tasks by title
@@ -408,7 +408,7 @@ export default function CostsPage() {
 
   return (
     <>
-    <main className="animate-page max-w-6xl mx-auto px-4 py-10">
+    <main className="animate-page content-container-full py-10">
       <div className="flex items-start justify-between mb-10">
         <div>
           <h1 className="text-2xl font-semibold mb-1">Costs</h1>
@@ -625,7 +625,7 @@ export default function CostsPage() {
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Due date</label>
-                    <input type="date" value={editForm.due_date ?? ""} onChange={(e) => setEditForm((f) => ({ ...f, due_date: e.target.value }))} className="w-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 rounded-md px-3 py-2 text-sm text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-gray-400" />
+                    <input type="date" value={editForm.start_date ?? ""} onChange={(e) => setEditForm((f) => ({ ...f, start_date: e.target.value }))} className="w-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 rounded-md px-3 py-2 text-sm text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-gray-400" />
                   </div>
                   <div>
                     <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Frequency</label>

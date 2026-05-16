@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { TaskCard, Task } from "../../components/TaskCard";
 import { getCached, setCached } from "@/lib/cache";
 import { badgeColour } from "@/lib/badge-colour";
 import { format, parseISO } from "date-fns";
+import { type PaperlessCorrespondent } from "@/lib/paperless";
 
 interface CategoryColor {
   name: string;
@@ -54,7 +55,9 @@ export default function VendorDetailPage() {
     () => getCached<Task[]>("/api/tasks") ?? [],
   );
   const [vendorDocs, setVendorDocs] = useState<Document[]>([]);
-  const [correspondents, setCorrespondents] = useState<any[]>([]);
+  const [correspondents, setCorrespondents] = useState<
+    PaperlessCorrespondent[]
+  >([]);
   const [loadingDocs, setLoadingDocs] = useState(false);
   const [categoryColors, setCategoryColors] = useState<Record<string, string>>(
     () =>
@@ -81,7 +84,7 @@ export default function VendorDetailPage() {
     setTasks(data);
   }
 
-  async function fetchAll() {
+  const fetchAll = useCallback(async () => {
     const [vendorsRes, tasksRes, categoriesRes, corrRes] = await Promise.all([
       fetch("/api/vendors"),
       fetch("/api/tasks"),
@@ -94,7 +97,7 @@ export default function VendorDetailPage() {
         tasksRes.json(),
         categoriesRes.json(),
         corrRes ? corrRes.json() : Promise.resolve([]),
-      ])) as [Vendor[], Task[], CategoryColor[], any[]];
+      ])) as [Vendor[], Task[], CategoryColor[], PaperlessCorrespondent[]];
     setCached("/api/vendors", vendorsData);
     setCached("/api/tasks", tasksData);
     setCached("/api/categories", categoriesData);
@@ -109,7 +112,7 @@ export default function VendorDetailPage() {
     );
 
     const vendor = vendorsData.find((v) => v.id === vendorId);
-    if (vendor?.paperless_correspondent_id) {
+    if (vendor) {
       setLoadingDocs(true);
       try {
         const docsRes = await fetch(`/api/vendors/${vendorId}/documents`);
@@ -123,12 +126,11 @@ export default function VendorDetailPage() {
         setLoadingDocs(false);
       }
     }
-  }
+  }, [vendorId]);
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchAll();
-  }, []);
+  }, [fetchAll]);
 
   async function completeTask(id: string) {
     setCompleting(id);
@@ -150,7 +152,7 @@ export default function VendorDetailPage() {
   const vendor = vendors.find((v) => v.id === vendorId);
   if (!vendor) {
     return (
-      <main className="max-w-4xl mx-auto px-4 py-8">
+      <main className="animate-page content-container py-10">
         <p className="text-gray-400">
           {vendors.length === 0 ? "Loading…" : "Vendor not found"}
         </p>
@@ -160,7 +162,7 @@ export default function VendorDetailPage() {
 
   const assignedTasks = tasks
     .filter((t) => t.vendor_id === vendorId)
-    .sort((a, b) => a.due_date.localeCompare(b.due_date));
+    .sort((a, b) => (a.start_date || "").localeCompare(b.start_date || ""));
   const completed = assignedTasks.filter((t) => t.status === "Completed");
   const upcoming = assignedTasks.filter((t) => t.status !== "Completed");
   const totalCost = assignedTasks.reduce(
@@ -236,7 +238,7 @@ export default function VendorDetailPage() {
 
   return (
     <>
-      <main className="animate-page max-w-4xl mx-auto px-4 py-8">
+      <main className="animate-page content-container py-10">
         <Link
           href="/vendors"
           className="text-sm text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 mb-8 inline-block"
@@ -403,7 +405,7 @@ export default function VendorDetailPage() {
                         name: v.name,
                         service_type: v.service_type,
                       }))}
-                      onComplete={completeTask}
+                      onCompleteAction={completeTask}
                       completing={completing}
                       categoryColors={categoryColors}
                     />
@@ -427,7 +429,7 @@ export default function VendorDetailPage() {
                         name: v.name,
                         service_type: v.service_type,
                       }))}
-                      onComplete={completeTask}
+                      onCompleteAction={completeTask}
                       completing={completing}
                       categoryColors={categoryColors}
                     />

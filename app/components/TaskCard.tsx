@@ -29,7 +29,7 @@ export interface Task {
   description: string;
   frequency: Frequency;
   status: Status;
-  due_date: string;
+  start_date: string;
   last_completed_date: string | null;
   estimated_cost: number | null;
   vendor_id: string | null;
@@ -56,17 +56,17 @@ const STATUS_STYLES: Record<Status, string> = {
 export function TaskCard({
   task,
   vendors,
-  onComplete,
+  onCompleteAction,
   completing,
   categoryColors,
-  onUnlinkDocument,
+  onUnlinkDocumentAction,
 }: {
   task: Task;
   vendors: Vendor[];
-  onComplete?: (id: string) => void;
+  onCompleteAction?: (id: string) => void;
   completing?: string | null;
   categoryColors?: Record<string, string>;
-  onUnlinkDocument?: (taskId: string, docId: number) => void;
+  onUnlinkDocumentAction?: (taskId: string, docId: number) => void;
 }) {
   const vendor = vendors.find((v) => v.id === task.vendor_id);
   const isCompleted = task.status === "Completed";
@@ -76,9 +76,11 @@ export function TaskCard({
     return getColorClasses(colorName);
   };
 
-  const [day, month] = new Date(task.due_date + "T00:00:00")
-    .toLocaleDateString("en-AU", { day: "2-digit", month: "short" })
-    .split(" ");
+  const [day, month] = (task.start_date
+    ? new Date(task.start_date + "T00:00:00")
+        .toLocaleDateString("en-AU", { day: "2-digit", month: "short" })
+        .split(" ")
+    : ["—", ""]);
 
   return (
     <div
@@ -145,21 +147,21 @@ export function TaskCard({
                     className="flex items-center gap-2 px-2 py-1 bg-gray-50 dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded text-[11px] hover:border-gray-300 dark:hover:border-gray-600 transition-colors"
                   >
                     <span
-                      className={`font-bold uppercase tracking-wider px-1 rounded-[2px] ${badgeColour(
+                      className={`font-bold uppercase tracking-wider px-1 rounded-xs ${badgeColour(
                         doc.document_type_label,
                       )}`}
                     >
                       {doc.document_type_label || "DOC"}
                     </span>
-                    <span className="text-gray-700 dark:text-gray-300 truncate max-w-[150px]">
+                    <span className="text-gray-700 dark:text-gray-300 truncate max-w-37.5">
                       {doc.title}
                     </span>
                   </a>
-                  {onUnlinkDocument && (
+                  {onUnlinkDocumentAction && (
                     <button
                       onClick={(e) => {
                         e.preventDefault();
-                        onUnlinkDocument(task.id, doc.id);
+                        onUnlinkDocumentAction(task.id, doc.id);
                       }}
                       className="ml-1 p-0.5 text-gray-400 hover:text-rose-600 dark:hover:text-rose-400 opacity-0 group-hover:opacity-100 transition-opacity"
                       title="Unlink document"
@@ -186,9 +188,9 @@ export function TaskCard({
           )}
         </div>
         <div className="flex gap-2 shrink-0">
-          {!isCompleted && onComplete && (
+          {!isCompleted && onCompleteAction && (
             <button
-              onClick={() => onComplete(task.id)}
+              onClick={() => onCompleteAction(task.id)}
               disabled={completing === task.id}
               className="text-sm px-3 py-1.5 rounded-md border border-gray-300 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 disabled:opacity-40 transition-colors"
             >

@@ -3,7 +3,6 @@ import { Vendor } from "./vendors";
 import { PaperlessDocument, PaperlessCorrespondent } from "./paperless";
 import {
   parseISO,
-  differenceInDays,
   startOfDay,
   addDays,
   subDays,
@@ -21,7 +20,7 @@ export function matchDocumentsToCompletion(
   candidates: PaperlessDocument[],
   correspondents: PaperlessCorrespondent[],
   getDocumentUrl: (id: number) => string,
-  getTypeLabel: (id: number | null) => string | null
+  getTypeLabel: (id: number | null) => string | null,
 ): MatchResult {
   if (!task.last_completed_date) {
     return { linked: [], suggestions: [] };
@@ -32,7 +31,8 @@ export function matchDocumentsToCompletion(
   const windowEnd = addDays(completionDate, 14);
 
   // Determine target correspondent ID
-  let targetCorrespondentId: number | null = vendor.paperless_correspondent_id ?? null;
+  let targetCorrespondentId: number | null =
+    vendor.paperless_correspondent_id ?? null;
 
   if (targetCorrespondentId === null) {
     // Text-match fallback
@@ -42,7 +42,8 @@ export function matchDocumentsToCompletion(
       const vEmail = vendor.email?.toLowerCase();
 
       if (vEmail && name === vEmail) return true;
-      if (vEmail && vEmail.includes("@") && name === vEmail.split("@")[0]) return true;
+      if (vEmail && vEmail.includes("@") && name === vEmail.split("@")[0])
+        return true;
       if (name.includes(vName) || vName.includes(name)) return true;
       return false;
     });

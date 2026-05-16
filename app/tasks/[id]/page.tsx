@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { TaskCard, Task, Vendor } from "../../components/TaskCard";
+import { TaskCard, Task, Vendor, DocumentRef } from "../../components/TaskCard";
 import { getColorClasses } from "@/lib/colors";
 import { getCached, setCached } from "@/lib/cache";
 
@@ -67,23 +67,49 @@ export default function TaskDetailPage() {
   const [editOpen, setEditOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [completing, setCompleting] = useState<string | null>(null);
-  const [matching, setMatching] = useState(false);
   const [autoLinkedCount, setAutoLinkedCount] = useState(0);
   const [lastAutoLinkedIds, setLastAutoLinkedIds] = useState<number[]>([]);
-  const [suggestions, setSuggestions] = useState<any[]>([]);
+  const [suggestions, setSuggestions] = useState<DocumentRef[]>([]);
   const [form, setForm] = useState<Partial<Task>>({});
   const [originalForm, setOriginalForm] = useState<Partial<Task>>({});
+  const [createOccurrenceOpen, setCreateOccurrenceOpen] = useState(false);
+  const [selectedDocForOccurrence, setSelectedDocForOccurrence] =
+    useState<DocumentRef | null>(null);
+  const [occurrenceDate, setOccurrenceDate] = useState("");
   const menuRef = useRef<HTMLDivElement>(null);
   const backdropRef = useRef<HTMLDivElement>(null);
+  const occurrenceBackdropRef = useRef<HTMLDivElement>(null);
 
-  async function fetchTasks() {
+  const fetchTasks = useCallback(async () => {
     const res = await fetch("/api/tasks");
     const data = await res.json();
     setCached("/api/tasks", data);
     setTasks(data);
-  }
+  }, []);
 
-  async function fetchAll() {
+  const triggerMatch = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/tasks/${taskId}/match-documents`, {
+        method: "POST",
+      });
+      if (res.ok) {
+        const result = await res.json();
+        setSuggestions(result.suggestions || []);
+        if (result.linked && result.linked.length > 0) {
+          setAutoLinkedCount(result.linked.length);
+          setLastAutoLinkedIds(result.linked.map((d: DocumentRef) => d.id));
+          // Refresh tasks to show the new links
+          const tasksRes = await fetch("/api/tasks");
+          const tasksData = await tasksRes.json();
+          setTasks(tasksData);
+        }
+      }
+    } catch (err) {
+      console.error("Auto-match failed", err);
+    }
+  }, [taskId]);
+
+  const fetchAll = useCallback(async () => {
     const [tasksRes, vendorsRes, categoriesRes] = await Promise.all([
       fetch("/api/tasks"),
       fetch("/api/vendors"),
@@ -109,32 +135,7 @@ export default function TaskDetailPage() {
 
     // Trigger matching on page load
     triggerMatch();
-  }
-
-  async function triggerMatch() {
-    setMatching(true);
-    try {
-      const res = await fetch(`/api/tasks/${taskId}/match-documents`, {
-        method: "POST",
-      });
-      if (res.ok) {
-        const result = await res.json();
-        setSuggestions(result.suggestions || []);
-        if (result.linked && result.linked.length > 0) {
-          setAutoLinkedCount(result.linked.length);
-          setLastAutoLinkedIds(result.linked.map((d: any) => d.id));
-          // Refresh tasks to show the new links
-          const tasksRes = await fetch("/api/tasks");
-          const tasksData = await tasksRes.json();
-          setTasks(tasksData);
-        }
-      }
-    } catch (err) {
-      console.error("Auto-match failed", err);
-    } finally {
-      setMatching(false);
-    }
-  }
+  }, [triggerMatch]);
 
   async function undoMatch() {
     if (lastAutoLinkedIds.length === 0) return;
@@ -149,16 +150,30 @@ export default function TaskDetailPage() {
       );
       setAutoLinkedCount(0);
       setLastAutoLinkedIds([]);
-      fetchTasks();
+      fetchAll();
     } catch (err) {
       console.error("Undo match failed", err);
     }
   }
 
+  async function handleUnlinkDocument(tId: string, docId: number) {
+    if (!confirm("Remove this document link?")) return;
+
+    try {
+      const res = await fetch(`/api/tasks/${tId}/documents/${docId}`, {
+        method: "DELETE",
+      });
+      if (res.ok) {
+        fetchAll();
+      }
+    } catch (err) {
+      console.error("Unlink failed", err);
+    }
+  }
+
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchAll();
-  }, []);
+  }, [fetchAll]);
 
   async function completeTask(id: string) {
     setCompleting(id);
@@ -180,7 +195,7 @@ export default function TaskDetailPage() {
   const currentTask = tasks.find((t) => t.id === taskId);
   if (!currentTask) {
     return (
-      <main className="max-w-3xl mx-auto px-4 py-10">
+      <main className="animate-page content-container py-10">
         <p className="text-gray-400">
           {tasks.length === 0 ? "Loading…" : "Task not found"}
         </p>
@@ -190,12 +205,12 @@ export default function TaskDetailPage() {
 
   const series = tasks
     .filter((t) => t.title === currentTask.title)
-    .sort((a, b) => a.due_date.localeCompare(b.due_date));
+    .sort((a, b) => (a.start_date || "").localeCompare(b.start_date || ""));
   const vendor = vendors.find((v) => v.id === currentTask.vendor_id);
   const completed = series.filter((t) => t.status === "Completed");
   const upcoming = series
     .filter((t) => t.status !== "Completed")
-    .sort((a, b) => a.due_date.localeCompare(b.due_date));
+    .sort((a, b) => (a.start_date || "").localeCompare(b.start_date || ""));
 
   const totalCost = completed.reduce((s, t) => s + (t.estimated_cost ?? 0), 0);
   const avgCost =
@@ -211,7 +226,7 @@ export default function TaskDetailPage() {
       title: currentTask.title,
       description: currentTask.description,
       frequency: currentTask.frequency as Frequency,
-      due_date: currentTask.due_date,
+      start_date: currentTask.start_date,
       estimated_cost: currentTask.estimated_cost,
       vendor_id: currentTask.vendor_id,
       category: currentTask.category,
@@ -244,18 +259,88 @@ export default function TaskDetailPage() {
   };
 
   const handleArchive = async () => {
+    const futureTasks = series.filter((t) => t.status !== "Completed");
+    const count = futureTasks.length;
+
     if (
       !confirm(
-        `Archive "${currentTask.title}"? It will be hidden from the main list but remain in the system.`,
+        `Archive this task series? This will hide ${count} future occurrence${
+          count === 1 ? "" : "s"
+        } but preserve your completion history and cost data.`,
       )
     )
       return;
-    await fetch(`/api/tasks/${taskId}`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ archived: true }),
-    });
-    router.push("/");
+
+    // Archive all non-completed tasks in the series
+    await Promise.all(
+      futureTasks.map((t) =>
+        fetch(`/api/tasks/${t.id}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ archived: true }),
+        }),
+      ),
+    );
+
+    // If we archived the current task, go home. Otherwise just refresh.
+    if (currentTask.status !== "Completed") {
+      router.push("/");
+    } else {
+      fetchAll();
+      setMenuOpen(false);
+    }
+  };
+
+  const handleCreateOccurrence = async (doc: DocumentRef) => {
+    setSelectedDocForOccurrence(doc);
+    setOccurrenceDate(new Date().toISOString().split("T")[0]);
+    setCreateOccurrenceOpen(true);
+  };
+
+  const saveOccurrence = async () => {
+    if (!selectedDocForOccurrence || !occurrenceDate || !currentTask) return;
+
+    try {
+      const newTaskData = {
+        title: currentTask.title,
+        description: currentTask.description,
+        frequency: currentTask.frequency,
+        start_date: occurrenceDate,
+        estimated_cost: currentTask.estimated_cost,
+        vendor_id: currentTask.vendor_id,
+        category: currentTask.category,
+        status: "Completed" as const,
+        last_completed_date: occurrenceDate,
+      };
+
+      // Create the task
+      const createRes = await fetch("/api/tasks", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(newTaskData),
+      });
+
+      if (!createRes.ok) throw new Error("Failed to create task");
+      const createdTask = await createRes.json();
+
+      // Link the document
+      await fetch(`/api/tasks/${createdTask.id}/documents`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ document: selectedDocForOccurrence }),
+      });
+
+      setCreateOccurrenceOpen(false);
+      setSelectedDocForOccurrence(null);
+      setOccurrenceDate("");
+      setSuggestions((s) =>
+        s.filter((d) => d.id !== selectedDocForOccurrence.id),
+      );
+      fetchAll();
+    } catch (err) {
+      console.error("Failed to create occurrence:", err);
+      alert("Failed to create occurrence. Please try again.");
+    }
   };
 
   const handleDelete = async () => {
@@ -267,7 +352,7 @@ export default function TaskDetailPage() {
 
   return (
     <>
-      <main className="animate-page max-w-4xl mx-auto px-4 py-8">
+      <main className="animate-page content-container py-10">
         <Link
           href="/"
           className="text-sm text-gray-400 hover:text-gray-600 mb-8 inline-block"
@@ -330,6 +415,12 @@ export default function TaskDetailPage() {
                     >
                       Link
                     </button>
+                    <button
+                      onClick={() => handleCreateOccurrence(doc)}
+                      className="text-xs font-bold text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 px-2"
+                    >
+                      Create Occurrence
+                    </button>
                   </div>
                 </div>
               ))}
@@ -340,6 +431,13 @@ export default function TaskDetailPage() {
         <div className="mb-12">
           <div className="flex items-start justify-between gap-6 mb-8">
             <div className="flex-1">
+              {currentTask.archived && (
+                <div className="mb-2">
+                  <span className="inline-block border border-gray-300 dark:border-gray-600 rounded-full px-2 py-0.5 text-[10px] uppercase font-bold tracking-wider text-gray-500 dark:text-gray-400">
+                    archived
+                  </span>
+                </div>
+              )}
               <h1 className="text-4xl font-bold mb-3 text-gray-900 dark:text-gray-100">
                 {currentTask.title}
               </h1>
@@ -448,7 +546,7 @@ export default function TaskDetailPage() {
                   Due Date
                 </span>
                 <span className="font-medium text-gray-900 dark:text-gray-100">
-                  {currentTask.due_date}
+                  {currentTask.start_date}
                 </span>
               </div>
               <div className="flex justify-between gap-4">
@@ -490,9 +588,10 @@ export default function TaskDetailPage() {
                     key={task.id}
                     task={task}
                     vendors={vendors}
-                    onComplete={completeTask}
+                    onCompleteAction={completeTask}
                     completing={completing}
                     categoryColors={categoryColors}
+                    onUnlinkDocumentAction={handleUnlinkDocument}
                   />
                 ))}
               </div>
@@ -510,9 +609,10 @@ export default function TaskDetailPage() {
                     key={task.id}
                     task={task}
                     vendors={vendors}
-                    onComplete={completeTask}
+                    onCompleteAction={completeTask}
                     completing={completing}
                     categoryColors={categoryColors}
+                    onUnlinkDocumentAction={handleUnlinkDocument}
                   />
                 ))}
               </div>
@@ -566,9 +666,9 @@ export default function TaskDetailPage() {
                   </label>
                   <input
                     type="date"
-                    value={form.due_date ?? ""}
+                    value={form.start_date ?? ""}
                     onChange={(e) =>
-                      setForm((f) => ({ ...f, due_date: e.target.value }))
+                      setForm((f) => ({ ...f, start_date: e.target.value }))
                     }
                     className="w-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 rounded-md px-3 py-2 text-sm text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-gray-400"
                   />
@@ -661,6 +761,59 @@ export default function TaskDetailPage() {
               </button>
               <button
                 onClick={closeEdit}
+                className="flex-1 text-sm px-4 py-2 rounded-md border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors font-medium"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {createOccurrenceOpen && selectedDocForOccurrence && (
+        <div
+          ref={occurrenceBackdropRef}
+          className="animate-backdrop fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
+          onClick={(e) => {
+            if (e.target === occurrenceBackdropRef.current) {
+              setCreateOccurrenceOpen(false);
+            }
+          }}
+        >
+          <div className="animate-modal bg-white dark:bg-gray-900 rounded-lg shadow-xl max-w-md w-full p-8">
+            <h2 className="text-2xl font-bold mb-6 text-gray-900 dark:text-gray-100">
+              Create Occurrence
+            </h2>
+            <div className="space-y-4 mb-8">
+              <div>
+                <p className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                  Document
+                </p>
+                <p className="text-sm text-gray-600 dark:text-gray-400">
+                  {selectedDocForOccurrence.title}
+                </p>
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                  Date the task occurred
+                </label>
+                <input
+                  type="date"
+                  value={occurrenceDate}
+                  onChange={(e) => setOccurrenceDate(e.target.value)}
+                  className="w-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 rounded-md px-3 py-2 text-sm text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-gray-400"
+                />
+              </div>
+            </div>
+            <div className="flex gap-3">
+              <button
+                onClick={saveOccurrence}
+                className="flex-1 text-sm px-4 py-2 rounded-md bg-gray-900 dark:bg-gray-700 text-white hover:bg-gray-700 dark:hover:bg-gray-600 transition-colors font-medium"
+              >
+                Create
+              </button>
+              <button
+                onClick={() => setCreateOccurrenceOpen(false)}
                 className="flex-1 text-sm px-4 py-2 rounded-md border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors font-medium"
               >
                 Cancel

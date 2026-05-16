@@ -4,7 +4,7 @@ import { getDocumentUrl, listDocumentTypes } from "@/lib/paperless";
 
 export async function POST(
   request: Request,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> },
 ) {
   try {
     const { id } = await params;
@@ -25,7 +25,9 @@ export async function POST(
       id: document.id,
       title: document.title,
       document_type_id: document.document_type,
-      document_type_label: document.document_type ? typeMap.get(document.document_type) || null : null,
+      document_type_label: document.document_type
+        ? typeMap.get(document.document_type) || null
+        : null,
       created: document.created.split("T")[0],
       url: getDocumentUrl(document.id),
       auto_linked: false,
@@ -36,11 +38,8 @@ export async function POST(
     writeTasks(tasks);
 
     return NextResponse.json({ success: true });
-  } catch (error: any) {
+  } catch (error) {
     console.error("Manual match error:", error);
-    return NextResponse.json(
-      { error: "Match failed" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "Match failed" }, { status: 500 });
   }
 }

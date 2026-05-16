@@ -150,13 +150,13 @@ export default function VendorsPage() {
 
   return (
     <>
-      <main className="animate-page max-w-4xl mx-auto px-4 py-8">
-        <div className="flex items-start justify-between mb-10">
+      <main className="animate-page content-container py-10">
+        <div className="flex items-start justify-between gap-8 mb-8">
           <div>
-            <h1 className="text-4xl font-bold mb-2 text-gray-900 dark:text-gray-100">
+            <h1 className="text-2xl font-semibold mb-1 text-gray-900 dark:text-gray-100">
               Vendors
             </h1>
-            <p className="text-base text-gray-600 dark:text-gray-400">
+            <p className="text-sm text-gray-500 dark:text-gray-400">
               Service providers for the building
             </p>
           </div>

@@ -261,7 +261,7 @@ export default function Header() {
 
   return (
     <header className="border-b border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-950 px-4">
-      <div className="max-w-6xl mx-auto flex items-center justify-between h-14">
+      <div className="content-container flex items-center justify-between h-14">
         <nav className="flex gap-8">
           <Link
             href="/"

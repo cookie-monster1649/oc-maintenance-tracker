@@ -23,6 +23,9 @@ export async function PUT(req: Request, { params }: Params) {
     hourly_rate: body.hourly_rate ? Number(body.hourly_rate) : null,
     notes: body.notes ?? null,
     archived: body.archived ?? vendors[idx].archived,
+    paperless_correspondent_id:
+      body.paperless_correspondent_id ??
+      vendors[idx].paperless_correspondent_id,
   };
 
   writeVendors(vendors);

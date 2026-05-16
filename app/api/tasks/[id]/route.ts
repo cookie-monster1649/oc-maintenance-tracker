@@ -18,7 +18,7 @@ export async function PUT(req: Request, { params }: Params) {
     title: body.title ?? tasks[idx].title,
     description: body.description ?? tasks[idx].description,
     frequency: body.frequency ?? tasks[idx].frequency,
-    due_date: body.due_date ?? tasks[idx].due_date,
+    start_date: body.start_date ?? tasks[idx].start_date,
     estimated_cost: body.estimated_cost != null ? Number(body.estimated_cost) : null,
     vendor_id: body.vendor_id ?? null,
     category: body.category ?? tasks[idx].category,

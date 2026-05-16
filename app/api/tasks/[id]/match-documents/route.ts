@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { readTasks, writeTasks } from "@/lib/tasks";
+import { readTasks, writeTasks, extrapolateFutureTasks } from "@/lib/tasks";
 import { readVendors } from "@/lib/vendors";
 import {
   listAllDocuments,
@@ -11,7 +11,7 @@ import { matchDocumentsToCompletion } from "@/lib/matching";
 
 export async function POST(
   request: Request,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> },
 ) {
   try {
     const { id } = await params;
@@ -36,7 +36,7 @@ export async function POST(
 
     // Fetch context from Paperless
     const [documents, correspondents, docTypes] = await Promise.all([
-      listAllDocuments(), // For PoC, fetching all. Could be optimized by date filters.
+      listAllDocuments(),
       listCorrespondents(),
       listDocumentTypes(),
     ]);
@@ -48,25 +48,33 @@ export async function POST(
       documents,
       correspondents,
       getDocumentUrl,
-      (typeId) => (typeId ? typeMap.get(typeId) || null : null)
+      (typeId) => (typeId ? typeMap.get(typeId) || null : null),
     );
 
     // Filter out already linked documents
     const existingIds = new Set(task.documents?.map((d) => d.id) || []);
     result.linked = result.linked.filter((d) => !existingIds.has(d.id));
-    result.suggestions = result.suggestions.filter((d) => !existingIds.has(d.id));
+    result.suggestions = result.suggestions.filter(
+      (d) => !existingIds.has(d.id),
+    );
 
     if (result.linked.length > 0) {
       task.documents = [...(task.documents || []), ...result.linked];
+
+      // Extrapolate recurring tasks if not already present
+      const futureTasks = extrapolateFutureTasks(task);
+      for (const fTask of futureTasks) {
+        if (!tasks.find((t) => t.id === fTask.id)) {
+          tasks.push(fTask);
+        }
+      }
+
       writeTasks(tasks);
     }
 
     return NextResponse.json(result);
-  } catch (error: any) {
+  } catch (error) {
     console.error("Match error:", error);
-    return NextResponse.json(
-      { error: "Matching failed" },
-      { status: 502 }
-    );
+    return NextResponse.json({ error: "Matching failed" }, { status: 502 });
   }
 }

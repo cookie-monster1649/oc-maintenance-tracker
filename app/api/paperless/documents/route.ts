@@ -6,25 +6,29 @@ import {
   getDocumentUrl,
 } from "@/lib/paperless";
 import { readTasks } from "@/lib/tasks";
+import { readVendors } from "@/lib/vendors";
 import { readDismissed } from "@/lib/dismissed";
+import { getSmartActions } from "@/lib/recommendations";
 
 export const dynamic = "force-dynamic";
 
 export async function GET() {
   try {
-    const [documents, tags, docTypes, tasks, dismissed] = await Promise.all([
-      listAllDocuments(),
-      listTags(),
-      listDocumentTypes(),
-      readTasks(),
-      readDismissed(),
-    ]);
+    const [documents, tags, docTypes, tasks, vendors, dismissed] =
+      await Promise.all([
+        listAllDocuments(),
+        listTags(),
+        listDocumentTypes(),
+        readTasks(),
+        readVendors(),
+        readDismissed(),
+      ]);
 
     // Simple matched check: see if doc ID exists in any task's documents array
     const matchedDocIds = new Set<number>();
-    tasks.forEach((task: any) => {
+    tasks.forEach((task) => {
       if (task.documents) {
-        task.documents.forEach((doc: any) => matchedDocIds.add(doc.id));
+        task.documents.forEach((doc) => matchedDocIds.add(doc.id));
       }
     });
 
@@ -43,10 +47,11 @@ export async function GET() {
       url: getDocumentUrl(doc.id),
       is_matched: matchedDocIds.has(doc.id),
       is_dismissed: dismissedIds.has(doc.id),
+      smart_actions: getSmartActions(doc, tasks, vendors),
     }));
 
     return NextResponse.json(augmentedDocs);
-  } catch (error: any) {
+  } catch (error) {
     console.error("Paperless API error:", error);
     return NextResponse.json(
       { error: "Paperless-ngx unreachable or misconfigured" },

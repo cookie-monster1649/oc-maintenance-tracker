@@ -34,7 +34,7 @@ CREATE TABLE tasks (
   frequency TEXT NOT NULL CHECK (frequency IN ('Weekly', 'Bi-weekly', 'Monthly', 'Quarterly', 'Semi-Annually', 'Annually')),
   estimated_cost NUMERIC(10, 2),
   status TEXT DEFAULT 'Scheduled' CHECK (status IN ('Scheduled', 'In Progress', 'Completed', 'Overdue')),
-  due_date DATE NOT NULL,
+  start_date DATE NOT NULL,
   last_completed_date DATE,
   parent_task_id UUID REFERENCES tasks(id) ON DELETE SET NULL,
   created_at TIMESTAMPTZ DEFAULT NOW(),
@@ -90,7 +90,7 @@ CREATE POLICY "Completions: authenticated read" ON task_completions
 
 -- Indexes
 CREATE INDEX idx_tasks_vendor_id ON tasks(vendor_id);
-CREATE INDEX idx_tasks_due_date ON tasks(due_date);
+CREATE INDEX idx_tasks_start_date ON tasks(start_date);
 CREATE INDEX idx_tasks_status ON tasks(status);
 CREATE INDEX idx_tasks_parent_task_id ON tasks(parent_task_id);
 CREATE INDEX idx_task_completions_task_id ON task_completions(task_id);

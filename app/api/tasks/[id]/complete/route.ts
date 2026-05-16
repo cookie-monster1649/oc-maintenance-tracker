@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
-import { readTasks, writeTasks, nextDueDate } from "@/lib/tasks";
+import { readTasks, writeTasks, nextStartDate } from "@/lib/tasks";
 
 export async function POST(
   _req: Request,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params;
   const tasks = readTasks();
@@ -23,13 +23,14 @@ export async function POST(
     last_completed_date: today,
   };
 
-  // Create next recurrence — due date advances from previous due_date, not today
+  // Create next recurrence — start date advances from previous start_date
   const newTask = {
     ...task,
     id: crypto.randomUUID(),
     status: "Scheduled" as const,
-    due_date: nextDueDate(task.due_date, task.frequency),
+    start_date: nextStartDate(task.start_date, task.frequency),
     last_completed_date: null,
+    documents: [],
   };
 
   tasks.push(newTask);
