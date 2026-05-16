@@ -18,7 +18,7 @@ export function getSmartActions(
   tasks: Task[],
   vendors: Vendor[],
 ): SmartAction[] {
-  if (!doc.correspondent) return [];
+  if (!doc.correspondent || !doc.created) return [];
 
   // Find the vendor associated with this correspondent
   const vendor = vendors.find(

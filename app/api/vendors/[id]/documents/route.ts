@@ -63,7 +63,7 @@ export async function GET(
         document_type_label: doc.document_type
           ? typeMap.get(doc.document_type) || null
           : null,
-        created: doc.created,
+        created: doc.created || "",
         url: getDocumentUrl(doc.id),
       });
     });

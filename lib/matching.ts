@@ -60,6 +60,7 @@ export function matchDocumentsToCompletion(
   // Filter candidates by correspondent and date window
   const potentialMatches = candidates.filter((doc) => {
     if (doc.correspondent !== targetCorrespondentId) return false;
+    if (!doc.created) return false;
     const docDate = startOfDay(parseISO(doc.created));
     return isWithinInterval(docDate, { start: windowStart, end: windowEnd });
   });
