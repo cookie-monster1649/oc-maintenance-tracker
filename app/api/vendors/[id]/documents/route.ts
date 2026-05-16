@@ -10,6 +10,7 @@ import {
   type PaperlessDocument,
   type PaperlessCorrespondent,
 } from "@/lib/paperless";
+import { getSmartActions, type SmartAction } from "@/lib/recommendations";
 
 interface VendorDocument {
   id: number;
@@ -18,6 +19,9 @@ interface VendorDocument {
   document_type_label: string | null;
   created?: string;
   url: string;
+  is_matched: boolean;
+  correspondent: number | null;
+  smart_actions: SmartAction[];
 }
 
 export async function GET(
@@ -67,10 +71,15 @@ export async function GET(
       paperlessDocs = await listDocumentsForCorrespondent(correspondentId);
     }
 
-    // Use a map to deduplicate and merge metadata
+    // Compute which doc IDs are already linked to any task
+    const matchedDocIds = new Set<number>();
+    tasks.forEach((task) => {
+      (task.documents || []).forEach((doc) => matchedDocIds.add(doc.id));
+    });
+
     const mergedDocs = new Map<number, VendorDocument>();
 
-    // 1. Add Paperless docs (they have tags)
+    // 1. Add Paperless docs with matching metadata
     paperlessDocs.forEach((doc) => {
       mergedDocs.set(doc.id, {
         id: doc.id,
@@ -81,19 +90,25 @@ export async function GET(
           : null,
         created: doc.created || "",
         url: getDocumentUrl(doc.id),
+        is_matched: matchedDocIds.has(doc.id),
+        correspondent: doc.correspondent,
+        smart_actions: getSmartActions(doc, tasks, vendors),
       });
     });
 
-    // 2. Add task docs (ensure they are present even if not in correspondent list)
+    // 2. Add task-linked docs not in correspondent list (always matched)
     taskDocs.forEach((doc) => {
       if (!mergedDocs.has(doc.id)) {
         mergedDocs.set(doc.id, {
           id: doc.id,
           title: doc.title,
-          tag_names: [], // We don't have tags in DocumentRef
+          tag_names: [],
           document_type_label: doc.document_type_label,
           created: doc.created,
           url: doc.url,
+          is_matched: true,
+          correspondent: null,
+          smart_actions: [],
         });
       }
     });
