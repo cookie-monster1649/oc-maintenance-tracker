@@ -242,13 +242,23 @@ export default function DocumentsPage() {
     }
   }
 
-  const distinctTaskTitles = Array.from(
-    new Set(tasks.map((t) => t.title)),
-  ).sort();
+  const latestByTitle = tasks.reduce(
+    (acc, t) => {
+      if (!acc[t.title] || (t.start_date || "") > (acc[t.title].start_date || "")) {
+        acc[t.title] = t;
+      }
+      return acc;
+    },
+    {} as Record<string, Task>,
+  );
+  const distinctTaskTitles = Object.entries(latestByTitle)
+    .filter(([, t]) => t.archived !== true)
+    .map(([title]) => title)
+    .sort();
 
   const recurrences = selectedTaskTitle
     ? tasks
-        .filter((t) => t.title === selectedTaskTitle)
+        .filter((t) => t.title === selectedTaskTitle && t.archived !== true)
         .sort((a, b) => (b.start_date || "").localeCompare(a.start_date || ""))
     : [];
 
