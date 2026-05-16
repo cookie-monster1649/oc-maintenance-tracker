@@ -152,7 +152,29 @@ export default function TaskDetailPage() {
       );
       setAutoLinkedCount(0);
       setLastAutoLinkedIds([]);
-      fetchAll();
+      // Fetch without triggering match to prevent immediate re-linking
+      const [tasksRes, vendorsRes, categoriesRes] = await Promise.all([
+        fetch("/api/tasks"),
+        fetch("/api/vendors"),
+        fetch("/api/categories"),
+      ]);
+      const [tasksData, vendorsData, categoriesData] = await Promise.all([
+        tasksRes.json(),
+        vendorsRes.json(),
+        categoriesRes.json(),
+      ]);
+      setCached("/api/tasks", tasksData);
+      setCached("/api/vendors", vendorsData);
+      setCached("/api/categories", categoriesData);
+      setTasks(tasksData);
+      setVendors(vendorsData);
+      setCategories(categoriesData.map((c: CategoryColor) => c.name));
+      setCategoryColors(
+        categoriesData.reduce((acc: Record<string, string>, c: CategoryColor) => {
+          acc[c.name] = c.color;
+          return acc;
+        }, {}),
+      );
     } catch (err) {
       console.error("Undo match failed", err);
     }
