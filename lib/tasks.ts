@@ -59,7 +59,9 @@ export function readTasks(): Task[] {
   return tasks.map((t) => ({
     ...t,
     status:
-      t.status !== "Completed" && isBefore(parseISO(t.start_date), today)
+      t.status !== "Completed" &&
+      t.start_date &&
+      isBefore(parseISO(t.start_date), today)
         ? "Overdue"
         : t.status,
   }));
