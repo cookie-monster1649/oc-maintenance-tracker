@@ -543,7 +543,10 @@ export default function VendorDetailPage() {
                 </h2>
                 <div className="space-y-8">
                   {(() => {
-                    const completedGroups = groupByYear(completed);
+                    const sortedCompleted = [...completed].sort((a, b) =>
+                      (b.start_date || "").localeCompare(a.start_date || ""),
+                    );
+                    const completedGroups = groupByYear(sortedCompleted);
                     const currentYear = new Date().getFullYear().toString();
                     const showYears = completedGroups.some((g) => g.year !== currentYear);
                     return completedGroups.map((group) => (
