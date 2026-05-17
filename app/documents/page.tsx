@@ -7,6 +7,7 @@ import { useCachedData, invalidateCache } from "@/lib/data";
 import { useGodMode } from "@/app/contexts/god-mode";
 import { useDocumentMatching } from "@/app/components/matching/useDocumentMatching";
 import { MatchDocumentModal } from "@/app/components/matching/MatchDocumentModal";
+import { MatchDocumentErrorBoundary } from "@/app/components/matching/MatchDocumentErrorBoundary";
 import { SmartActionConfirmModal } from "@/app/components/matching/SmartActionConfirmModal";
 import { MatchSuccessModal } from "@/app/components/matching/MatchSuccessModal";
 
@@ -377,37 +378,39 @@ export default function DocumentsPage() {
       </main>
 
       {matchingDoc && (
-        <MatchDocumentModal
-          doc={matchingDoc}
-          tasks={tasks}
-          vendors={vendors}
-          categories={categories}
-          selectedSeriesId={selectedSeriesId}
-          setSelectedSeriesId={setSelectedSeriesId}
-          selectedSeriesTitle={selectedSeriesTitle}
-          setSelectedSeriesTitle={setSelectedSeriesTitle}
-          selectedTaskId={selectedTaskId}
-          setSelectedTaskId={setSelectedTaskId}
-          createAsOccurrence={createAsOccurrence}
-          setCreateAsOccurrence={setCreateAsOccurrence}
-          occurrenceDate={occurrenceDate}
-          setOccurrenceDate={setOccurrenceDate}
-          confirmedDate={confirmedDate}
-          setConfirmedDate={setConfirmedDate}
-          newTaskForm={newTaskForm}
-          setNewTaskForm={setNewTaskForm}
-          onManualMatch={handleManualMatch}
-          onManualMatchAndComplete={handleManualMatchAndComplete}
-          onCreateAndMatch={handleCreateAndMatch}
-          onCreateAndMatchComplete={() => handleCreateAndMatch(true)}
-          onClose={() => setMatchingDoc(null)}
-          isCreatingVendor={isCreatingVendor}
-          setIsCreatingVendor={setIsCreatingVendor}
-          newVendorForm={newVendorForm}
-          setNewVendorForm={setNewVendorForm}
-          onCreateVendor={handleCreateVendor}
-          vendorError={vendorError}
-        />
+        <MatchDocumentErrorBoundary doc={matchingDoc}>
+          <MatchDocumentModal
+            doc={matchingDoc}
+            tasks={tasks}
+            vendors={vendors}
+            categories={categories}
+            selectedSeriesId={selectedSeriesId}
+            setSelectedSeriesId={setSelectedSeriesId}
+            selectedSeriesTitle={selectedSeriesTitle}
+            setSelectedSeriesTitle={setSelectedSeriesTitle}
+            selectedTaskId={selectedTaskId}
+            setSelectedTaskId={setSelectedTaskId}
+            createAsOccurrence={createAsOccurrence}
+            setCreateAsOccurrence={setCreateAsOccurrence}
+            occurrenceDate={occurrenceDate}
+            setOccurrenceDate={setOccurrenceDate}
+            confirmedDate={confirmedDate}
+            setConfirmedDate={setConfirmedDate}
+            newTaskForm={newTaskForm}
+            setNewTaskForm={setNewTaskForm}
+            onManualMatch={handleManualMatch}
+            onManualMatchAndComplete={handleManualMatchAndComplete}
+            onCreateAndMatch={handleCreateAndMatch}
+            onCreateAndMatchComplete={() => handleCreateAndMatch(true)}
+            onClose={() => setMatchingDoc(null)}
+            isCreatingVendor={isCreatingVendor}
+            setIsCreatingVendor={setIsCreatingVendor}
+            newVendorForm={newVendorForm}
+            setNewVendorForm={setNewVendorForm}
+            onCreateVendor={handleCreateVendor}
+            vendorError={vendorError}
+          />
+        </MatchDocumentErrorBoundary>
       )}
 
       {pendingSmartAction && (

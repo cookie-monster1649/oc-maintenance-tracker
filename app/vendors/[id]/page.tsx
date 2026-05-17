@@ -11,6 +11,7 @@ import { type PaperlessCorrespondent } from "@/lib/paperless";
 import { useGodMode } from "@/app/contexts/god-mode";
 import { useDocumentMatching } from "@/app/components/matching/useDocumentMatching";
 import { MatchDocumentModal } from "@/app/components/matching/MatchDocumentModal";
+import { MatchDocumentErrorBoundary } from "@/app/components/matching/MatchDocumentErrorBoundary";
 import { SmartActionConfirmModal } from "@/app/components/matching/SmartActionConfirmModal";
 import { MatchSuccessModal } from "@/app/components/matching/MatchSuccessModal";
 
@@ -809,30 +810,32 @@ export default function VendorDetailPage() {
       )}
 
       {matchingDoc && (
-        <MatchDocumentModal
-          doc={matchingDoc}
-          tasks={tasks}
-          categories={categories}
-          selectedSeriesId={selectedSeriesId}
-          setSelectedSeriesId={setSelectedSeriesId}
-          selectedSeriesTitle={selectedSeriesTitle}
-          setSelectedSeriesTitle={setSelectedSeriesTitle}
-          selectedTaskId={selectedTaskId}
-          setSelectedTaskId={setSelectedTaskId}
-          createAsOccurrence={createAsOccurrence}
-          setCreateAsOccurrence={setCreateAsOccurrence}
-          occurrenceDate={occurrenceDate}
-          setOccurrenceDate={setOccurrenceDate}
-          confirmedDate={confirmedDate}
-          setConfirmedDate={setConfirmedDate}
-          newTaskForm={newTaskForm}
-          setNewTaskForm={setNewTaskForm}
-          onManualMatch={handleManualMatch}
-          onManualMatchAndComplete={handleManualMatchAndComplete}
-          onCreateAndMatch={handleCreateAndMatch}
-          onCreateAndMatchComplete={() => handleCreateAndMatch(true)}
-          onClose={() => setMatchingDoc(null)}
-        />
+        <MatchDocumentErrorBoundary doc={matchingDoc}>
+          <MatchDocumentModal
+            doc={matchingDoc}
+            tasks={tasks}
+            categories={categories}
+            selectedSeriesId={selectedSeriesId}
+            setSelectedSeriesId={setSelectedSeriesId}
+            selectedSeriesTitle={selectedSeriesTitle}
+            setSelectedSeriesTitle={setSelectedSeriesTitle}
+            selectedTaskId={selectedTaskId}
+            setSelectedTaskId={setSelectedTaskId}
+            createAsOccurrence={createAsOccurrence}
+            setCreateAsOccurrence={setCreateAsOccurrence}
+            occurrenceDate={occurrenceDate}
+            setOccurrenceDate={setOccurrenceDate}
+            confirmedDate={confirmedDate}
+            setConfirmedDate={setConfirmedDate}
+            newTaskForm={newTaskForm}
+            setNewTaskForm={setNewTaskForm}
+            onManualMatch={handleManualMatch}
+            onManualMatchAndComplete={handleManualMatchAndComplete}
+            onCreateAndMatch={handleCreateAndMatch}
+            onCreateAndMatchComplete={() => handleCreateAndMatch(true)}
+            onClose={() => setMatchingDoc(null)}
+          />
+        </MatchDocumentErrorBoundary>
       )}
 
       {pendingSmartAction && (() => {

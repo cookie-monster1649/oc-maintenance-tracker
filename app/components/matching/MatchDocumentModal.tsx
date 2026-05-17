@@ -80,33 +80,67 @@ export function MatchDocumentModal({
 }: MatchDocumentModalProps) {
   const safeTasks = Array.isArray(tasks) ? tasks : [];
 
+  if (typeof window !== "undefined") {
+    console.log("[MatchDocumentModal] Rendering with:", {
+      tasksType: typeof tasks,
+      tasksIsArray: Array.isArray(tasks),
+      tasksLength: safeTasks.length,
+      selectedSeriesId,
+      doc: doc.title,
+    });
+  }
+
   // Get series and recurrences for matching
-  const latestBySeries = safeTasks.reduce(
-    (acc, t) => {
-      if (!acc[t.series_id] || (t.start_date || "") > (acc[t.series_id].start_date || "")) {
-        acc[t.series_id] = t;
-      }
-      return acc;
-    },
-    {} as Record<string, Task>,
-  );
+  let latestBySeries: Record<string, Task> = {};
+  try {
+    latestBySeries = safeTasks.reduce(
+      (acc, t) => {
+        if (!acc[t.series_id] || (t.start_date || "") > (acc[t.series_id].start_date || "")) {
+          acc[t.series_id] = t;
+        }
+        return acc;
+      },
+      {} as Record<string, Task>,
+    );
+  } catch (e) {
+    console.error("[MatchDocumentModal] Error in reduce:", e, { safeTasks });
+  }
 
-  const distinctSeries = Object.entries(latestBySeries)
-    .filter(([, t]) => t.archived !== true)
-    .map(([seriesId, latestTask]) => ({ seriesId, title: latestTask.title }))
-    .sort((a, b) => a.title.localeCompare(b.title));
+  let distinctSeries: Array<{ seriesId: string; title: string }> = [];
+  try {
+    const entries = Object.entries(latestBySeries);
+    const filtered = entries.filter(([, t]) => t.archived !== true);
+    const mapped = filtered.map(([seriesId, latestTask]) => ({ seriesId, title: latestTask.title }));
+    distinctSeries = mapped.sort((a, b) => a.title.localeCompare(b.title));
+  } catch (e) {
+    console.error("[MatchDocumentModal] Error creating distinctSeries:", e, { latestBySeries });
+  }
 
-  const recurrences = selectedSeriesId
-    ? safeTasks
-        .filter((t) => t.series_id === selectedSeriesId && t.archived !== true)
-        .sort((a, b) => (b.start_date || "").localeCompare(a.start_date || ""))
-    : [];
+  let recurrences: Task[] = [];
+  try {
+    recurrences = selectedSeriesId
+      ? safeTasks
+          .filter((t) => t.series_id === selectedSeriesId && t.archived !== true)
+          .sort((a, b) => (b.start_date || "").localeCompare(a.start_date || ""))
+      : [];
+  } catch (e) {
+    console.error("[MatchDocumentModal] Error creating recurrences:", e, { safeTasks, selectedSeriesId });
+  }
 
-  const past = recurrences.filter((t) => t.status === "Completed");
-  const future = recurrences.filter((t) => t.status !== "Completed").reverse();
-  const visibleRecurrences = [...future, ...past].sort((a, b) =>
-    (b.start_date || "").localeCompare(a.start_date || ""),
-  );
+  let visibleRecurrences: Task[] = [];
+  try {
+    const past = recurrences.filter((t) => t.status === "Completed");
+    const future = recurrences.filter((t) => t.status !== "Completed").reverse();
+    const combined = [...future, ...past];
+    if (!Array.isArray(combined)) {
+      throw new Error(`combined is not array: ${typeof combined}`);
+    }
+    visibleRecurrences = combined.sort((a, b) =>
+      (b.start_date || "").localeCompare(a.start_date || ""),
+    );
+  } catch (e) {
+    console.error("[MatchDocumentModal] Error creating visibleRecurrences:", e, { recurrences });
+  }
 
   const handleClose = () => {
     setSelectedSeriesId("");
