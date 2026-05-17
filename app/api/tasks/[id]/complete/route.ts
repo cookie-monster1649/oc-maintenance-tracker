@@ -2,10 +2,11 @@ import { NextResponse } from "next/server";
 import { readTasks, writeTasks, nextStartDate, extrapolateFutureTasks, pushFutureTasks } from "@/lib/tasks";
 
 export async function POST(
-  _req: Request,
+  req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params;
+  const body = await req.json().catch(() => ({}));
   const tasks = readTasks();
   const idx = tasks.findIndex((t) => t.id === id);
 
@@ -25,8 +26,9 @@ export async function POST(
 
   const nextDate = nextStartDate(task.start_date, task.frequency);
 
-  // Extrapolate 3 future occurrences from the completed task (starting at nextDate)
-  pushFutureTasks(tasks, extrapolateFutureTasks(task));
+  if (!body.no_extrapolate) {
+    pushFutureTasks(tasks, extrapolateFutureTasks(task));
+  }
 
   writeTasks(tasks);
 

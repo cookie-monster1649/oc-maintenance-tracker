@@ -129,5 +129,9 @@ export async function listDocumentsForCorrespondent(
 }
 
 export function getDocumentUrl(id: number): string {
-  return `${BASE_URL}/documents/${id}/details`;
+  const documentDomain = process.env.NEXT_PUBLIC_DOCUMENT_DOMAIN || BASE_URL || "";
+  const baseUrlClean = documentDomain.endsWith("/")
+    ? documentDomain.slice(0, -1)
+    : documentDomain;
+  return `${baseUrlClean}/documents/${id}/details`;
 }

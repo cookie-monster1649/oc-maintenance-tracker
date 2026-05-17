@@ -9,6 +9,10 @@ import { badgeColour } from "@/lib/badge-colour";
 import { format, parseISO } from "date-fns";
 import { type PaperlessCorrespondent } from "@/lib/paperless";
 import { useGodMode } from "@/app/contexts/god-mode";
+import { useDocumentMatching } from "@/app/components/matching/useDocumentMatching";
+import { MatchDocumentModal } from "@/app/components/matching/MatchDocumentModal";
+import { SmartActionConfirmModal } from "@/app/components/matching/SmartActionConfirmModal";
+import { MatchSuccessModal } from "@/app/components/matching/MatchSuccessModal";
 
 interface CategoryColor {
   name: string;
@@ -111,19 +115,6 @@ export default function VendorDetailPage() {
   const [form, setForm] = useState<Partial<Vendor>>({});
   const [originalForm, setOriginalForm] = useState<Partial<Vendor>>({});
 
-  // Document matching state
-  const [matchingDoc, setMatchingDoc] = useState<Document | null>(null);
-  const [selectedSeriesId, setSelectedSeriesId] = useState("");
-  const [selectedSeriesTitle, setSelectedSeriesTitle] = useState("");
-  const [selectedTaskId, setSelectedTaskId] = useState("");
-  const [createAsOccurrence, setCreateAsOccurrence] = useState(false);
-  const [occurrenceDate, setOccurrenceDate] = useState("");
-  const [confirmedDate, setConfirmedDate] = useState("");
-  const [newTaskForm, setNewTaskForm] = useState({ title: "", category: "", start_date: "", frequency: "" });
-  const [successInfo, setSuccessInfo] = useState<{ title: string; docUrl: string; taskId?: string } | null>(null);
-
-  // Smart action confirmation state
-  const [pendingSmartAction, setPendingSmartAction] = useState<{ doc: Document; taskId: string; taskTitle: string; confirmDate: string } | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const backdropRef = useRef<HTMLDivElement>(null);
 
@@ -133,6 +124,7 @@ export default function VendorDetailPage() {
     setCached("/api/tasks", data);
     setTasks(data);
   }
+
 
   const fetchAll = useCallback(async () => {
     const [vendorsRes, tasksRes, categoriesRes, corrRes] = await Promise.all([
@@ -185,6 +177,39 @@ export default function VendorDetailPage() {
     })();
   }, [fetchAll]);
 
+  // Document matching hook
+  const {
+    matchingDoc,
+    setMatchingDoc,
+    selectedSeriesId,
+    setSelectedSeriesId,
+    selectedSeriesTitle,
+    setSelectedSeriesTitle,
+    selectedTaskId,
+    setSelectedTaskId,
+    createAsOccurrence,
+    setCreateAsOccurrence,
+    occurrenceDate,
+    setOccurrenceDate,
+    confirmedDate,
+    setConfirmedDate,
+    newTaskForm,
+    setNewTaskForm,
+    successInfo,
+    setSuccessInfo,
+    pendingSmartAction,
+    setPendingSmartAction,
+    handleManualMatch,
+    handleManualMatchAndComplete,
+    handleSmartAction: hookHandleSmartAction,
+    confirmSmartAction,
+    handleCreateAndMatch,
+  } = useDocumentMatching({
+    tasks,
+    defaultVendorId: vendorId,
+    onSuccess: fetchAll,
+  });
+
   async function completeTask(id: string) {
     setCompleting(id);
     await fetch(`/api/tasks/${id}/complete`, { method: "POST" });
@@ -228,179 +253,13 @@ export default function VendorDetailPage() {
     );
   }
 
-  async function handleSmartAction(doc: Document, action: SmartAction) {
-    if (action.type === "COMPLETE_SCHEDULED") {
-      const confirmDate = doc.created ? doc.created.split("T")[0] : new Date().toISOString().split("T")[0];
-      setPendingSmartAction({
-        doc,
-        taskId: action.taskId,
-        taskTitle: action.taskTitle,
-        confirmDate,
-      });
-    } else {
-      try {
-        const res = await fetch(`/api/tasks/${action.taskId}/documents`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ document: doc }),
-        });
-        if (res.ok) {
-          setSuccessInfo({ title: action.taskTitle, docUrl: doc.url });
-          await fetchAll();
-        }
-      } catch (err) {
-        console.error("Smart action failed", err);
-      }
-    }
-  }
-
-  async function confirmSmartAction() {
-    if (!pendingSmartAction) return;
-    try {
-      const { doc, taskId, confirmDate } = pendingSmartAction;
-      const originalTask = tasks.find((t) => t.id === taskId);
-
-      if (originalTask && confirmDate !== originalTask.start_date) {
-        await fetch(`/api/tasks/${taskId}/reschedule`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ new_date: confirmDate }),
-        });
-      }
-
-      await fetch(`/api/tasks/${taskId}/complete`, { method: "POST" });
-
-      const res = await fetch(`/api/tasks/${taskId}/documents`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ document: doc }),
-      });
-
-      if (res.ok) {
-        setSuccessInfo({ title: pendingSmartAction.taskTitle, docUrl: doc.url, taskId });
-        setPendingSmartAction(null);
-        await fetchAll();
-      }
-    } catch (err) {
-      console.error("Smart action confirmation failed", err);
-    }
-  }
-
-  async function handleManualMatch() {
-    if (!matchingDoc) return;
-    if (!createAsOccurrence && !selectedTaskId) return;
-    try {
-      let taskId = selectedTaskId;
-      if (createAsOccurrence && occurrenceDate) {
-        const templateTask = tasks.find((t) => t.series_id === selectedSeriesId);
-        if (!templateTask) return;
-        const newTaskRes = await fetch("/api/tasks", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            title: templateTask.title,
-            description: templateTask.description,
-            frequency: templateTask.frequency,
-            category: templateTask.category,
-            start_date: occurrenceDate,
-            status: "Completed",
-            last_completed_date: occurrenceDate,
-            estimated_cost: templateTask.estimated_cost,
-            vendor_id: templateTask.vendor_id,
-            series_id: templateTask.series_id,
-            no_extrapolate: true,
-          }),
-        });
-        if (!newTaskRes.ok) throw new Error("Failed to create occurrence");
-        const newTask = await newTaskRes.json();
-        taskId = newTask.id;
-      }
-      // Reschedule if the user changed the date
-      const originalTask = tasks.find((t) => t.id === taskId);
-      if (!createAsOccurrence && confirmedDate && originalTask && confirmedDate !== originalTask.start_date) {
-        await fetch(`/api/tasks/${taskId}/reschedule`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ new_date: confirmedDate }),
-        });
-      }
-
-      const res = await fetch(`/api/tasks/${taskId}/documents`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ document: matchingDoc }),
-      });
-      if (res.ok) {
-        setMatchingDoc(null);
-        setSelectedTaskId("");
-        setSelectedSeriesId("");
-        setSelectedSeriesTitle("");
-        setCreateAsOccurrence(false);
-        setOccurrenceDate("");
-        setConfirmedDate("");
-        await fetchAll();
-      }
-    } catch (err) {
-      console.error("Manual match failed", err);
-    }
-  }
-
-  async function handleCreateAndMatch() {
-    if (!matchingDoc || !newTaskForm.title || !newTaskForm.category || !newTaskForm.start_date) return;
-    try {
-      const taskRes = await fetch("/api/tasks", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          ...newTaskForm,
-          frequency: newTaskForm.frequency || "Monthly",
-          vendor_id: vendorId,
-        }),
-      });
-      if (!taskRes.ok) throw new Error("Failed to create task");
-      const newTaskData = await taskRes.json();
-      const linkRes = await fetch(`/api/tasks/${newTaskData.id}/documents`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ document: matchingDoc }),
-      });
-      if (linkRes.ok) {
-        setMatchingDoc(null);
-        setSelectedSeriesId("");
-        setSelectedSeriesTitle("");
-        setSelectedTaskId("");
-        setSuccessInfo({ title: newTaskForm.title, docUrl: matchingDoc.url, taskId: newTaskData.id });
-        setNewTaskForm({ title: "", category: "", start_date: "", frequency: "" });
-        await fetchAll();
-      }
-    } catch (err) {
-      console.error("Create and match failed", err);
-    }
-  }
-
-  const latestBySeries = tasks.reduce(
-    (acc, t) => {
-      if (!acc[t.series_id] || (t.start_date || "") > (acc[t.series_id].start_date || "")) {
-        acc[t.series_id] = t;
-      }
-      return acc;
-    },
-    {} as Record<string, Task>,
-  );
-  const distinctSeries = Object.entries(latestBySeries)
-    .filter(([, t]) => t.archived !== true)
-    .map(([seriesId, latestTask]) => ({ seriesId, title: latestTask.title }))
-    .sort((a, b) => a.title.localeCompare(b.title));
-  const recurrences = selectedSeriesId
-    ? tasks
-        .filter((t) => t.series_id === selectedSeriesId && t.archived !== true)
-        .sort((a, b) => (b.start_date || "").localeCompare(a.start_date || ""))
-    : [];
-  const past = recurrences.filter((t) => t.status === "Completed");
-  const future = recurrences.filter((t) => t.status !== "Completed").reverse();
-  const visibleRecurrences = [...future, ...past].sort((a, b) =>
-    (b.start_date || "").localeCompare(a.start_date || ""),
-  );
+  const handleSmartAction = (doc: Document, action: SmartAction) => {
+    hookHandleSmartAction(doc, {
+      type: action.type,
+      taskId: action.taskId,
+      taskTitle: action.taskTitle,
+    });
+  };
 
   const assignedTasks = tasks
     .filter((t) => t.vendor_id === vendorId)
@@ -947,320 +806,57 @@ export default function VendorDetailPage() {
       )}
 
       {matchingDoc && (
-        <div className="animate-backdrop fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="animate-modal bg-white dark:bg-gray-900 rounded-lg shadow-xl max-w-md w-full p-8">
-            <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-6">Match Document</h2>
-            <div className="space-y-6">
-              <div className="p-3 bg-gray-50 dark:bg-gray-800 rounded-md border border-gray-100 dark:border-gray-700">
-                <p className="text-[10px] uppercase font-bold text-gray-400 mb-1">Document</p>
-                <p className="text-sm font-medium truncate">{matchingDoc.title}</p>
-              </div>
-
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
-                    1. Select Task Series
-                  </label>
-                  <select
-                    value={selectedSeriesId}
-                    onChange={(e) => {
-                      const val = e.target.value;
-                      setSelectedSeriesId(val);
-                      setSelectedTaskId("");
-                      if (val === "NEW TASK") {
-                        setSelectedSeriesTitle("NEW TASK");
-                        setNewTaskForm({
-                          title: matchingDoc.title,
-                          category: categories[0] || "",
-                          start_date: matchingDoc.created ? matchingDoc.created.split("T")[0] : "",
-                          frequency: "",
-                        });
-                      } else {
-                        const selected = distinctSeries.find((s) => s.seriesId === val);
-                        setSelectedSeriesTitle(selected?.title || "");
-                      }
-                    }}
-                    className="w-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-gray-400"
-                  >
-                    <option value="">Select a task series...</option>
-                    <option value="NEW TASK" className="font-bold text-blue-600">+ NEW TASK</option>
-                    {distinctSeries.map(({ seriesId, title }) => (
-                      <option key={seriesId} value={seriesId}>{title}</option>
-                    ))}
-                  </select>
-                </div>
-
-                {selectedSeriesId === "NEW TASK" && (
-                  <div className="p-4 bg-blue-50/50 dark:bg-blue-950/30 border border-blue-100 dark:border-blue-900 rounded-lg space-y-4 animate-in fade-in slide-in-from-top-2">
-                    <div>
-                      <label className="block text-[10px] uppercase font-bold text-blue-400 mb-1">New Task Title</label>
-                      <input
-                        value={newTaskForm.title}
-                        onChange={(e) => setNewTaskForm((f) => ({ ...f, title: e.target.value }))}
-                        className="w-full border border-blue-100 dark:border-blue-900 bg-white dark:bg-gray-900 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400"
-                      />
-                    </div>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <label className="block text-[10px] uppercase font-bold text-blue-400 mb-1">Category</label>
-                        <select
-                          value={newTaskForm.category}
-                          onChange={(e) => setNewTaskForm((f) => ({ ...f, category: e.target.value }))}
-                          className="w-full border border-blue-100 dark:border-blue-900 bg-white dark:bg-gray-900 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400"
-                        >
-                          <option value="">Select category</option>
-                          {categories.map((c) => (<option key={c} value={c}>{c}</option>))}
-                        </select>
-                      </div>
-                      <div>
-                        <label className="block text-[10px] uppercase font-bold text-blue-400 mb-1">Start Date</label>
-                        <input
-                          type="date"
-                          value={newTaskForm.start_date}
-                          onChange={(e) => setNewTaskForm((f) => ({ ...f, start_date: e.target.value }))}
-                          className="w-full border border-blue-100 dark:border-blue-900 bg-white dark:bg-gray-900 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400"
-                        />
-                      </div>
-                    </div>
-                    <div>
-                      <label className="block text-[10px] uppercase font-bold text-blue-400 mb-1">Frequency (leave blank for one-off)</label>
-                      <select
-                        value={newTaskForm.frequency}
-                        onChange={(e) => setNewTaskForm((f) => ({ ...f, frequency: e.target.value }))}
-                        className="w-full border border-blue-100 dark:border-blue-900 bg-white dark:bg-gray-900 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400"
-                      >
-                        <option value="">One-off task</option>
-                        <option value="Weekly">Weekly</option>
-                        <option value="Bi-weekly">Bi-weekly</option>
-                        <option value="Monthly">Monthly</option>
-                        <option value="Quarterly">Quarterly</option>
-                        <option value="Semi-Annually">Semi-Annually</option>
-                        <option value="Annually">Annually</option>
-                      </select>
-                    </div>
-                  </div>
-                )}
-
-                {selectedSeriesId && selectedSeriesId !== "NEW TASK" && (
-                  <div className="space-y-4">
-                    <div>
-                      <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
-                        2. Select Recurrence
-                      </label>
-                      <div className="space-y-2 max-h-60 overflow-y-auto pr-2">
-                        {visibleRecurrences.map((task) => (
-                          <button
-                            key={task.id}
-                            onClick={() => { setSelectedTaskId(task.id); setConfirmedDate(task.start_date); setCreateAsOccurrence(false); }}
-                            className={`w-full text-left p-3 rounded-md border transition-all ${
-                              selectedTaskId === task.id && !createAsOccurrence
-                                ? "border-blue-500 bg-blue-50 dark:bg-blue-900/20 ring-1 ring-blue-500"
-                                : "border-gray-100 dark:border-gray-800 hover:border-gray-300 dark:hover:border-gray-600 bg-white dark:bg-gray-900"
-                            }`}
-                          >
-                            <div className="flex justify-between items-center">
-                              <span className="text-sm font-medium">
-                                {task.last_completed_date
-                                  ? format(parseISO(task.last_completed_date), "dd MMM yyyy")
-                                  : format(parseISO(task.start_date), "dd MMM yyyy")}
-                              </span>
-                              <span className={`text-[10px] uppercase font-bold px-1.5 py-0.5 rounded ${
-                                task.status === "Completed"
-                                  ? "bg-green-100 dark:bg-green-950 text-green-700 dark:text-green-400"
-                                  : "bg-amber-100 dark:bg-amber-950 text-amber-700 dark:text-amber-400"
-                              }`}>
-                                {task.status}
-                              </span>
-                            </div>
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                    {selectedTaskId && !createAsOccurrence && (
-                      <div className="mt-3 p-3 bg-gray-50 dark:bg-gray-800/50 border border-gray-100 dark:border-gray-700 rounded-md">
-                        <label className="block text-[10px] uppercase font-bold text-gray-500 dark:text-gray-400 mb-2">
-                          Confirm date
-                        </label>
-                        <input
-                          type="date"
-                          value={confirmedDate}
-                          onChange={(e) => setConfirmedDate(e.target.value)}
-                          className="w-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-gray-400"
-                        />
-                      </div>
-                    )}
-
-                    <div className="pt-2 border-t border-gray-100 dark:border-gray-800">
-                      <label className="flex items-center gap-3 cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={createAsOccurrence}
-                          onChange={(e) => { setCreateAsOccurrence(e.target.checked); if (!e.target.checked) setOccurrenceDate(""); }}
-                          className="rounded border-gray-300 dark:border-gray-600"
-                        />
-                        <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Or create a custom occurrence</span>
-                      </label>
-                      {createAsOccurrence && (
-                        <div className="mt-3 p-3 bg-blue-50/50 dark:bg-blue-950/20 border border-blue-100 dark:border-blue-900 rounded-md">
-                          <label className="block text-[10px] uppercase font-bold text-blue-600 dark:text-blue-400 mb-2">Date task occurred</label>
-                          <input
-                            type="date"
-                            value={occurrenceDate}
-                            onChange={(e) => setOccurrenceDate(e.target.value)}
-                            className="w-full border border-blue-100 dark:border-blue-900 bg-white dark:bg-gray-900 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400"
-                          />
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              <div className="flex gap-3 pt-4 border-t border-gray-100 dark:border-gray-800">
-                <button
-                  onClick={() => { setMatchingDoc(null); setSelectedSeriesId(""); setSelectedSeriesTitle(""); setSelectedTaskId(""); setCreateAsOccurrence(false); setOccurrenceDate(""); setConfirmedDate(""); }}
-                  className="flex-1 text-sm px-4 py-2 rounded-md border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors font-medium"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  onClick={selectedSeriesId === "NEW TASK" ? handleCreateAndMatch : handleManualMatch}
-                  disabled={
-                    selectedSeriesId === "NEW TASK"
-                      ? !newTaskForm.title || !newTaskForm.category || !newTaskForm.start_date
-                      : createAsOccurrence ? !occurrenceDate : !selectedTaskId
-                  }
-                  className="flex-1 text-sm px-4 py-2 rounded-md bg-gray-900 dark:bg-gray-700 text-white hover:bg-gray-700 dark:hover:bg-gray-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors font-medium"
-                >
-                  {selectedSeriesId === "NEW TASK" ? "Create & Link" : "Link Document"}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
+        <MatchDocumentModal
+          doc={matchingDoc}
+          tasks={tasks}
+          categories={categories}
+          selectedSeriesId={selectedSeriesId}
+          setSelectedSeriesId={setSelectedSeriesId}
+          selectedSeriesTitle={selectedSeriesTitle}
+          setSelectedSeriesTitle={setSelectedSeriesTitle}
+          selectedTaskId={selectedTaskId}
+          setSelectedTaskId={setSelectedTaskId}
+          createAsOccurrence={createAsOccurrence}
+          setCreateAsOccurrence={setCreateAsOccurrence}
+          occurrenceDate={occurrenceDate}
+          setOccurrenceDate={setOccurrenceDate}
+          confirmedDate={confirmedDate}
+          setConfirmedDate={setConfirmedDate}
+          newTaskForm={newTaskForm}
+          setNewTaskForm={setNewTaskForm}
+          onManualMatch={handleManualMatch}
+          onManualMatchAndComplete={handleManualMatchAndComplete}
+          onCreateAndMatch={handleCreateAndMatch}
+          onCreateAndMatchComplete={() => handleCreateAndMatch(true)}
+          onClose={() => setMatchingDoc(null)}
+        />
       )}
 
       {pendingSmartAction && (() => {
         const task = tasks.find((t) => t.id === pendingSmartAction.taskId);
         return (
-          <div className="animate-backdrop fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 overflow-y-auto">
-            <div className="animate-modal bg-white dark:bg-gray-900 rounded-lg shadow-xl max-w-2xl w-full p-6 my-6">
-              <h2 className="text-lg font-bold mb-6 text-gray-900 dark:text-gray-100">Confirm Task Completion</h2>
-
-              <div className="grid grid-cols-2 gap-6 mb-6">
-                {/* Document Details */}
-                <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-4">
-                  <h3 className="text-xs uppercase font-bold text-gray-500 dark:text-gray-400 mb-3">Document</h3>
-                  <div className="space-y-3">
-                    <div>
-                      <p className="text-sm font-medium text-gray-900 dark:text-gray-100 line-clamp-2">{pendingSmartAction.doc.title}</p>
-                    </div>
-                    {pendingSmartAction.doc.document_type_label && (
-                      <div className="text-xs text-gray-600 dark:text-gray-400">
-                        Type: <span className="font-medium">{pendingSmartAction.doc.document_type_label}</span>
-                      </div>
-                    )}
-                    {pendingSmartAction.doc.created && (
-                      <div className="text-xs text-gray-600 dark:text-gray-400">
-                        Date: <span className="font-medium">{new Date(pendingSmartAction.doc.created).toLocaleDateString()}</span>
-                      </div>
-                    )}
-                    <a
-                      href={pendingSmartAction.doc.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-block text-xs text-blue-600 dark:text-blue-400 hover:underline"
-                    >
-                      View Document ↗
-                    </a>
-                  </div>
-                </div>
-
-                {/* Task Card */}
-                {task && (
-                  <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-4">
-                    <h3 className="text-xs uppercase font-bold text-gray-500 dark:text-gray-400 mb-3">Task</h3>
-                    <div className="space-y-2">
-                      <p className="text-sm font-medium text-gray-900 dark:text-gray-100">{task.title}</p>
-                      <div className="flex gap-2">
-                        <span className={`text-[10px] uppercase font-bold px-2 py-1 rounded ${
-                          task.status === "Completed"
-                            ? "bg-green-100 dark:bg-green-950 text-green-700 dark:text-green-400"
-                            : "bg-amber-100 dark:bg-amber-950 text-amber-700 dark:text-amber-400"
-                        }`}>
-                          {task.status}
-                        </span>
-                        <span className="text-[10px] text-gray-600 dark:text-gray-400">{task.category}</span>
-                      </div>
-                      <div className="text-xs text-gray-600 dark:text-gray-400">
-                        {task.frequency} • Due: {new Date(task.start_date).toLocaleDateString()}
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {/* Date Confirmation */}
-              <div className="mb-6 p-3 bg-gray-50 dark:bg-gray-800/50 border border-gray-100 dark:border-gray-700 rounded-md">
-                <label className="block text-[10px] uppercase font-bold text-gray-500 dark:text-gray-400 mb-2">
-                  Completion date
-                </label>
-                <input
-                  type="date"
-                  value={pendingSmartAction.confirmDate}
-                  onChange={(e) =>
-                    setPendingSmartAction({ ...pendingSmartAction, confirmDate: e.target.value })
-                  }
-                  className="w-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-gray-400"
-                />
-              </div>
-
-              <div className="flex gap-3">
-                <button
-                  onClick={() => setPendingSmartAction(null)}
-                  className="flex-1 text-sm px-4 py-2 rounded-md border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors font-medium"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={confirmSmartAction}
-                  className="flex-1 text-sm px-4 py-2 rounded-md bg-gray-900 dark:bg-gray-700 text-white hover:bg-gray-700 dark:hover:bg-gray-600 transition-colors font-medium"
-                >
-                  Complete & Link
-                </button>
-              </div>
-            </div>
-          </div>
+          <SmartActionConfirmModal
+            doc={pendingSmartAction.doc}
+            task={task}
+            confirmDate={pendingSmartAction.confirmDate}
+            onConfirmDateChange={(date) =>
+              setPendingSmartAction({ ...pendingSmartAction, confirmDate: date })
+            }
+            onConfirm={confirmSmartAction}
+            onCancel={() => setPendingSmartAction(null)}
+          />
         );
       })()}
 
       {successInfo && (
-        <div className="animate-backdrop fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="animate-modal bg-white dark:bg-gray-900 rounded-lg shadow-xl max-w-sm w-full p-8 text-center">
-            <div className="w-12 h-12 bg-green-100 dark:bg-green-950 text-green-600 dark:text-green-400 rounded-full flex items-center justify-center mx-auto mb-4">
-              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-                <polyline points="20 6 9 17 4 12" />
-              </svg>
-            </div>
-            <h2 className="text-xl font-bold mb-2 text-gray-900 dark:text-gray-100">Task Completed!</h2>
-            <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">Document successfully linked to {successInfo.title}.</p>
-            <div className="flex flex-col gap-2">
-              <button onClick={() => setSuccessInfo(null)} className="text-sm px-4 py-2 rounded-md border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors font-medium">
-                Close
-              </button>
-              {successInfo.taskId && (
-                <a href={`/tasks/${successInfo.taskId}`} className="text-sm px-4 py-2 rounded-md bg-blue-600 dark:bg-blue-700 text-white hover:bg-blue-700 dark:hover:bg-blue-600 transition-colors font-medium text-center">
-                  Go to Task →
-                </a>
-              )}
-              <a href={successInfo.docUrl} target="_blank" rel="noopener noreferrer" className="text-sm px-4 py-2 rounded-md bg-gray-900 dark:bg-gray-700 text-white hover:bg-gray-700 dark:hover:bg-gray-600 transition-colors font-medium">
-                Preview Document ↗
-              </a>
-            </div>
-          </div>
-        </div>
+        <MatchSuccessModal
+          title={successInfo.title}
+          docUrl={successInfo.docUrl}
+          taskId={successInfo.taskId}
+          onClose={() => setSuccessInfo(null)}
+        />
       )}
+
     </>
   );
 }
