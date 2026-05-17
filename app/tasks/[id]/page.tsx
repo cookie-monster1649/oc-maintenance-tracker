@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { TaskCard, Task, Vendor, DocumentRef } from "../../components/TaskCard";
+import { TaskCard, Task, Vendor } from "../../components/TaskCard";
 import { getColorClasses } from "@/lib/colors";
 import { getCached, setCached } from "@/lib/cache";
 import { useGodMode } from "@/app/contexts/god-mode";
@@ -93,17 +93,11 @@ export default function TaskDetailPage() {
   const [completing, setCompleting] = useState<string | null>(null);
   const [autoLinkedCount, setAutoLinkedCount] = useState(0);
   const [lastAutoLinkedIds, setLastAutoLinkedIds] = useState<number[]>([]);
-  const [suggestions, setSuggestions] = useState<DocumentRef[]>([]);
   const [form, setForm] = useState<Partial<Task>>({});
   const [originalForm, setOriginalForm] = useState<Partial<Task>>({});
   const [renameAllInSeries, setRenameAllInSeries] = useState(false);
-  const [createOccurrenceOpen, setCreateOccurrenceOpen] = useState(false);
-  const [selectedDocForOccurrence, setSelectedDocForOccurrence] =
-    useState<DocumentRef | null>(null);
-  const [occurrenceDate, setOccurrenceDate] = useState("");
   const menuRef = useRef<HTMLDivElement>(null);
   const backdropRef = useRef<HTMLDivElement>(null);
-  const occurrenceBackdropRef = useRef<HTMLDivElement>(null);
 
   const fetchTasks = useCallback(async () => {
     const res = await fetch("/api/tasks");
@@ -111,28 +105,6 @@ export default function TaskDetailPage() {
     setCached("/api/tasks", data);
     setTasks(data);
   }, []);
-
-  const triggerMatch = useCallback(async () => {
-    try {
-      const res = await fetch(`/api/tasks/${taskId}/match-documents`, {
-        method: "POST",
-      });
-      if (res.ok) {
-        const result = await res.json();
-        setSuggestions(result.suggestions || []);
-        if (result.linked && result.linked.length > 0) {
-          setAutoLinkedCount(result.linked.length);
-          setLastAutoLinkedIds(result.linked.map((d: DocumentRef) => d.id));
-          // Refresh tasks to show the new links
-          const tasksRes = await fetch("/api/tasks");
-          const tasksData = await tasksRes.json();
-          setTasks(tasksData);
-        }
-      }
-    } catch (err) {
-      console.error("Auto-match failed", err);
-    }
-  }, [taskId]);
 
   const fetchAll = useCallback(async () => {
     const [tasksRes, vendorsRes, categoriesRes] = await Promise.all([
@@ -157,10 +129,7 @@ export default function TaskDetailPage() {
         return acc;
       }, {}),
     );
-
-    // Trigger matching on page load
-    triggerMatch();
-  }, [triggerMatch]);
+  }, []);
 
   async function undoMatch() {
     if (lastAutoLinkedIds.length === 0) return;
@@ -360,58 +329,6 @@ export default function TaskDetailPage() {
     }
   };
 
-  const handleCreateOccurrence = async (doc: DocumentRef) => {
-    setSelectedDocForOccurrence(doc);
-    setOccurrenceDate(new Date().toISOString().split("T")[0]);
-    setCreateOccurrenceOpen(true);
-  };
-
-  const saveOccurrence = async () => {
-    if (!selectedDocForOccurrence || !occurrenceDate || !currentTask) return;
-
-    try {
-      const newTaskData = {
-        title: currentTask.title,
-        description: currentTask.description,
-        frequency: currentTask.frequency,
-        start_date: occurrenceDate,
-        estimated_cost: currentTask.estimated_cost,
-        vendor_id: currentTask.vendor_id,
-        category: currentTask.category,
-        status: "Completed" as const,
-        last_completed_date: occurrenceDate,
-      };
-
-      // Create the task
-      const createRes = await fetch("/api/tasks", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(newTaskData),
-      });
-
-      if (!createRes.ok) throw new Error("Failed to create task");
-      const createdTask = await createRes.json();
-
-      // Link the document
-      await fetch(`/api/tasks/${createdTask.id}/documents`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ document: selectedDocForOccurrence }),
-      });
-
-      setCreateOccurrenceOpen(false);
-      setSelectedDocForOccurrence(null);
-      setOccurrenceDate("");
-      setSuggestions((s) =>
-        s.filter((d) => d.id !== selectedDocForOccurrence.id),
-      );
-      fetchAll();
-    } catch (err) {
-      console.error("Failed to create occurrence:", err);
-      alert("Failed to create occurrence. Please try again.");
-    }
-  };
-
   const handleDelete = async () => {
     if (
       !confirm(
@@ -466,59 +383,6 @@ export default function TaskDetailPage() {
             >
               Undo
             </button>
-          </div>
-        )}
-
-        {suggestions.length > 0 && (
-          <div className="bg-amber-50 dark:bg-amber-950 border border-amber-200 dark:border-amber-900 rounded-lg p-4 mb-8 shadow-sm">
-            <h3 className="text-sm font-semibold text-amber-800 dark:text-amber-400 mb-3 flex items-center gap-2">
-              <span>💡</span> Possible matches found
-            </h3>
-            <div className="space-y-2">
-              {suggestions.map((doc) => (
-                <div
-                  key={doc.id}
-                  className="flex items-center justify-between gap-4 bg-white dark:bg-gray-900 p-2 rounded border border-amber-100 dark:border-amber-900/50"
-                >
-                  <div className="min-w-0">
-                    <p className="text-sm font-medium truncate">{doc.title}</p>
-                    <p className="text-[10px] text-gray-500">
-                      {doc.document_type_label || "Document"} • {doc.created || "—"}
-                    </p>
-                  </div>
-                  <div className="flex gap-2">
-                    <a
-                      href={doc.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-xs text-blue-600 dark:text-blue-400 hover:underline px-2"
-                    >
-                      View
-                    </a>
-                    <button
-                      onClick={async () => {
-                        await fetch(`/api/tasks/${taskId}/documents`, {
-                          method: "POST",
-                          headers: { "Content-Type": "application/json" },
-                          body: JSON.stringify({ document: doc }),
-                        });
-                        setSuggestions((s) => s.filter((d) => d.id !== doc.id));
-                        fetchTasks();
-                      }}
-                      className="text-xs font-bold text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white px-2"
-                    >
-                      Link
-                    </button>
-                    <button
-                      onClick={() => handleCreateOccurrence(doc)}
-                      className="text-xs font-bold text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 px-2"
-                    >
-                      Create Occurrence
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
           </div>
         )}
 
@@ -912,58 +776,6 @@ export default function TaskDetailPage() {
         </div>
       )}
 
-      {createOccurrenceOpen && selectedDocForOccurrence && (
-        <div
-          ref={occurrenceBackdropRef}
-          className="animate-backdrop fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
-          onClick={(e) => {
-            if (e.target === occurrenceBackdropRef.current) {
-              setCreateOccurrenceOpen(false);
-            }
-          }}
-        >
-          <div className="animate-modal bg-white dark:bg-gray-900 rounded-lg shadow-xl max-w-md w-full p-8">
-            <h2 className="text-2xl font-bold mb-6 text-gray-900 dark:text-gray-100">
-              Create Occurrence
-            </h2>
-            <div className="space-y-4 mb-8">
-              <div>
-                <p className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
-                  Document
-                </p>
-                <p className="text-sm text-gray-600 dark:text-gray-400">
-                  {selectedDocForOccurrence.title}
-                </p>
-              </div>
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
-                  Date the task occurred
-                </label>
-                <input
-                  type="date"
-                  value={occurrenceDate}
-                  onChange={(e) => setOccurrenceDate(e.target.value)}
-                  className="w-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 rounded-md px-3 py-2 text-sm text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-gray-400"
-                />
-              </div>
-            </div>
-            <div className="flex gap-3">
-              <button
-                onClick={saveOccurrence}
-                className="flex-1 text-sm px-4 py-2 rounded-md bg-gray-900 dark:bg-gray-700 text-white hover:bg-gray-700 dark:hover:bg-gray-600 transition-colors font-medium"
-              >
-                Create
-              </button>
-              <button
-                onClick={() => setCreateOccurrenceOpen(false)}
-                className="flex-1 text-sm px-4 py-2 rounded-md border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors font-medium"
-              >
-                Cancel
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </>
   );
 }
