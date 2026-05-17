@@ -214,20 +214,12 @@ export default function VendorsPage() {
                 </div>
                 <div className="flex gap-2 shrink-0">
                   {godMode && (
-                    <>
-                      <button
-                        onClick={() => openEdit(v)}
-                        className="text-sm px-3 py-1.5 rounded-md border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
-                      >
-                        Edit
-                      </button>
-                      <button
-                        onClick={() => remove(v.id, v.name)}
-                        className="text-sm px-3 py-1.5 rounded-md border border-red-200 dark:border-red-900 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950 transition-colors"
-                      >
-                        Delete
-                      </button>
-                    </>
+                    <button
+                      onClick={() => openEdit(v)}
+                      className="text-sm px-3 py-1.5 rounded-md border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+                    >
+                      Edit
+                    </button>
                   )}
                 </div>
               </div>

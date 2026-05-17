@@ -370,10 +370,35 @@ export default function TaskDetailPage() {
   };
 
   const handleDelete = async () => {
-    if (!confirm(`Delete "${currentTask.title}"? This cannot be undone.`))
+    if (
+      !confirm(
+        `Delete entire "${currentTask.title}" series? This will remove all occurrences and cannot be undone.`,
+      )
+    )
       return;
-    await fetch(`/api/tasks/${taskId}`, { method: "DELETE" });
-    router.push("/");
+    try {
+      await Promise.all(
+        series.map((t) =>
+          fetch(`/api/tasks/${t.id}`, { method: "DELETE" }),
+        ),
+      );
+      router.push("/");
+    } catch (err) {
+      console.error("Delete failed:", err);
+      alert("Failed to delete task series. Please try again.");
+    }
+  };
+
+  const handleDeleteOccurrence = async (id: string) => {
+    if (!confirm("Delete this occurrence only? Cannot be undone.")) return;
+    try {
+      const res = await fetch(`/api/tasks/${id}`, { method: "DELETE" });
+      if (res.ok) {
+        await fetchAll();
+      }
+    } catch (err) {
+      console.error("Delete occurrence failed:", err);
+    }
   };
 
   return (
@@ -501,17 +526,15 @@ export default function TaskDetailPage() {
                         Archive
                       </button>
                     )}
-                    {canDelete && (
-                      <button
-                        onClick={() => {
-                          handleDelete();
-                          setMenuOpen(false);
-                        }}
-                        className="block w-full text-left px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950"
-                      >
-                        Delete
-                      </button>
-                    )}
+                    <button
+                      onClick={() => {
+                        handleDelete();
+                        setMenuOpen(false);
+                      }}
+                      className="block w-full text-left px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950"
+                    >
+                      Delete series
+                    </button>
                   </div>
                 )}
               </div>
@@ -620,6 +643,7 @@ export default function TaskDetailPage() {
                     completing={completing}
                     categoryColors={categoryColors}
                     onUnlinkDocumentAction={handleUnlinkDocument}
+                    onDeleteOccurrenceAction={handleDeleteOccurrence}
                   />
                 ))}
               </div>
@@ -641,6 +665,7 @@ export default function TaskDetailPage() {
                     completing={completing}
                     categoryColors={categoryColors}
                     onUnlinkDocumentAction={handleUnlinkDocument}
+                    onDeleteOccurrenceAction={handleDeleteOccurrence}
                   />
                 ))}
               </div>

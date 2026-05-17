@@ -61,6 +61,7 @@ export function TaskCard({
   completing,
   categoryColors,
   onUnlinkDocumentAction,
+  onDeleteOccurrenceAction,
 }: {
   task: Task;
   vendors: Vendor[];
@@ -68,6 +69,7 @@ export function TaskCard({
   completing?: string | null;
   categoryColors?: Record<string, string>;
   onUnlinkDocumentAction?: (taskId: string, docId: number) => void;
+  onDeleteOccurrenceAction?: (id: string) => void;
 }) {
   const { godMode } = useGodMode();
   const vendor = vendors.find((v) => v.id === task.vendor_id);
@@ -86,7 +88,7 @@ export function TaskCard({
 
   return (
     <div
-      className={`border rounded-lg p-4 transition-[border-color,box-shadow,opacity,transform] duration-150 ${isCompleted ? "border-gray-100 dark:border-gray-800 opacity-60" : "border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 hover:shadow-sm hover:-translate-y-px"}`}
+      className={`border rounded-lg p-4 transition-[border-color,box-shadow,opacity,transform] duration-150 group ${isCompleted ? "border-gray-100 dark:border-gray-800 opacity-60" : "border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 hover:shadow-sm hover:-translate-y-px"}`}
     >
       <div className="flex items-start justify-between gap-4">
         <div className="flex flex-col items-center justify-center w-12 shrink-0 text-center">
@@ -177,7 +179,7 @@ export function TaskCard({
             </div>
           )}
         </div>
-        <div className="flex gap-2 shrink-0">
+        <div className="flex gap-2 shrink-0 items-center">
           {!isCompleted && onCompleteAction && godMode && (
             <button
               onClick={() => onCompleteAction(task.id)}
@@ -185,6 +187,15 @@ export function TaskCard({
               className="text-sm px-3 py-1.5 rounded-md border border-gray-300 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 disabled:opacity-40 transition-colors"
             >
               {completing === task.id ? "Saving…" : "Mark done"}
+            </button>
+          )}
+          {godMode && onDeleteOccurrenceAction && (
+            <button
+              onClick={() => onDeleteOccurrenceAction(task.id)}
+              className="hidden group-hover:flex items-center justify-center w-6 h-6 rounded-md border border-red-300 dark:border-red-700 bg-red-50 dark:bg-red-950 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900 transition-colors text-xs font-bold"
+              title="Delete this occurrence"
+            >
+              ✕
             </button>
           )}
         </div>
