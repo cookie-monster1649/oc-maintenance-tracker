@@ -14,12 +14,15 @@ export interface Task {
   series_id: string;
   title: string;
   description: string;
-  frequency: string;
+  task_type?: "budget_item" | "once_off" | "recurring";
+  frequency: string | null;
+  variable_cost?: boolean;
   category: string;
   start_date: string;
   status: string;
   vendor_id: string | null;
   estimated_cost: number | null;
+  actual_cost?: number | null;
   archived?: boolean;
   last_completed_date: string | null;
 }

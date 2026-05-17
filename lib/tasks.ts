@@ -24,6 +24,8 @@ export type Frequency =
 
 export type Status = "Scheduled" | "In Progress" | "Completed" | "Overdue";
 
+export type TaskType = "budget_item" | "once_off" | "recurring";
+
 export interface DocumentRef {
   id: number;
   title: string;
@@ -40,11 +42,14 @@ export interface Task {
   series_id: string;
   title: string;
   description: string;
-  frequency: Frequency;
+  task_type: TaskType;
+  frequency: Frequency | null;
+  variable_cost: boolean;
   status: Status;
   start_date: string;
   last_completed_date: string | null;
   estimated_cost: number | null;
+  actual_cost: number | null;
   vendor_id: string | null;
   category: string;
   archived?: boolean;
@@ -101,11 +106,31 @@ export function readTasks(): Task[] {
     return acc;
   }, []);
 
+  // Backfill new fields for tasks created before the cost model redesign
+  const withNewFields = withCleanIds.map((t) => {
+    let changed = false;
+    const updated = { ...t };
+    if (!updated.task_type) {
+      updated.task_type = updated.frequency ? "recurring" : "budget_item";
+      changed = true;
+    }
+    if (updated.variable_cost === undefined) {
+      updated.variable_cost = false;
+      changed = true;
+    }
+    if (updated.actual_cost === undefined) {
+      updated.actual_cost = null;
+      changed = true;
+    }
+    if (changed) needsWrite = true;
+    return updated;
+  });
+
   if (needsWrite) {
-    fs.writeFileSync(DATA_PATH, JSON.stringify(withCleanIds, null, 2));
+    fs.writeFileSync(DATA_PATH, JSON.stringify(withNewFields, null, 2));
   }
 
-  const tasks: Task[] = withCleanIds;
+  const tasks: Task[] = withNewFields;
   const today = startOfDay(new Date());
   return tasks.map((t) => ({
     ...t,
@@ -124,7 +149,8 @@ export function writeTasks(tasks: Task[]): void {
   fs.writeFileSync(DATA_PATH, JSON.stringify(tasks, null, 2));
 }
 
-export function nextStartDate(startDate: string, frequency: Frequency): string {
+export function nextStartDate(startDate: string, frequency: Frequency | null): string {
+  if (!frequency) throw new Error("Cannot calculate next start date for non-recurring task");
   const d = parseISO(startDate);
   switch (frequency) {
     case "Weekly":
@@ -152,6 +178,7 @@ export function pushFutureTasks(tasks: Task[], futureTasks: Task[]): void {
 }
 
 export function extrapolateFutureTasks(task: Task): Task[] {
+  if (!task.frequency) return [];
   const futureTasks: Task[] = [];
   // 5-year window gives annual tasks room to generate 3 future occurrences even
   // when leap-year date shifts (e.g. Feb 29 → Mar 1) push dates slightly forward.

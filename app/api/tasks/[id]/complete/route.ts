@@ -17,24 +17,32 @@ export async function POST(
   const task = tasks[idx];
   const today = new Date().toISOString().split("T")[0];
 
+  // Set actual_cost: use provided value or fall back to estimated_cost
+  const actualCost = body.actual_cost != null ? Number(body.actual_cost) : task.estimated_cost;
+
   // Update completed task
   tasks[idx] = {
     ...task,
     status: "Completed",
     last_completed_date: today,
+    actual_cost: actualCost,
   };
 
-  const nextDate = nextStartDate(task.start_date, task.frequency);
+  // Only generate next tasks if this is a recurring task
+  let nextTask = undefined;
+  if (task.frequency) {
+    const nextDate = nextStartDate(task.start_date, task.frequency);
 
-  if (!body.no_extrapolate) {
-    pushFutureTasks(tasks, extrapolateFutureTasks(task));
+    if (!body.no_extrapolate) {
+      pushFutureTasks(tasks, extrapolateFutureTasks(task));
+    }
+
+    nextTask = tasks.find(
+      (t) => t.series_id === task.series_id && t.start_date === nextDate,
+    );
   }
 
   writeTasks(tasks);
-
-  const nextTask = tasks.find(
-    (t) => t.series_id === task.series_id && t.start_date === nextDate,
-  );
 
   return NextResponse.json({ completed: tasks[idx], next: nextTask });
 }

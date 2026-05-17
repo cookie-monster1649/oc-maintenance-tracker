@@ -9,28 +9,44 @@ export function useCachedData(endpoint: string, refreshTrigger?: number) {
   const [isRefreshing, setIsRefreshing] = useState(false);
 
   useEffect(() => {
+    let cancelled = false;
+    setIsRefreshing(true);
+
     (async () => {
-      // Fetch fresh data in background
+      // Deduplicate concurrent requests but keep setData in this component's closure
       if (!fetchPromises.has(endpoint)) {
         fetchPromises.set(
           endpoint,
           fetch(endpoint)
-            .then((res) => (res.ok ? res.json() : null))
+            .then((res) => {
+              if (!res.ok) throw new Error(`HTTP ${res.status}`);
+              return res.json();
+            })
             .then((freshData) => {
-              if (freshData !== null) {
-                cache.set(endpoint, freshData);
-                setData(freshData);
-              }
-              setIsRefreshing(false);
+              cache.set(endpoint, freshData);
               fetchPromises.delete(endpoint);
               return freshData;
+            })
+            .catch((error) => {
+              console.error(`Failed to fetch ${endpoint}:`, error);
+              fetchPromises.delete(endpoint);
+              throw error;
             }),
         );
       }
 
-      setIsRefreshing(true);
-      await fetchPromises.get(endpoint);
+      try {
+        const freshData = await fetchPromises.get(endpoint);
+        if (!cancelled) {
+          setData(freshData);
+          setIsRefreshing(false);
+        }
+      } catch {
+        if (!cancelled) setIsRefreshing(false);
+      }
     })();
+
+    return () => { cancelled = true; };
   }, [endpoint, refreshTrigger]);
 
   return { data, isRefreshing };

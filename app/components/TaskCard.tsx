@@ -24,16 +24,21 @@ export interface DocumentRef {
   linked_at: string;
 }
 
+export type TaskType = "budget_item" | "once_off" | "recurring";
+
 export interface Task {
   id: string;
   series_id: string;
   title: string;
   description: string;
-  frequency: Frequency;
+  task_type: TaskType;
+  frequency: Frequency | null;
+  variable_cost: boolean;
   status: Status;
   start_date: string;
   last_completed_date: string | null;
   estimated_cost: number | null;
+  actual_cost: number | null;
   vendor_id: string | null;
   category: string;
   archived?: boolean;
@@ -135,7 +140,7 @@ export function TaskCard({
             {task.description}
           </p>
           <div className="flex gap-4 text-xs text-gray-400 dark:text-gray-500 flex-wrap">
-            <span>{task.frequency}</span>
+            {task.frequency && <span>{task.frequency}</span>}
             {task.estimated_cost != null && <span>${task.estimated_cost}</span>}
             {isCompleted && task.last_completed_date && (
               <span>Completed {task.last_completed_date}</span>

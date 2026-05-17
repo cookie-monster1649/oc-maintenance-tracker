@@ -90,7 +90,15 @@ export default function TaskDetailPage() {
   );
   const [editOpen, setEditOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [addOccurrenceOpen, setAddOccurrenceOpen] = useState(false);
+  const [occurrenceForm, setOccurrenceForm] = useState({
+    date: new Date().toISOString().split("T")[0],
+    completed: false,
+    actual_cost: "",
+  });
   const [completing, setCompleting] = useState<string | null>(null);
+  const [promptingCostFor, setPromptingCostFor] = useState<string | null>(null);
+  const [costPromptValue, setCostPromptValue] = useState("");
   const [autoLinkedCount, setAutoLinkedCount] = useState(0);
   const [lastAutoLinkedIds, setLastAutoLinkedIds] = useState<number[]>([]);
   const [form, setForm] = useState<Partial<Task>>({});
@@ -98,6 +106,7 @@ export default function TaskDetailPage() {
   const [renameAllInSeries, setRenameAllInSeries] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const backdropRef = useRef<HTMLDivElement>(null);
+  const addOccurrenceBackdropRef = useRef<HTMLDivElement>(null);
 
   const fetchTasks = useCallback(async () => {
     const res = await fetch("/api/tasks");
@@ -194,10 +203,30 @@ export default function TaskDetailPage() {
   }, [fetchAll]);
 
   async function completeTask(id: string) {
+    const task = tasks.find((t) => t.id === id);
+    if (task?.variable_cost) {
+      setPromptingCostFor(id);
+      setCostPromptValue(task.estimated_cost?.toString() || "");
+      return;
+    }
+    await finishCompleteTask(id);
+  }
+
+  async function finishCompleteTask(id: string, actualCost?: number) {
     setCompleting(id);
-    await fetch(`/api/tasks/${id}/complete`, { method: "POST" });
+    const body: Record<string, unknown> = {};
+    if (actualCost !== undefined) {
+      body.actual_cost = actualCost;
+    }
+    await fetch(`/api/tasks/${id}/complete`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
     await fetchTasks();
     setCompleting(null);
+    setPromptingCostFor(null);
+    setCostPromptValue("");
   }
 
   useEffect(() => {
@@ -221,8 +250,12 @@ export default function TaskDetailPage() {
     );
   }
 
+  const isBudgetItem = currentTask.task_type === "budget_item";
+
+  // For budget items, the currentTask record is the budget placeholder — exclude it from occurrences.
+  // Occurrences are only those added via "Add occurrence".
   const series = tasks
-    .filter((t) => t.series_id === currentTask.series_id)
+    .filter((t) => t.series_id === currentTask.series_id && (!isBudgetItem || t.id !== currentTask.id))
     .sort((a, b) => (a.start_date || "").localeCompare(b.start_date || ""));
   const vendor = vendors.find((v) => v.id === currentTask.vendor_id);
   const completed = series
@@ -247,7 +280,7 @@ export default function TaskDetailPage() {
     const initial = {
       title: currentTask.title,
       description: currentTask.description,
-      frequency: currentTask.frequency as Frequency,
+      frequency: (currentTask.frequency as Frequency) ?? undefined,
       start_date: currentTask.start_date,
       estimated_cost: currentTask.estimated_cost,
       vendor_id: currentTask.vendor_id,
@@ -361,6 +394,59 @@ export default function TaskDetailPage() {
     }
   };
 
+  const handleAddOccurrence = async () => {
+    if (!occurrenceForm.date) {
+      alert("Please select a date");
+      return;
+    }
+
+    try {
+      const newTaskId = `${currentTask.series_id}-${occurrenceForm.date}`;
+      const body: Record<string, unknown> = {
+        series_id: currentTask.series_id,
+        title: currentTask.title,
+        description: currentTask.description,
+        task_type: currentTask.task_type,
+        frequency: currentTask.frequency,
+        variable_cost: currentTask.variable_cost,
+        start_date: occurrenceForm.date,
+        estimated_cost: currentTask.estimated_cost,
+        vendor_id: currentTask.vendor_id,
+        category: currentTask.category,
+        no_extrapolate: true,
+      };
+
+      if (occurrenceForm.completed) {
+        body.status = "Completed";
+        body.last_completed_date = occurrenceForm.date;
+        if (occurrenceForm.actual_cost) {
+          body.actual_cost = Number(occurrenceForm.actual_cost);
+        } else if (currentTask.estimated_cost) {
+          body.actual_cost = currentTask.estimated_cost;
+        }
+      }
+
+      const res = await fetch("/api/tasks", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+
+      if (res.ok) {
+        setAddOccurrenceOpen(false);
+        setOccurrenceForm({
+          date: new Date().toISOString().split("T")[0],
+          completed: false,
+          actual_cost: "",
+        });
+        await fetchAll();
+      }
+    } catch (err) {
+      console.error("Add occurrence failed:", err);
+      alert("Failed to add occurrence");
+    }
+  };
+
   return (
     <>
       <main className="animate-page content-container py-10">
@@ -421,6 +507,15 @@ export default function TaskDetailPage() {
                       className="block w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 border-b border-gray-100 dark:border-gray-800"
                     >
                       Edit
+                    </button>
+                    <button
+                      onClick={() => {
+                        setMenuOpen(false);
+                        setAddOccurrenceOpen(true);
+                      }}
+                      className="block w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 border-b border-gray-100 dark:border-gray-800"
+                    >
+                      Add occurrence
                     </button>
                     {completed.length > 0 && (
                       <button
@@ -501,10 +596,16 @@ export default function TaskDetailPage() {
               </div>
               <div className="flex justify-between gap-4">
                 <span className="text-gray-500 dark:text-gray-400">
-                  Due Date
+                  {isBudgetItem ? "Fiscal Year" : "Due Date"}
                 </span>
                 <span className="font-medium text-gray-900 dark:text-gray-100">
-                  {currentTask.start_date}
+                  {isBudgetItem
+                    ? (() => {
+                        const d = new Date(currentTask.start_date + "T00:00:00");
+                        const fy = d.getMonth() >= 6 ? d.getFullYear() + 1 : d.getFullYear();
+                        return `FY${fy}`;
+                      })()
+                    : currentTask.start_date}
                 </span>
               </div>
               <div className="flex justify-between gap-4">
@@ -608,6 +709,12 @@ export default function TaskDetailPage() {
                   ));
                 })()}
               </div>
+            </div>
+          )}
+
+          {upcoming.length === 0 && completed.length === 0 && (
+            <div className="border rounded-lg p-4 border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900">
+              <p className="text-sm text-gray-400 dark:text-gray-500">No occurrences logged</p>
             </div>
           )}
         </section>
@@ -767,6 +874,114 @@ export default function TaskDetailPage() {
               </button>
               <button
                 onClick={closeEdit}
+                className="flex-1 text-sm px-4 py-2 rounded-md border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors font-medium"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {addOccurrenceOpen && (
+        <div
+          ref={addOccurrenceBackdropRef}
+          className="animate-backdrop fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
+          onClick={(e) => {
+            if (e.target === addOccurrenceBackdropRef.current) setAddOccurrenceOpen(false);
+          }}
+        >
+          <div className="animate-modal bg-white dark:bg-gray-900 rounded-lg shadow-xl max-w-md w-full max-h-[90vh] overflow-y-auto flex flex-col p-8">
+            <h2 className="text-2xl font-bold mb-8 text-gray-900 dark:text-gray-100 shrink-0">
+              Add Occurrence
+            </h2>
+            <div className="space-y-5 flex-1">
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                  Date
+                </label>
+                <input
+                  type="date"
+                  value={occurrenceForm.date}
+                  onChange={(e) =>
+                    setOccurrenceForm((f) => ({ ...f, date: e.target.value }))
+                  }
+                  className="w-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 rounded-md px-3 py-2 text-sm text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-gray-400"
+                />
+              </div>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={occurrenceForm.completed}
+                  onChange={(e) =>
+                    setOccurrenceForm((f) => ({ ...f, completed: e.target.checked }))
+                  }
+                  className="w-4 h-4"
+                />
+                <span className="text-sm text-gray-700 dark:text-gray-300">
+                  Mark as completed
+                </span>
+              </label>
+              {occurrenceForm.completed && currentTask.variable_cost && (
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                    Actual Cost ($)
+                  </label>
+                  <input
+                    type="number"
+                    value={occurrenceForm.actual_cost}
+                    onChange={(e) =>
+                      setOccurrenceForm((f) => ({ ...f, actual_cost: e.target.value }))
+                    }
+                    placeholder={currentTask.estimated_cost?.toString()}
+                    className="w-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 rounded-md px-3 py-2 text-sm text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-gray-400"
+                  />
+                </div>
+              )}
+            </div>
+            <div className="flex gap-3 mt-8 pt-6 border-t border-gray-100 dark:border-gray-800 shrink-0">
+              <button
+                onClick={handleAddOccurrence}
+                className="flex-1 text-sm px-4 py-2 rounded-md bg-gray-900 dark:bg-gray-700 text-white hover:bg-gray-700 dark:hover:bg-gray-600 transition-colors font-medium"
+              >
+                Add
+              </button>
+              <button
+                onClick={() => setAddOccurrenceOpen(false)}
+                className="flex-1 text-sm px-4 py-2 rounded-md border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors font-medium"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {promptingCostFor && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-gray-900 rounded-lg shadow-xl max-w-md w-full p-8">
+            <h3 className="text-lg font-bold mb-4 text-gray-900 dark:text-gray-100">
+              Enter Actual Cost
+            </h3>
+            <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+              This task has variable costs. What was the actual cost?
+            </p>
+            <input
+              type="number"
+              value={costPromptValue}
+              onChange={(e) => setCostPromptValue(e.target.value)}
+              placeholder="Enter amount"
+              className="w-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 rounded-md px-3 py-2 text-sm text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-gray-400 mb-6"
+            />
+            <div className="flex gap-3">
+              <button
+                onClick={() => finishCompleteTask(promptingCostFor, Number(costPromptValue) || undefined)}
+                className="flex-1 text-sm px-4 py-2 rounded-md bg-gray-900 dark:bg-gray-700 text-white hover:bg-gray-700 dark:hover:bg-gray-600 transition-colors font-medium"
+              >
+                Complete
+              </button>
+              <button
+                onClick={() => setPromptingCostFor(null)}
                 className="flex-1 text-sm px-4 py-2 rounded-md border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors font-medium"
               >
                 Cancel

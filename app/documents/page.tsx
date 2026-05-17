@@ -190,8 +190,12 @@ export default function DocumentsPage() {
   const sortedTypes = Object.keys(groupedByType).sort();
 
   useEffect(() => {
-    if (!selectedTab && sortedTypes.length > 0) {
-      setSelectedTab(sortedTypes[0]);
+    if (sortedTypes.length > 0) {
+      if (!selectedTab || !sortedTypes.includes(selectedTab)) {
+        setSelectedTab(sortedTypes[0]);
+      }
+    } else if (selectedTab) {
+      setSelectedTab("");
     }
   }, [sortedTypes, selectedTab]);
 
@@ -212,23 +216,33 @@ export default function DocumentsPage() {
               All documents from Paperless-ngx
             </p>
           </div>
-          <div className="flex items-center gap-4">
-            <label className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={unmatchedOnly}
-                onChange={(e) => setUnmatchedOnly(e.target.checked)}
-                className="rounded border-gray-300 dark:border-gray-700 text-gray-900 focus:ring-gray-500"
-              />
-              Unmatched only
-            </label>
-            <button
-              onClick={refreshAll}
-              disabled={isRefreshing}
-              className="text-sm px-3 py-1.5 rounded-md border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors disabled:opacity-50"
+          <div className="flex flex-col items-end gap-3">
+            <a
+              href={process.env.NEXT_PUBLIC_DOCUMENT_DOMAIN || "#"}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="relative z-10 text-sm px-3 py-1.5 rounded-md border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors flex items-center gap-1 cursor-pointer"
             >
-              Refresh
-            </button>
+              All documents ↗
+            </a>
+            <div className="flex items-center gap-4">
+              <label className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={unmatchedOnly}
+                  onChange={(e) => setUnmatchedOnly(e.target.checked)}
+                  className="rounded border-gray-300 dark:border-gray-700 text-gray-900 focus:ring-gray-500"
+                />
+                Unmatched only
+              </label>
+              <button
+                onClick={refreshAll}
+                disabled={isRefreshing}
+                className="text-sm px-3 py-1.5 rounded-md border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors disabled:opacity-50"
+              >
+                Refresh
+              </button>
+            </div>
           </div>
         </div>
 
@@ -284,11 +298,11 @@ export default function DocumentsPage() {
               ))}
             </div>
 
-            {selectedTab && (
+            {selectedTab && groupedByType[selectedTab] && (
               <div>
                 <div className="bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 rounded-lg overflow-hidden shadow-sm">
                   <ul className="divide-y divide-gray-50 dark:divide-gray-800">
-                    {groupedByType[selectedTab]
+                    {[...groupedByType[selectedTab]]
                       .sort((a, b) => (b.created || "").localeCompare(a.created || ""))
                       .map((doc) => (
                         <li
