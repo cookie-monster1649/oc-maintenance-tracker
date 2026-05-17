@@ -140,6 +140,7 @@ export default function DocumentsPage() {
             last_completed_date: occurrenceDate,
             estimated_cost: templateTask.estimated_cost,
             vendor_id: templateTask.vendor_id,
+            no_extrapolate: true,
           }),
         });
 

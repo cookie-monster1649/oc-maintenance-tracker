@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { readTasks, writeTasks, type Task } from "@/lib/tasks";
+import { readTasks, writeTasks, type Task, extrapolateFutureTasks } from "@/lib/tasks";
 
 export async function GET() {
   return NextResponse.json(readTasks());
@@ -23,6 +23,16 @@ export async function POST(req: Request) {
   };
 
   tasks.push(task);
+
+  if (!body.no_extrapolate) {
+    const futureTasks = extrapolateFutureTasks(task);
+    for (const fTask of futureTasks) {
+      if (!tasks.find((t) => t.id === fTask.id)) {
+        tasks.push(fTask);
+      }
+    }
+  }
+
   writeTasks(tasks);
   return NextResponse.json(task, { status: 201 });
 }

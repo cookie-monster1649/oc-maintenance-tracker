@@ -110,11 +110,10 @@ export function nextStartDate(startDate: string, frequency: Frequency): string {
 
 export function extrapolateFutureTasks(task: Task): Task[] {
   const futureTasks: Task[] = [];
-  const start = parseISO(task.start_date);
-  const end = addDays(addYears(start, 1), 1);
+  const cutoff = addYears(parseISO(task.start_date), 1);
   let current = nextStartDate(task.start_date, task.frequency);
 
-  while (isBefore(parseISO(current), end)) {
+  while (futureTasks.length < 3 && isBefore(parseISO(current), cutoff)) {
     futureTasks.push({
       ...task,
       id: `${task.id}-${current}`,

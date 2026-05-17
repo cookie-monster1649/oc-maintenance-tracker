@@ -41,6 +41,28 @@ function fiscalYearLabel(): string {
   return `FY ${String(fyStart).slice(2)}/${String(fyStart + 1).slice(2)}`;
 }
 
+function groupByYear(
+  items: Task[],
+  dateField: "start_date" | "date" = "start_date",
+) {
+  const groups: { year: string; tasks: Task[] }[] = [];
+  items.forEach((task) => {
+    const date = (
+      dateField === "date"
+        ? task.last_completed_date || task.start_date
+        : task.start_date
+    ) || "0000";
+    const year = date.split("-")[0];
+    const lastGroup = groups[groups.length - 1];
+    if (lastGroup && lastGroup.year === year) {
+      lastGroup.tasks.push(task);
+    } else {
+      groups.push({ year, tasks: [task] });
+    }
+  });
+  return groups;
+}
+
 export default function TaskDetailPage() {
   const { godMode } = useGodMode();
   const params = useParams();
@@ -233,7 +255,13 @@ export default function TaskDetailPage() {
     .filter((t) => t.title === currentTask.title)
     .sort((a, b) => (a.start_date || "").localeCompare(b.start_date || ""));
   const vendor = vendors.find((v) => v.id === currentTask.vendor_id);
-  const completed = series.filter((t) => t.status === "Completed");
+  const completed = series
+    .filter((t) => t.status === "Completed")
+    .sort((a, b) =>
+      (b.last_completed_date || b.start_date || "").localeCompare(
+        a.last_completed_date || a.start_date || "",
+      ),
+    );
   const upcoming = series
     .filter((t) => t.status !== "Completed")
     .sort((a, b) => (a.start_date || "").localeCompare(b.start_date || ""));
@@ -633,19 +661,35 @@ export default function TaskDetailPage() {
               <h3 className="text-sm font-semibold uppercase tracking-widest text-gray-400 mb-6">
                 Upcoming
               </h3>
-              <div className="space-y-3">
-                {upcoming.map((task) => (
-                  <TaskCard
-                    key={task.id}
-                    task={task}
-                    vendors={vendors}
-                    onCompleteAction={completeTask}
-                    completing={completing}
-                    categoryColors={categoryColors}
-                    onUnlinkDocumentAction={handleUnlinkDocument}
-                    onDeleteOccurrenceAction={handleDeleteOccurrence}
-                  />
-                ))}
+              <div className="space-y-6">
+                {(() => {
+                  const upcomingGroups = groupByYear(upcoming);
+                  const currentYear = new Date().getFullYear().toString();
+                  const showYears = upcomingGroups.some((g) => g.year !== currentYear);
+                  return upcomingGroups.map((group) => (
+                    <div key={group.year} className="space-y-3">
+                      {showYears && (
+                        <div className="pt-2">
+                          <span className="text-xs font-bold text-gray-300 dark:text-gray-600 uppercase tracking-widest">
+                            {group.year}
+                          </span>
+                        </div>
+                      )}
+                      {group.tasks.map((task) => (
+                        <TaskCard
+                          key={task.id}
+                          task={task}
+                          vendors={vendors}
+                          onCompleteAction={completeTask}
+                          completing={completing}
+                          categoryColors={categoryColors}
+                          onUnlinkDocumentAction={handleUnlinkDocument}
+                          onDeleteOccurrenceAction={handleDeleteOccurrence}
+                        />
+                      ))}
+                    </div>
+                  ));
+                })()}
               </div>
             </div>
           )}
@@ -655,19 +699,35 @@ export default function TaskDetailPage() {
               <h3 className="text-sm font-semibold uppercase tracking-widest text-gray-400 dark:text-gray-500 mb-6">
                 Completion History
               </h3>
-              <div className="space-y-3">
-                {completed.map((task) => (
-                  <TaskCard
-                    key={task.id}
-                    task={task}
-                    vendors={vendors}
-                    onCompleteAction={completeTask}
-                    completing={completing}
-                    categoryColors={categoryColors}
-                    onUnlinkDocumentAction={handleUnlinkDocument}
-                    onDeleteOccurrenceAction={handleDeleteOccurrence}
-                  />
-                ))}
+              <div className="space-y-8">
+                {(() => {
+                  const completedGroups = groupByYear(completed, "date");
+                  const currentYear = new Date().getFullYear().toString();
+                  const showYears = completedGroups.some((g) => g.year !== currentYear);
+                  return completedGroups.map((group) => (
+                    <div key={group.year} className="space-y-3">
+                      {showYears && (
+                        <div className="pt-2 border-b border-gray-100 dark:border-gray-800 mb-2">
+                          <span className="text-xs font-bold text-gray-300 dark:text-gray-600 uppercase tracking-widest">
+                            {group.year}
+                          </span>
+                        </div>
+                      )}
+                      {group.tasks.map((task) => (
+                        <TaskCard
+                          key={task.id}
+                          task={task}
+                          vendors={vendors}
+                          onCompleteAction={completeTask}
+                          completing={completing}
+                          categoryColors={categoryColors}
+                          onUnlinkDocumentAction={handleUnlinkDocument}
+                          onDeleteOccurrenceAction={handleDeleteOccurrence}
+                        />
+                      ))}
+                    </div>
+                  ));
+                })()}
               </div>
             </div>
           )}

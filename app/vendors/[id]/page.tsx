@@ -55,6 +55,28 @@ function fmt(n: number): string {
   return n.toLocaleString("en-AU", { style: "currency", currency: "AUD" });
 }
 
+function groupByYear(
+  items: Task[],
+  dateField: "start_date" | "date" = "start_date",
+) {
+  const groups: { year: string; tasks: Task[] }[] = [];
+  items.forEach((task) => {
+    const date = (
+      dateField === "date"
+        ? task.last_completed_date || task.start_date
+        : task.start_date
+    ) || "0000";
+    const year = date.split("-")[0];
+    const lastGroup = groups[groups.length - 1];
+    if (lastGroup && lastGroup.year === year) {
+      lastGroup.tasks.push(task);
+    } else {
+      groups.push({ year, tasks: [task] });
+    }
+  });
+  return groups;
+}
+
 export default function VendorDetailPage() {
   const { godMode } = useGodMode();
   const params = useParams();
@@ -241,6 +263,7 @@ export default function VendorDetailPage() {
             last_completed_date: occurrenceDate,
             estimated_cost: templateTask.estimated_cost,
             vendor_id: templateTask.vendor_id,
+            no_extrapolate: true,
           }),
         });
         if (!newTaskRes.ok) throw new Error("Failed to create occurrence");
@@ -555,22 +578,38 @@ export default function VendorDetailPage() {
                 <h2 className="text-sm font-semibold uppercase tracking-widest text-gray-400 dark:text-gray-500 mb-6">
                   Upcoming Work
                 </h2>
-                <div className="space-y-3">
-                  {upcoming.map((task) => (
-                    <TaskCard
-                      key={task.id}
-                      task={task}
-                      vendors={vendors.map((v) => ({
-                        id: v.id,
-                        name: v.name,
-                        service_type: v.service_type,
-                      }))}
-                      onCompleteAction={completeTask}
-                      completing={completing}
-                      categoryColors={categoryColors}
-                      onUnlinkDocumentAction={handleUnlinkDocument}
-                    />
-                  ))}
+                <div className="space-y-6">
+                  {(() => {
+                    const upcomingGroups = groupByYear(upcoming);
+                    const currentYear = new Date().getFullYear().toString();
+                    const showYears = upcomingGroups.some((g) => g.year !== currentYear);
+                    return upcomingGroups.map((group) => (
+                      <div key={group.year} className="space-y-3">
+                        {showYears && (
+                          <div className="pt-2">
+                            <span className="text-xs font-bold text-gray-300 dark:text-gray-600 uppercase tracking-widest">
+                              {group.year}
+                            </span>
+                          </div>
+                        )}
+                        {group.tasks.map((task) => (
+                          <TaskCard
+                            key={task.id}
+                            task={task}
+                            vendors={vendors.map((v) => ({
+                              id: v.id,
+                              name: v.name,
+                              service_type: v.service_type,
+                            }))}
+                            onCompleteAction={completeTask}
+                            completing={completing}
+                            categoryColors={categoryColors}
+                            onUnlinkDocumentAction={handleUnlinkDocument}
+                          />
+                        ))}
+                      </div>
+                    ));
+                  })()}
                 </div>
               </div>
             )}
@@ -580,22 +619,38 @@ export default function VendorDetailPage() {
                 <h2 className="text-sm font-semibold uppercase tracking-widest text-gray-400 dark:text-gray-500 mb-6">
                   Completed Work
                 </h2>
-                <div className="space-y-3">
-                  {completed.map((task) => (
-                    <TaskCard
-                      key={task.id}
-                      task={task}
-                      vendors={vendors.map((v) => ({
-                        id: v.id,
-                        name: v.name,
-                        service_type: v.service_type,
-                      }))}
-                      onCompleteAction={completeTask}
-                      completing={completing}
-                      categoryColors={categoryColors}
-                      onUnlinkDocumentAction={handleUnlinkDocument}
-                    />
-                  ))}
+                <div className="space-y-8">
+                  {(() => {
+                    const completedGroups = groupByYear(completed, "date");
+                    const currentYear = new Date().getFullYear().toString();
+                    const showYears = completedGroups.some((g) => g.year !== currentYear);
+                    return completedGroups.map((group) => (
+                      <div key={group.year} className="space-y-3">
+                        {showYears && (
+                          <div className="pt-2 border-b border-gray-100 dark:border-gray-800 mb-2">
+                            <span className="text-xs font-bold text-gray-300 dark:text-gray-600 uppercase tracking-widest">
+                              {group.year}
+                            </span>
+                          </div>
+                        )}
+                        {group.tasks.map((task) => (
+                          <TaskCard
+                            key={task.id}
+                            task={task}
+                            vendors={vendors.map((v) => ({
+                              id: v.id,
+                              name: v.name,
+                              service_type: v.service_type,
+                            }))}
+                            onCompleteAction={completeTask}
+                            completing={completing}
+                            categoryColors={categoryColors}
+                            onUnlinkDocumentAction={handleUnlinkDocument}
+                          />
+                        ))}
+                      </div>
+                    ));
+                  })()}
                 </div>
               </div>
             )}
