@@ -118,8 +118,12 @@ export default function VendorDetailPage() {
   const [selectedTaskId, setSelectedTaskId] = useState("");
   const [createAsOccurrence, setCreateAsOccurrence] = useState(false);
   const [occurrenceDate, setOccurrenceDate] = useState("");
+  const [confirmedDate, setConfirmedDate] = useState("");
   const [newTaskForm, setNewTaskForm] = useState({ title: "", category: "", start_date: "", frequency: "" });
-  const [successInfo, setSuccessInfo] = useState<{ title: string; docUrl: string } | null>(null);
+  const [successInfo, setSuccessInfo] = useState<{ title: string; docUrl: string; taskId?: string } | null>(null);
+
+  // Smart action confirmation state
+  const [pendingSmartAction, setPendingSmartAction] = useState<{ doc: Document; taskId: string; taskTitle: string; confirmDate: string } | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const backdropRef = useRef<HTMLDivElement>(null);
 
@@ -225,21 +229,60 @@ export default function VendorDetailPage() {
   }
 
   async function handleSmartAction(doc: Document, action: SmartAction) {
-    try {
-      if (action.type === "COMPLETE_SCHEDULED") {
-        await fetch(`/api/tasks/${action.taskId}/complete`, { method: "POST" });
+    if (action.type === "COMPLETE_SCHEDULED") {
+      const confirmDate = doc.created ? doc.created.split("T")[0] : new Date().toISOString().split("T")[0];
+      setPendingSmartAction({
+        doc,
+        taskId: action.taskId,
+        taskTitle: action.taskTitle,
+        confirmDate,
+      });
+    } else {
+      try {
+        const res = await fetch(`/api/tasks/${action.taskId}/documents`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ document: doc }),
+        });
+        if (res.ok) {
+          setSuccessInfo({ title: action.taskTitle, docUrl: doc.url });
+          await fetchAll();
+        }
+      } catch (err) {
+        console.error("Smart action failed", err);
       }
-      const res = await fetch(`/api/tasks/${action.taskId}/documents`, {
+    }
+  }
+
+  async function confirmSmartAction() {
+    if (!pendingSmartAction) return;
+    try {
+      const { doc, taskId, confirmDate } = pendingSmartAction;
+      const originalTask = tasks.find((t) => t.id === taskId);
+
+      if (originalTask && confirmDate !== originalTask.start_date) {
+        await fetch(`/api/tasks/${taskId}/reschedule`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ new_date: confirmDate }),
+        });
+      }
+
+      await fetch(`/api/tasks/${taskId}/complete`, { method: "POST" });
+
+      const res = await fetch(`/api/tasks/${taskId}/documents`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ document: doc }),
       });
+
       if (res.ok) {
-        setSuccessInfo({ title: action.taskTitle, docUrl: doc.url });
+        setSuccessInfo({ title: pendingSmartAction.taskTitle, docUrl: doc.url, taskId });
+        setPendingSmartAction(null);
         await fetchAll();
       }
     } catch (err) {
-      console.error("Smart action failed", err);
+      console.error("Smart action confirmation failed", err);
     }
   }
 
@@ -272,6 +315,16 @@ export default function VendorDetailPage() {
         const newTask = await newTaskRes.json();
         taskId = newTask.id;
       }
+      // Reschedule if the user changed the date
+      const originalTask = tasks.find((t) => t.id === taskId);
+      if (!createAsOccurrence && confirmedDate && originalTask && confirmedDate !== originalTask.start_date) {
+        await fetch(`/api/tasks/${taskId}/reschedule`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ new_date: confirmedDate }),
+        });
+      }
+
       const res = await fetch(`/api/tasks/${taskId}/documents`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -284,6 +337,7 @@ export default function VendorDetailPage() {
         setSelectedSeriesTitle("");
         setCreateAsOccurrence(false);
         setOccurrenceDate("");
+        setConfirmedDate("");
         await fetchAll();
       }
     } catch (err) {
@@ -992,7 +1046,7 @@ export default function VendorDetailPage() {
                         {visibleRecurrences.map((task) => (
                           <button
                             key={task.id}
-                            onClick={() => { setSelectedTaskId(task.id); setCreateAsOccurrence(false); }}
+                            onClick={() => { setSelectedTaskId(task.id); setConfirmedDate(task.start_date); setCreateAsOccurrence(false); }}
                             className={`w-full text-left p-3 rounded-md border transition-all ${
                               selectedTaskId === task.id && !createAsOccurrence
                                 ? "border-blue-500 bg-blue-50 dark:bg-blue-900/20 ring-1 ring-blue-500"
@@ -1017,6 +1071,20 @@ export default function VendorDetailPage() {
                         ))}
                       </div>
                     </div>
+                    {selectedTaskId && !createAsOccurrence && (
+                      <div className="mt-3 p-3 bg-gray-50 dark:bg-gray-800/50 border border-gray-100 dark:border-gray-700 rounded-md">
+                        <label className="block text-[10px] uppercase font-bold text-gray-500 dark:text-gray-400 mb-2">
+                          Confirm date
+                        </label>
+                        <input
+                          type="date"
+                          value={confirmedDate}
+                          onChange={(e) => setConfirmedDate(e.target.value)}
+                          className="w-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-gray-400"
+                        />
+                      </div>
+                    )}
+
                     <div className="pt-2 border-t border-gray-100 dark:border-gray-800">
                       <label className="flex items-center gap-3 cursor-pointer">
                         <input
@@ -1045,7 +1113,7 @@ export default function VendorDetailPage() {
 
               <div className="flex gap-3 pt-4 border-t border-gray-100 dark:border-gray-800">
                 <button
-                  onClick={() => { setMatchingDoc(null); setSelectedSeriesId(""); setSelectedSeriesTitle(""); setSelectedTaskId(""); setCreateAsOccurrence(false); setOccurrenceDate(""); }}
+                  onClick={() => { setMatchingDoc(null); setSelectedSeriesId(""); setSelectedSeriesTitle(""); setSelectedTaskId(""); setCreateAsOccurrence(false); setOccurrenceDate(""); setConfirmedDate(""); }}
                   className="flex-1 text-sm px-4 py-2 rounded-md border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors font-medium"
                 >
                   Cancel
@@ -1068,6 +1136,100 @@ export default function VendorDetailPage() {
         </div>
       )}
 
+      {pendingSmartAction && (() => {
+        const task = tasks.find((t) => t.id === pendingSmartAction.taskId);
+        return (
+          <div className="animate-backdrop fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 overflow-y-auto">
+            <div className="animate-modal bg-white dark:bg-gray-900 rounded-lg shadow-xl max-w-2xl w-full p-6 my-6">
+              <h2 className="text-lg font-bold mb-6 text-gray-900 dark:text-gray-100">Confirm Task Completion</h2>
+
+              <div className="grid grid-cols-2 gap-6 mb-6">
+                {/* Document Details */}
+                <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-4">
+                  <h3 className="text-xs uppercase font-bold text-gray-500 dark:text-gray-400 mb-3">Document</h3>
+                  <div className="space-y-3">
+                    <div>
+                      <p className="text-sm font-medium text-gray-900 dark:text-gray-100 line-clamp-2">{pendingSmartAction.doc.title}</p>
+                    </div>
+                    {pendingSmartAction.doc.document_type_label && (
+                      <div className="text-xs text-gray-600 dark:text-gray-400">
+                        Type: <span className="font-medium">{pendingSmartAction.doc.document_type_label}</span>
+                      </div>
+                    )}
+                    {pendingSmartAction.doc.created && (
+                      <div className="text-xs text-gray-600 dark:text-gray-400">
+                        Date: <span className="font-medium">{new Date(pendingSmartAction.doc.created).toLocaleDateString()}</span>
+                      </div>
+                    )}
+                    <a
+                      href={pendingSmartAction.doc.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-block text-xs text-blue-600 dark:text-blue-400 hover:underline"
+                    >
+                      View Document ↗
+                    </a>
+                  </div>
+                </div>
+
+                {/* Task Card */}
+                {task && (
+                  <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-4">
+                    <h3 className="text-xs uppercase font-bold text-gray-500 dark:text-gray-400 mb-3">Task</h3>
+                    <div className="space-y-2">
+                      <p className="text-sm font-medium text-gray-900 dark:text-gray-100">{task.title}</p>
+                      <div className="flex gap-2">
+                        <span className={`text-[10px] uppercase font-bold px-2 py-1 rounded ${
+                          task.status === "Completed"
+                            ? "bg-green-100 dark:bg-green-950 text-green-700 dark:text-green-400"
+                            : "bg-amber-100 dark:bg-amber-950 text-amber-700 dark:text-amber-400"
+                        }`}>
+                          {task.status}
+                        </span>
+                        <span className="text-[10px] text-gray-600 dark:text-gray-400">{task.category}</span>
+                      </div>
+                      <div className="text-xs text-gray-600 dark:text-gray-400">
+                        {task.frequency} • Due: {new Date(task.start_date).toLocaleDateString()}
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Date Confirmation */}
+              <div className="mb-6 p-3 bg-gray-50 dark:bg-gray-800/50 border border-gray-100 dark:border-gray-700 rounded-md">
+                <label className="block text-[10px] uppercase font-bold text-gray-500 dark:text-gray-400 mb-2">
+                  Completion date
+                </label>
+                <input
+                  type="date"
+                  value={pendingSmartAction.confirmDate}
+                  onChange={(e) =>
+                    setPendingSmartAction({ ...pendingSmartAction, confirmDate: e.target.value })
+                  }
+                  className="w-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-gray-400"
+                />
+              </div>
+
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setPendingSmartAction(null)}
+                  className="flex-1 text-sm px-4 py-2 rounded-md border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors font-medium"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={confirmSmartAction}
+                  className="flex-1 text-sm px-4 py-2 rounded-md bg-gray-900 dark:bg-gray-700 text-white hover:bg-gray-700 dark:hover:bg-gray-600 transition-colors font-medium"
+                >
+                  Complete & Link
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
       {successInfo && (
         <div className="animate-backdrop fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="animate-modal bg-white dark:bg-gray-900 rounded-lg shadow-xl max-w-sm w-full p-8 text-center">
@@ -1079,12 +1241,17 @@ export default function VendorDetailPage() {
             <h2 className="text-xl font-bold mb-2 text-gray-900 dark:text-gray-100">Task Completed!</h2>
             <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">Document successfully linked to {successInfo.title}.</p>
             <div className="flex flex-col gap-2">
+              <button onClick={() => setSuccessInfo(null)} className="text-sm px-4 py-2 rounded-md border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors font-medium">
+                Close
+              </button>
+              {successInfo.taskId && (
+                <a href={`/tasks/${successInfo.taskId}`} className="text-sm px-4 py-2 rounded-md bg-blue-600 dark:bg-blue-700 text-white hover:bg-blue-700 dark:hover:bg-blue-600 transition-colors font-medium text-center">
+                  Go to Task →
+                </a>
+              )}
               <a href={successInfo.docUrl} target="_blank" rel="noopener noreferrer" className="text-sm px-4 py-2 rounded-md bg-gray-900 dark:bg-gray-700 text-white hover:bg-gray-700 dark:hover:bg-gray-600 transition-colors font-medium">
                 Preview Document ↗
               </a>
-              <button onClick={() => setSuccessInfo(null)} className="text-sm px-4 py-2 rounded-md border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
-                Done
-              </button>
             </div>
           </div>
         </div>
