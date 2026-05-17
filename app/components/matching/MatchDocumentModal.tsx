@@ -78,8 +78,10 @@ export function MatchDocumentModal({
   onCreateVendor,
   vendorError,
 }: MatchDocumentModalProps) {
+  const safeTasks = Array.isArray(tasks) ? tasks : [];
+
   // Get series and recurrences for matching
-  const latestBySeries = tasks.reduce(
+  const latestBySeries = safeTasks.reduce(
     (acc, t) => {
       if (!acc[t.series_id] || (t.start_date || "") > (acc[t.series_id].start_date || "")) {
         acc[t.series_id] = t;
@@ -95,7 +97,7 @@ export function MatchDocumentModal({
     .sort((a, b) => a.title.localeCompare(b.title));
 
   const recurrences = selectedSeriesId
-    ? tasks
+    ? safeTasks
         .filter((t) => t.series_id === selectedSeriesId && t.archived !== true)
         .sort((a, b) => (b.start_date || "").localeCompare(a.start_date || ""))
     : [];
