@@ -118,7 +118,7 @@ export function MatchDocumentModal({
 
   return (
     <div className="animate-backdrop fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="animate-modal bg-white dark:bg-gray-900 rounded-lg shadow-xl max-w-md w-full p-8">
+      <div className="animate-modal bg-white dark:bg-gray-900 rounded-lg shadow-xl max-w-md w-full max-h-[90vh] overflow-y-auto flex flex-col p-8">
         <div className="flex items-center justify-between mb-6">
           <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100">
             {isCreatingVendor ? "New Vendor for Correspondent" : "Match Document"}
