@@ -369,7 +369,8 @@ export default function VendorDetailPage() {
         setSelectedSeriesId("");
         setSelectedSeriesTitle("");
         setSelectedTaskId("");
-        setSuccessInfo({ title: newTaskForm.title, docUrl: matchingDoc.url });
+        setSuccessInfo({ title: newTaskForm.title, docUrl: matchingDoc.url, taskId: newTaskData.id });
+        setNewTaskForm({ title: "", category: "", start_date: "", frequency: "" });
         await fetchAll();
       }
     } catch (err) {
