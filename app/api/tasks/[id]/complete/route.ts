@@ -25,26 +25,14 @@ export async function POST(
 
   const nextDate = nextStartDate(task.start_date, task.frequency);
 
-  // Reuse an existing future occurrence in the series if one already exists for this date
-  let nextTask = tasks.find(
-    (t) => t.series_id === task.series_id && t.start_date === nextDate,
-  );
-
-  if (!nextTask) {
-    nextTask = {
-      ...task,
-      id: crypto.randomUUID(),
-      status: "Scheduled" as const,
-      start_date: nextDate,
-      last_completed_date: null,
-      documents: [],
-    };
-    tasks.push(nextTask);
-  }
-
-  pushFutureTasks(tasks, extrapolateFutureTasks(nextTask));
+  // Extrapolate 3 future occurrences from the completed task (starting at nextDate)
+  pushFutureTasks(tasks, extrapolateFutureTasks(task));
 
   writeTasks(tasks);
+
+  const nextTask = tasks.find(
+    (t) => t.series_id === task.series_id && t.start_date === nextDate,
+  );
 
   return NextResponse.json({ completed: tasks[idx], next: nextTask });
 }
