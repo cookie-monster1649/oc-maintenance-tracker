@@ -580,7 +580,7 @@ export default function TaskDetailPage() {
               </h3>
               <div className="space-y-8">
                 {(() => {
-                  const completedGroups = groupByYear(completed, "date");
+                  const completedGroups = groupByYear(completed);
                   const currentYear = new Date().getFullYear().toString();
                   const showYears = completedGroups.some((g) => g.year !== currentYear);
                   return completedGroups.map((group) => (
