@@ -404,7 +404,13 @@ export default function VendorDetailPage() {
   const assignedTasks = tasks
     .filter((t) => t.vendor_id === vendorId)
     .sort((a, b) => (a.start_date || "").localeCompare(b.start_date || ""));
-  const completed = assignedTasks.filter((t) => t.status === "Completed");
+  const completed = assignedTasks
+    .filter((t) => t.status === "Completed")
+    .sort((a, b) =>
+      (b.last_completed_date || b.start_date || "").localeCompare(
+        a.last_completed_date || a.start_date || "",
+      ),
+    );
   const upcoming = assignedTasks.filter((t) => t.status !== "Completed");
   const totalCost = assignedTasks.reduce(
     (s, t) => s + (t.estimated_cost ?? 0),
