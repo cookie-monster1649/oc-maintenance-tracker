@@ -259,9 +259,7 @@ export default function TaskDetailPage() {
   const completed = series
     .filter((t) => t.status === "Completed")
     .sort((a, b) =>
-      (b.last_completed_date || b.start_date || "").localeCompare(
-        a.last_completed_date || a.start_date || "",
-      ),
+      (b.start_date || "").localeCompare(a.start_date || ""),
     );
   const upcoming = series
     .filter((t) => t.status !== "Completed")

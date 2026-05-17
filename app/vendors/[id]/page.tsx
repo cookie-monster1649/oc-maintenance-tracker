@@ -407,9 +407,7 @@ export default function VendorDetailPage() {
   const completed = assignedTasks
     .filter((t) => t.status === "Completed")
     .sort((a, b) =>
-      (b.last_completed_date || b.start_date || "").localeCompare(
-        a.last_completed_date || a.start_date || "",
-      ),
+      (b.start_date || "").localeCompare(a.start_date || ""),
     );
   const upcoming = assignedTasks.filter((t) => t.status !== "Completed");
   const totalCost = assignedTasks.reduce(
@@ -685,7 +683,7 @@ export default function VendorDetailPage() {
                 </h2>
                 <div className="space-y-8">
                   {(() => {
-                    const completedGroups = groupByYear(completed, "date");
+                    const completedGroups = groupByYear(completed);
                     const currentYear = new Date().getFullYear().toString();
                     const showYears = completedGroups.some((g) => g.year !== currentYear);
                     return completedGroups.map((group) => (

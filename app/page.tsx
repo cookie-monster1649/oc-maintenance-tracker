@@ -169,11 +169,9 @@ export default function Home() {
 
   const activeGroups = groupByYear(active);
   const doneSorted = [...done].sort((a, b) =>
-    (b.last_completed_date || b.start_date || "").localeCompare(
-      a.last_completed_date || a.start_date || "",
-    ),
+    (b.start_date || "").localeCompare(a.start_date || ""),
   );
-  const doneGroups = groupByYear(doneSorted, "date");
+  const doneGroups = groupByYear(doneSorted);
 
   return (
     <>

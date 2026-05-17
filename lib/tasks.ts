@@ -84,11 +84,28 @@ export function readTasks(): Task[] {
     return t;
   });
 
+  // Migrate corrupt IDs: tasks that accumulated multiple dates (e.g. base-2025-09-30-2025-11-30)
+  // due to extrapolateFutureTasks being called on already-dated task IDs.
+  // Clean IDs should always be series_id-start_date.
+  const seenIds = new Set<string>();
+  const withCleanIds = withSeriesId.reduce((acc: any[], t: any) => {
+    const dateCount = (t.id.match(/-\d{4}-\d{2}-\d{2}/g) || []).length;
+    const cleanId = dateCount > 1 ? `${t.series_id}-${t.start_date}` : t.id;
+    if (dateCount > 1) needsWrite = true;
+    if (!seenIds.has(cleanId)) {
+      seenIds.add(cleanId);
+      acc.push(dateCount > 1 ? { ...t, id: cleanId } : t);
+    } else {
+      needsWrite = true; // drop duplicate after ID normalisation
+    }
+    return acc;
+  }, []);
+
   if (needsWrite) {
-    fs.writeFileSync(DATA_PATH, JSON.stringify(withSeriesId, null, 2));
+    fs.writeFileSync(DATA_PATH, JSON.stringify(withCleanIds, null, 2));
   }
 
-  const tasks: Task[] = withSeriesId;
+  const tasks: Task[] = withCleanIds;
   const today = startOfDay(new Date());
   return tasks.map((t) => ({
     ...t,
@@ -142,7 +159,7 @@ export function extrapolateFutureTasks(task: Task): Task[] {
   while (futureTasks.length < 3 && isBefore(parseISO(current), cutoff)) {
     futureTasks.push({
       ...task,
-      id: `${task.id}-${current}`,
+      id: `${task.series_id}-${current}`,
       series_id: task.series_id,
       start_date: current,
       status: "Scheduled",
