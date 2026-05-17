@@ -14,6 +14,7 @@ interface CategoryColor {
 
 interface Task {
   id: string;
+  series_id: string;
   title: string;
   description: string;
   frequency: string;
@@ -364,23 +365,24 @@ export default function CostsPage() {
   const inFY_tasks = tasks.filter((t) => fyForDate(t.start_date) === fy);
   const inFY_expenses = expenses.filter((e) => fyForDate(e.date_paid) === fy);
 
-  // Group tasks by title
-  const tasksByTitle = new Map<string, Task[]>();
+  // Group tasks by series_id
+  const tasksBySeries = new Map<string, Task[]>();
   for (const t of inFY_tasks) {
-    if (!tasksByTitle.has(t.title)) {
-      tasksByTitle.set(t.title, []);
+    if (!tasksBySeries.has(t.series_id)) {
+      tasksBySeries.set(t.series_id, []);
     }
-    tasksByTitle.get(t.title)!.push(t);
+    tasksBySeries.get(t.series_id)!.push(t);
   }
 
   // Build line items for all tasks and expenses
   const lineItems: LineItem[] = [];
 
   // Add task items
-  for (const [title, taskList] of tasksByTitle) {
+  for (const [seriesId, taskList] of tasksBySeries) {
     const freq = taskList[0].frequency;
     const category = taskList[0].category;
     const taskId = taskList[0].id;
+    const title = taskList[0].title;
     const unitCost =
       taskList.find((t) => t.estimated_cost)?.estimated_cost ?? null;
     const completed = taskList.filter((t) => t.status === "Completed");
@@ -393,7 +395,7 @@ export default function CostsPage() {
 
     lineItems.push({
       type: "task",
-      key: `task-${title}`,
+      key: `task-${seriesId}`,
       id: taskId,
       title,
       category,

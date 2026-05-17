@@ -26,6 +26,7 @@ export interface DocumentRef {
 
 export interface Task {
   id: string;
+  series_id: string;
   title: string;
   description: string;
   frequency: Frequency;

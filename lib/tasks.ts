@@ -1,5 +1,6 @@
 import fs from "fs";
 import path from "path";
+import { randomUUID } from "crypto";
 import {
   addWeeks,
   addMonths,
@@ -36,6 +37,7 @@ export interface DocumentRef {
 
 export interface Task {
   id: string;
+  series_id: string;
   title: string;
   description: string;
   frequency: Frequency;
@@ -57,9 +59,10 @@ export function readTasks(): Task[] {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const raw_tasks: any[] = JSON.parse(raw);
 
-  // Migrate due_date → start_date for tasks created before the field rename
   let needsWrite = false;
-  const migrated = raw_tasks.map((t) => {
+
+  // Migrate due_date → start_date for tasks created before the field rename
+  const withStartDate = raw_tasks.map((t) => {
     if (!t.start_date && t.due_date) {
       needsWrite = true;
       const { due_date, ...rest } = t;
@@ -67,11 +70,25 @@ export function readTasks(): Task[] {
     }
     return t;
   });
+
+  // Backfill missing series_id by grouping tasks with the same title
+  const seriesMap = new Map<string, string>();
+  const withSeriesId = withStartDate.map((t) => {
+    if (!t.series_id) {
+      needsWrite = true;
+      if (!seriesMap.has(t.title)) {
+        seriesMap.set(t.title, randomUUID());
+      }
+      return { ...t, series_id: seriesMap.get(t.title) };
+    }
+    return t;
+  });
+
   if (needsWrite) {
-    fs.writeFileSync(DATA_PATH, JSON.stringify(migrated, null, 2));
+    fs.writeFileSync(DATA_PATH, JSON.stringify(withSeriesId, null, 2));
   }
 
-  const tasks: Task[] = migrated;
+  const tasks: Task[] = withSeriesId;
   const today = startOfDay(new Date());
   return tasks.map((t) => ({
     ...t,
@@ -108,6 +125,15 @@ export function nextStartDate(startDate: string, frequency: Frequency): string {
   }
 }
 
+export function pushFutureTasks(tasks: Task[], futureTasks: Task[]): void {
+  for (const fTask of futureTasks) {
+    const exists = tasks.some(
+      (t) => t.series_id === fTask.series_id && t.start_date === fTask.start_date,
+    );
+    if (!exists) tasks.push(fTask);
+  }
+}
+
 export function extrapolateFutureTasks(task: Task): Task[] {
   const futureTasks: Task[] = [];
   const cutoff = addYears(parseISO(task.start_date), 1);
@@ -117,6 +143,7 @@ export function extrapolateFutureTasks(task: Task): Task[] {
     futureTasks.push({
       ...task,
       id: `${task.id}-${current}`,
+      series_id: task.series_id,
       start_date: current,
       status: "Scheduled",
       last_completed_date: null,

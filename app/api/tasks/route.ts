@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { readTasks, writeTasks, type Task, extrapolateFutureTasks } from "@/lib/tasks";
+import { readTasks, writeTasks, type Task, extrapolateFutureTasks, pushFutureTasks } from "@/lib/tasks";
 
 export async function GET() {
   return NextResponse.json(readTasks());
@@ -11,6 +11,7 @@ export async function POST(req: Request) {
 
   const task: Task = {
     id: crypto.randomUUID(),
+    series_id: body.series_id ?? crypto.randomUUID(),
     title: body.title,
     description: body.description ?? "",
     frequency: body.frequency,
@@ -25,12 +26,7 @@ export async function POST(req: Request) {
   tasks.push(task);
 
   if (!body.no_extrapolate) {
-    const futureTasks = extrapolateFutureTasks(task);
-    for (const fTask of futureTasks) {
-      if (!tasks.find((t) => t.id === fTask.id)) {
-        tasks.push(fTask);
-      }
-    }
+    pushFutureTasks(tasks, extrapolateFutureTasks(task));
   }
 
   writeTasks(tasks);

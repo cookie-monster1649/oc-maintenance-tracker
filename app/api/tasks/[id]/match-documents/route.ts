@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { readTasks, writeTasks, extrapolateFutureTasks, nextStartDate } from "@/lib/tasks";
+import { readTasks, writeTasks, extrapolateFutureTasks, pushFutureTasks, nextStartDate } from "@/lib/tasks";
 import { readVendors } from "@/lib/vendors";
 import {
   listAllDocuments,
@@ -77,26 +77,17 @@ export async function POST(
           documents: [],
         };
 
-        if (!tasks.find((t) => t.id === nextTask.id)) {
+        const alreadyExists = tasks.some(
+          (t) => t.series_id === nextTask.series_id && t.start_date === nextTask.start_date,
+        );
+        if (!alreadyExists) {
           tasks.push(nextTask);
-          // Extrapolate future tasks from the next occurrence
-          const futureTasks = extrapolateFutureTasks(nextTask);
-          for (const fTask of futureTasks) {
-            if (!tasks.find((t) => t.id === fTask.id)) {
-              tasks.push(fTask);
-            }
-          }
+          pushFutureTasks(tasks, extrapolateFutureTasks(nextTask));
         }
       } else {
         // Current task is in future, link documents and extrapolate
         task.documents = [...(task.documents || []), ...result.linked];
-
-        const futureTasks = extrapolateFutureTasks(task);
-        for (const fTask of futureTasks) {
-          if (!tasks.find((t) => t.id === fTask.id)) {
-            tasks.push(fTask);
-          }
-        }
+        pushFutureTasks(tasks, extrapolateFutureTasks(task));
       }
 
       writeTasks(tasks);

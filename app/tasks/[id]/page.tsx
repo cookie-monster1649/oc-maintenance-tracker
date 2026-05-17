@@ -96,6 +96,7 @@ export default function TaskDetailPage() {
   const [suggestions, setSuggestions] = useState<DocumentRef[]>([]);
   const [form, setForm] = useState<Partial<Task>>({});
   const [originalForm, setOriginalForm] = useState<Partial<Task>>({});
+  const [renameAllInSeries, setRenameAllInSeries] = useState(false);
   const [createOccurrenceOpen, setCreateOccurrenceOpen] = useState(false);
   const [selectedDocForOccurrence, setSelectedDocForOccurrence] =
     useState<DocumentRef | null>(null);
@@ -252,7 +253,7 @@ export default function TaskDetailPage() {
   }
 
   const series = tasks
-    .filter((t) => t.title === currentTask.title)
+    .filter((t) => t.series_id === currentTask.series_id)
     .sort((a, b) => (a.start_date || "").localeCompare(b.start_date || ""));
   const vendor = vendors.find((v) => v.id === currentTask.vendor_id);
   const completed = series
@@ -300,12 +301,28 @@ export default function TaskDetailPage() {
   };
 
   const saveEdit = async () => {
-    await fetch(`/api/tasks/${taskId}`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(form),
-    });
+    if (renameAllInSeries && form.title && form.title !== originalForm.title) {
+      // Update all tasks in the series
+      const tasksToUpdate = series.filter(t => t.series_id === currentTask.series_id);
+      await Promise.all(
+        tasksToUpdate.map((t) =>
+          fetch(`/api/tasks/${t.id}`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ ...form, series_id: t.series_id }),
+          }),
+        ),
+      );
+    } else {
+      // Update only this task
+      await fetch(`/api/tasks/${taskId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(form),
+      });
+    }
     setEditOpen(false);
+    setRenameAllInSeries(false);
     const res = await fetch("/api/tasks");
     const data = await res.json();
     setCached("/api/tasks", data);
@@ -865,6 +882,20 @@ export default function TaskDetailPage() {
                 </select>
               </div>
             </div>
+            {series.length > 1 && form.title && form.title !== originalForm.title && (
+              <div className="flex items-center gap-2 mt-6 p-3 bg-blue-50 dark:bg-blue-950/30 border border-blue-100 dark:border-blue-900 rounded-md">
+                <input
+                  type="checkbox"
+                  id="renameAllInSeries"
+                  checked={renameAllInSeries}
+                  onChange={(e) => setRenameAllInSeries(e.target.checked)}
+                  className="w-4 h-4 rounded border-gray-300 dark:border-gray-600 cursor-pointer"
+                />
+                <label htmlFor="renameAllInSeries" className="text-sm text-blue-700 dark:text-blue-400 cursor-pointer">
+                  Rename all {series.length} occurrences in this series
+                </label>
+              </div>
+            )}
             <div className="flex gap-3 mt-8 pt-6 border-t border-gray-100 dark:border-gray-800 shrink-0">
               <button
                 onClick={saveEdit}

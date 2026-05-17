@@ -113,7 +113,8 @@ export default function VendorDetailPage() {
 
   // Document matching state
   const [matchingDoc, setMatchingDoc] = useState<Document | null>(null);
-  const [selectedTaskTitle, setSelectedTaskTitle] = useState("");
+  const [selectedSeriesId, setSelectedSeriesId] = useState("");
+  const [selectedSeriesTitle, setSelectedSeriesTitle] = useState("");
   const [selectedTaskId, setSelectedTaskId] = useState("");
   const [createAsOccurrence, setCreateAsOccurrence] = useState(false);
   const [occurrenceDate, setOccurrenceDate] = useState("");
@@ -248,7 +249,7 @@ export default function VendorDetailPage() {
     try {
       let taskId = selectedTaskId;
       if (createAsOccurrence && occurrenceDate) {
-        const templateTask = tasks.find((t) => t.title === selectedTaskTitle);
+        const templateTask = tasks.find((t) => t.series_id === selectedSeriesId);
         if (!templateTask) return;
         const newTaskRes = await fetch("/api/tasks", {
           method: "POST",
@@ -263,6 +264,7 @@ export default function VendorDetailPage() {
             last_completed_date: occurrenceDate,
             estimated_cost: templateTask.estimated_cost,
             vendor_id: templateTask.vendor_id,
+            series_id: templateTask.series_id,
             no_extrapolate: true,
           }),
         });
@@ -278,7 +280,8 @@ export default function VendorDetailPage() {
       if (res.ok) {
         setMatchingDoc(null);
         setSelectedTaskId("");
-        setSelectedTaskTitle("");
+        setSelectedSeriesId("");
+        setSelectedSeriesTitle("");
         setCreateAsOccurrence(false);
         setOccurrenceDate("");
         await fetchAll();
@@ -309,7 +312,8 @@ export default function VendorDetailPage() {
       });
       if (linkRes.ok) {
         setMatchingDoc(null);
-        setSelectedTaskTitle("");
+        setSelectedSeriesId("");
+        setSelectedSeriesTitle("");
         setSelectedTaskId("");
         setSuccessInfo({ title: newTaskForm.title, docUrl: matchingDoc.url });
         await fetchAll();
@@ -319,22 +323,22 @@ export default function VendorDetailPage() {
     }
   }
 
-  const latestByTitle = tasks.reduce(
+  const latestBySeries = tasks.reduce(
     (acc, t) => {
-      if (!acc[t.title] || (t.start_date || "") > (acc[t.title].start_date || "")) {
-        acc[t.title] = t;
+      if (!acc[t.series_id] || (t.start_date || "") > (acc[t.series_id].start_date || "")) {
+        acc[t.series_id] = t;
       }
       return acc;
     },
     {} as Record<string, Task>,
   );
-  const distinctTaskTitles = Object.entries(latestByTitle)
+  const distinctSeries = Object.entries(latestBySeries)
     .filter(([, t]) => t.archived !== true)
-    .map(([title]) => title)
-    .sort();
-  const recurrences = selectedTaskTitle
+    .map(([seriesId, latestTask]) => ({ seriesId, title: latestTask.title }))
+    .sort((a, b) => a.title.localeCompare(b.title));
+  const recurrences = selectedSeriesId
     ? tasks
-        .filter((t) => t.title === selectedTaskTitle && t.archived !== true)
+        .filter((t) => t.series_id === selectedSeriesId && t.archived !== true)
         .sort((a, b) => (b.start_date || "").localeCompare(a.start_date || ""))
     : [];
   const past = recurrences.filter((t) => t.status === "Completed");
@@ -716,7 +720,7 @@ export default function VendorDetailPage() {
                                   >
                                     {action.type === "MATCH_COMPLETED"
                                       ? `Match to ${format(parseISO(action.dateLabel), "MMM d")} completion`
-                                      : `Match & Complete ${action.taskTitle}`}
+                                      : <>Match & Complete {action.taskTitle} on <strong>{format(parseISO(action.dateLabel), "MMMM d yyyy")}</strong></>}
                                   </button>
                                 ))}
                               </div>
@@ -899,31 +903,35 @@ export default function VendorDetailPage() {
                     1. Select Task Series
                   </label>
                   <select
-                    value={selectedTaskTitle}
+                    value={selectedSeriesId}
                     onChange={(e) => {
                       const val = e.target.value;
-                      setSelectedTaskTitle(val);
+                      setSelectedSeriesId(val);
                       setSelectedTaskId("");
                       if (val === "NEW TASK") {
+                        setSelectedSeriesTitle("NEW TASK");
                         setNewTaskForm({
                           title: matchingDoc.title,
                           category: categories[0] || "",
                           start_date: matchingDoc.created ? matchingDoc.created.split("T")[0] : "",
                           frequency: "",
                         });
+                      } else {
+                        const selected = distinctSeries.find((s) => s.seriesId === val);
+                        setSelectedSeriesTitle(selected?.title || "");
                       }
                     }}
                     className="w-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-gray-400"
                   >
                     <option value="">Select a task series...</option>
                     <option value="NEW TASK" className="font-bold text-blue-600">+ NEW TASK</option>
-                    {distinctTaskTitles.map((title) => (
-                      <option key={title} value={title}>{title}</option>
+                    {distinctSeries.map(({ seriesId, title }) => (
+                      <option key={seriesId} value={seriesId}>{title}</option>
                     ))}
                   </select>
                 </div>
 
-                {selectedTaskTitle === "NEW TASK" && (
+                {selectedSeriesId === "NEW TASK" && (
                   <div className="p-4 bg-blue-50/50 dark:bg-blue-950/30 border border-blue-100 dark:border-blue-900 rounded-lg space-y-4 animate-in fade-in slide-in-from-top-2">
                     <div>
                       <label className="block text-[10px] uppercase font-bold text-blue-400 mb-1">New Task Title</label>
@@ -974,7 +982,7 @@ export default function VendorDetailPage() {
                   </div>
                 )}
 
-                {selectedTaskTitle && selectedTaskTitle !== "NEW TASK" && (
+                {selectedSeriesId && selectedSeriesId !== "NEW TASK" && (
                   <div className="space-y-4">
                     <div>
                       <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
@@ -1037,22 +1045,22 @@ export default function VendorDetailPage() {
 
               <div className="flex gap-3 pt-4 border-t border-gray-100 dark:border-gray-800">
                 <button
-                  onClick={() => { setMatchingDoc(null); setSelectedTaskTitle(""); setSelectedTaskId(""); setCreateAsOccurrence(false); setOccurrenceDate(""); }}
+                  onClick={() => { setMatchingDoc(null); setSelectedSeriesId(""); setSelectedSeriesTitle(""); setSelectedTaskId(""); setCreateAsOccurrence(false); setOccurrenceDate(""); }}
                   className="flex-1 text-sm px-4 py-2 rounded-md border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors font-medium"
                 >
                   Cancel
                 </button>
                 <button
                   type="button"
-                  onClick={selectedTaskTitle === "NEW TASK" ? handleCreateAndMatch : handleManualMatch}
+                  onClick={selectedSeriesId === "NEW TASK" ? handleCreateAndMatch : handleManualMatch}
                   disabled={
-                    selectedTaskTitle === "NEW TASK"
+                    selectedSeriesId === "NEW TASK"
                       ? !newTaskForm.title || !newTaskForm.category || !newTaskForm.start_date
                       : createAsOccurrence ? !occurrenceDate : !selectedTaskId
                   }
                   className="flex-1 text-sm px-4 py-2 rounded-md bg-gray-900 dark:bg-gray-700 text-white hover:bg-gray-700 dark:hover:bg-gray-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors font-medium"
                 >
-                  {selectedTaskTitle === "NEW TASK" ? "Create & Link" : "Link Document"}
+                  {selectedSeriesId === "NEW TASK" ? "Create & Link" : "Link Document"}
                 </button>
               </div>
             </div>

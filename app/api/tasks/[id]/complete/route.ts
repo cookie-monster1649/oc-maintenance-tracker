@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { readTasks, writeTasks, nextStartDate, extrapolateFutureTasks } from "@/lib/tasks";
+import { readTasks, writeTasks, nextStartDate, extrapolateFutureTasks, pushFutureTasks } from "@/lib/tasks";
 
 export async function POST(
   _req: Request,
@@ -23,27 +23,28 @@ export async function POST(
     last_completed_date: today,
   };
 
-  // Create next recurrence — start date advances from previous start_date
-  const newTask = {
-    ...task,
-    id: crypto.randomUUID(),
-    status: "Scheduled" as const,
-    start_date: nextStartDate(task.start_date, task.frequency),
-    last_completed_date: null,
-    documents: [],
-  };
+  const nextDate = nextStartDate(task.start_date, task.frequency);
 
-  tasks.push(newTask);
+  // Reuse an existing future occurrence in the series if one already exists for this date
+  let nextTask = tasks.find(
+    (t) => t.series_id === task.series_id && t.start_date === nextDate,
+  );
 
-  // Extrapolate future tasks to ensure multiple occurrences are always scheduled
-  const futureTasks = extrapolateFutureTasks(newTask);
-  for (const fTask of futureTasks) {
-    if (!tasks.find((t) => t.id === fTask.id)) {
-      tasks.push(fTask);
-    }
+  if (!nextTask) {
+    nextTask = {
+      ...task,
+      id: crypto.randomUUID(),
+      status: "Scheduled" as const,
+      start_date: nextDate,
+      last_completed_date: null,
+      documents: [],
+    };
+    tasks.push(nextTask);
   }
+
+  pushFutureTasks(tasks, extrapolateFutureTasks(nextTask));
 
   writeTasks(tasks);
 
-  return NextResponse.json({ completed: tasks[idx], next: newTask });
+  return NextResponse.json({ completed: tasks[idx], next: nextTask });
 }
