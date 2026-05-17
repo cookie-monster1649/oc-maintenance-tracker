@@ -56,6 +56,8 @@ interface Task {
 export default function DocumentsPage() {
   const { godMode } = useGodMode();
   const [refreshTrigger, setRefreshTrigger] = useState(0);
+  const [refreshStartTime, setRefreshStartTime] = useState<number | null>(null);
+  const [minLoadingTimeReached, setMinLoadingTimeReached] = useState(true);
 
   const { data: documentsData, isRefreshing: isDocsRefreshing } = useCachedData(
     "/api/paperless/documents",
@@ -92,10 +94,23 @@ export default function DocumentsPage() {
 
   const [vendorError, setVendorError] = useState<string>("");
 
+  useEffect(() => {
+    if (refreshStartTime === null) return;
+
+    const timer = setTimeout(() => {
+      setMinLoadingTimeReached(true);
+      setRefreshStartTime(null);
+    }, 1000);
+
+    return () => clearTimeout(timer);
+  }, [refreshStartTime]);
+
   const refreshAll = () => {
     invalidateCache("/api/paperless/documents");
     invalidateCache("/api/tasks");
     invalidateCache("/api/categories");
+    setRefreshStartTime(Date.now());
+    setMinLoadingTimeReached(false);
     setRefreshTrigger((t) => t + 1);
   };
 
@@ -200,7 +215,9 @@ export default function DocumentsPage() {
   }, [sortedTypes, selectedTab]);
 
   const isRefreshing =
-    isDocsRefreshing || isTasksRefreshing || isCatsRefreshing;
+    (isDocsRefreshing || isTasksRefreshing || isCatsRefreshing);
+
+  const isButtonLoading = refreshStartTime !== null && !minLoadingTimeReached;
 
   return (
     <>
@@ -237,10 +254,17 @@ export default function DocumentsPage() {
               </label>
               <button
                 onClick={refreshAll}
-                disabled={isRefreshing}
-                className="text-sm px-3 py-1.5 rounded-md border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors disabled:opacity-50"
+                disabled={isButtonLoading}
+                className="text-sm px-3 py-1.5 rounded-md border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors disabled:opacity-50 flex items-center justify-center w-20 h-9"
               >
-                Refresh
+                {isButtonLoading ? (
+                  <svg className="animate-spin h-4 w-4 flex-shrink-0" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                  </svg>
+                ) : (
+                  "Refresh"
+                )}
               </button>
             </div>
           </div>
