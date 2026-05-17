@@ -153,7 +153,10 @@ export function pushFutureTasks(tasks: Task[], futureTasks: Task[]): void {
 
 export function extrapolateFutureTasks(task: Task): Task[] {
   const futureTasks: Task[] = [];
-  const cutoff = addYears(parseISO(task.start_date), 1);
+  // 5-year window gives annual tasks room to generate 3 future occurrences even
+  // when leap-year date shifts (e.g. Feb 29 → Mar 1) push dates slightly forward.
+  // The 3-task cap in the while condition limits quantity for high-frequency tasks.
+  const cutoff = addYears(parseISO(task.start_date), 5);
   let current = nextStartDate(task.start_date, task.frequency);
 
   while (futureTasks.length < 3 && isBefore(parseISO(current), cutoff)) {
