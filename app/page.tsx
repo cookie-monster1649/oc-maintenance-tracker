@@ -5,7 +5,9 @@ import Link from "next/link";
 import { useCachedData, invalidateCache } from "@/lib/data";
 import { useDocumentMatching } from "@/app/components/matching/useDocumentMatching";
 import { MatchDocumentModal } from "@/app/components/matching/MatchDocumentModal";
+import BinWeekIndicator from "@/app/components/BinWeekIndicator";
 import type { Task } from "@/lib/tasks";
+import type { BinColor } from "@/lib/bin-weeks";
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
@@ -42,10 +44,12 @@ export default function Home() {
   const { data: tasksData } = useCachedData("/api/tasks", refreshTrigger);
   const { data: vendorsData } = useCachedData("/api/vendors", refreshTrigger);
   const { data: documentsData } = useCachedData("/api/paperless/documents", refreshTrigger);
+  const { data: binWeeksData } = useCachedData("/api/bin-weeks", refreshTrigger);
 
   const tasks: Task[] = Array.isArray(tasksData) ? tasksData : [];
   const vendors: Vendor[] = Array.isArray(vendorsData) ? vendorsData : [];
   const documents: Document[] = Array.isArray(documentsData) ? documentsData : [];
+  const binWeeks = (binWeeksData as { coming_up: BinColor[]; following_week: BinColor[]; rotation_day_of_week: number } | null) ?? { coming_up: ["green", "yellow"], following_week: ["black"], rotation_day_of_week: 2 };
 
   const handleRefresh = () => {
     invalidateCache("/api/paperless/documents");
@@ -86,6 +90,18 @@ export default function Home() {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
+  // Calculate current bin week based on rotation day of week
+  const dayOfWeek = today.getDay();
+  const rotationDay = binWeeks.rotation_day_of_week;
+  const daysFromRotationDay = dayOfWeek >= rotationDay ? dayOfWeek - rotationDay : dayOfWeek + 7 - rotationDay;
+  const weekStartDate = new Date(today);
+  weekStartDate.setDate(weekStartDate.getDate() - daysFromRotationDay);
+
+  const yearStart = new Date(today.getFullYear(), 0, 1);
+  yearStart.setHours(0, 0, 0, 0);
+  const weeksPassed = Math.floor((weekStartDate.getTime() - yearStart.getTime()) / (1000 * 60 * 60 * 24 * 7));
+  const currentBins: BinColor[] = weeksPassed % 2 === 0 ? binWeeks.coming_up : binWeeks.following_week;
+
   const sixtyDaysFromNow = new Date(today);
   sixtyDaysFromNow.setDate(sixtyDaysFromNow.getDate() + 60);
 
@@ -95,7 +111,7 @@ export default function Home() {
   })
     .sort((a, b) => new Date(a.start_date).getTime() - new Date(b.start_date).getTime());
 
-  const newBills = documents.filter((d) => !d.is_matched && !d.is_dismissed);
+  const newBills = documents.filter((d) => !d.is_matched && !d.is_dismissed && d.document_type_label?.toLowerCase() === "bill");
 
   const upcoming = tasks.filter((t) => {
     if (t.archived || t.task_type === "budget_item" || t.status === "Completed" || t.status === "Overdue") return false;
@@ -133,8 +149,13 @@ export default function Home() {
   return (
     <main className="animate-page content-container py-10">
       <div className="mb-8">
-        <h1 className="text-2xl font-semibold mb-1 text-gray-900 dark:text-gray-100">Overview</h1>
-        <p className="text-sm text-gray-500 dark:text-gray-400">Next 60 days snapshot</p>
+        <div className="flex items-start justify-between">
+          <div>
+            <h1 className="text-2xl font-semibold mb-1 text-gray-900 dark:text-gray-100">Home</h1>
+            <p className="text-sm text-gray-500 dark:text-gray-400">A simple overview</p>
+          </div>
+          <BinWeekIndicator bins={currentBins} />
+        </div>
       </div>
 
       {/* Overdue tasks: highest priority, only shown if any exist */}
@@ -177,9 +198,9 @@ export default function Home() {
           <div className="space-y-2 pl-5">
             {newBills.map((doc) => (
               <div key={doc.id} className="flex gap-8 items-baseline text-sm">
-                <span className="text-gray-900 dark:text-gray-100">
+                <a href={doc.url} target="_blank" rel="noopener noreferrer" className="text-gray-900 dark:text-gray-100 hover:underline">
                   {doc.title}
-                </span>
+                </a>
                 <span className="text-gray-500 dark:text-gray-400 shrink-0">
                   {docCreatedDate(doc.created)}
                 </span>
