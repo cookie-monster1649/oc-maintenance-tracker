@@ -1,8 +1,6 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { badgeColour } from "@/lib/badge-colour";
-import { format, parseISO } from "date-fns";
 import { useCachedData, invalidateCache } from "@/lib/data";
 import { useGodMode } from "@/app/contexts/god-mode";
 import { useDocumentMatching } from "@/app/components/matching/useDocumentMatching";
@@ -10,6 +8,7 @@ import { MatchDocumentModal } from "@/app/components/matching/MatchDocumentModal
 import { MatchDocumentErrorBoundary } from "@/app/components/matching/MatchDocumentErrorBoundary";
 import { SmartActionConfirmModal } from "@/app/components/matching/SmartActionConfirmModal";
 import { MatchSuccessModal } from "@/app/components/matching/MatchSuccessModal";
+import DocumentList from "@/app/components/DocumentList";
 
 interface SmartAction {
   type: "MATCH_COMPLETED" | "COMPLETE_SCHEDULED";
@@ -55,6 +54,8 @@ interface Task {
 
 export default function DocumentsPage() {
   const { godMode } = useGodMode();
+
+  // ── Data Fetching ──
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [refreshStartTime, setRefreshStartTime] = useState<number | null>(null);
   const [minLoadingTimeReached, setMinLoadingTimeReached] = useState(true);
@@ -71,7 +72,7 @@ export default function DocumentsPage() {
     "/api/categories",
     refreshTrigger,
   );
-  const { data: vendorsData, isRefreshing: isVendorsRefreshing } = useCachedData(
+  const { data: vendorsData } = useCachedData(
     "/api/vendors",
     refreshTrigger,
   );
@@ -83,6 +84,7 @@ export default function DocumentsPage() {
     : [];
   const vendors = Array.isArray(vendorsData) ? vendorsData : [];
 
+  // ── UI State ──
   const [unmatchedOnly, setUnmatchedOnly] = useState(true);
   const [isCreatingVendor, setIsCreatingVendor] = useState(false);
   const [selectedTab, setSelectedTab] = useState<string>("");
@@ -105,6 +107,7 @@ export default function DocumentsPage() {
     return () => clearTimeout(timer);
   }, [refreshStartTime]);
 
+  // ── Handlers ──
   const refreshAll = () => {
     invalidateCache("/api/paperless/documents");
     invalidateCache("/api/tasks");
@@ -114,12 +117,13 @@ export default function DocumentsPage() {
     setRefreshTrigger((t) => t + 1);
   };
 
+  // ── Modal State (from custom hook) ──
+  // Manages document matching, smart actions, and success modals.
   const {
     matchingDoc,
     setMatchingDoc,
     selectedSeriesId,
     setSelectedSeriesId,
-    selectedSeriesTitle,
     setSelectedSeriesTitle,
     selectedTaskId,
     setSelectedTaskId,
@@ -182,43 +186,32 @@ export default function DocumentsPage() {
     }
   }
 
-
+  // ── Document Filtering & Tab State ──
+  // Filters documents based on unmatchedOnly setting and manages selected document type tab.
   const filteredDocs = unmatchedOnly
     ? documents.filter((doc) => !doc.is_matched && !doc.is_dismissed)
     : documents;
 
-  const groupedByType: Record<string, Document[]> = {};
-  filteredDocs.forEach((doc) => {
-    const type = doc.document_type_label || "Uncategorized";
-    if (!groupedByType[type]) groupedByType[type] = [];
-    groupedByType[type].push(doc);
-  });
-
-  const statsByType: Record<string, { matched: number; total: number }> = {};
-  documents.forEach((doc) => {
-    const type = doc.document_type_label || "Uncategorized";
-    if (!statsByType[type]) statsByType[type] = { matched: 0, total: 0 };
-    statsByType[type].total++;
-    if (doc.is_matched) statsByType[type].matched++;
-  });
-
-  const sortedTypes = Object.keys(groupedByType).sort();
-
+  // Sync tab selection with available document types.
+  // Sets initial tab and ensures selected tab is valid when documents change.
   useEffect(() => {
-    if (sortedTypes.length > 0) {
-      if (!selectedTab || !sortedTypes.includes(selectedTab)) {
-        setSelectedTab(sortedTypes[0]);
+    const types = Array.from(new Set(filteredDocs.map((doc) => doc.document_type_label || "Uncategorized"))).sort();
+    if (types.length > 0) {
+      if (!selectedTab || !types.includes(selectedTab)) {
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+        setSelectedTab(types[0]);
       }
     } else if (selectedTab) {
       setSelectedTab("");
     }
-  }, [sortedTypes, selectedTab]);
+  }, [filteredDocs, selectedTab]);
 
   const isRefreshing =
     (isDocsRefreshing || isTasksRefreshing || isCatsRefreshing);
 
   const isButtonLoading = refreshStartTime !== null && !minLoadingTimeReached;
 
+  // ── Render ──
   return (
     <>
       <main
@@ -297,124 +290,24 @@ export default function DocumentsPage() {
               </div>
             ))}
           </div>
-        ) : filteredDocs.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-20 text-gray-500 border-2 border-dashed border-gray-100 dark:border-gray-800 rounded-lg">
-            <p>No {unmatchedOnly ? "unmatched" : ""} documents found.</p>
-          </div>
         ) : (
-          <div>
-            <div className="flex gap-2 border-b border-gray-200 dark:border-gray-800 mb-8 overflow-x-auto">
-              {sortedTypes.map((type) => (
-                <button
-                  key={type}
-                  onClick={() => setSelectedTab(type)}
-                  className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
-                    selectedTab === type
-                      ? "border-gray-900 dark:border-gray-100 text-gray-900 dark:text-gray-100"
-                      : "border-transparent text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100"
-                  }`}
-                >
-                  <span>{type}</span>
-                  <span className="ml-2 text-[10px] font-mono text-gray-400 dark:text-gray-500">
-                    ({statsByType[type].total - statsByType[type].matched}/{statsByType[type].total})
-                  </span>
-                </button>
-              ))}
-            </div>
-
-            {selectedTab && groupedByType[selectedTab] && (
-              <div>
-                <div className="bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 rounded-lg overflow-hidden shadow-sm">
-                  <ul className="divide-y divide-gray-50 dark:divide-gray-800">
-                    {[...groupedByType[selectedTab]]
-                      .sort((a, b) => (b.created || "").localeCompare(a.created || ""))
-                      .map((doc) => (
-                        <li
-                          key={`${selectedTab}-${doc.id}`}
-                          className="group flex items-center justify-between p-4 hover:bg-gray-50/50 dark:hover:bg-gray-800/50 transition-colors"
-                        >
-                          <div className="min-w-0 flex-1 flex items-center gap-4">
-                            <div className="flex flex-col items-start gap-1">
-                              <span
-                                className={`text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded ${badgeColour(
-                                  doc.document_type_label,
-                                )}`}
-                              >
-                                {doc.document_type_label || "Document"}
-                              </span>
-                              <span className="text-[10px] text-gray-400 font-mono">
-                                {doc.created ? format(parseISO(doc.created), "dd MMM yyyy") : "—"}
-                              </span>
-                            </div>
-                            <div className="min-w-0">
-                              <h3 className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">
-                                {doc.title}
-                              </h3>
-                              <div className="flex flex-wrap gap-2 mt-2">
-                                {godMode &&
-                                  !doc.is_matched &&
-                                  !doc.is_dismissed &&
-                                  doc.smart_actions.map((action, i) => (
-                                    <button
-                                      key={i}
-                                      onClick={() =>
-                                        handleSmartAction(doc, action)
-                                      }
-                                      className="text-[10px] px-2 py-1 bg-amber-50 dark:bg-amber-950 text-amber-700 dark:text-amber-400 border border-amber-100 dark:border-amber-900 rounded hover:bg-amber-100 dark:hover:bg-amber-900 transition-colors"
-                                    >
-                                      {action.type === "MATCH_COMPLETED"
-                                        ? `Match to ${format(
-                                            parseISO(action.dateLabel),
-                                            "MMM d",
-                                          )} completion`
-                                        : <>Match & Complete {action.taskTitle} on <strong>{format(parseISO(action.dateLabel), "MMMM d yyyy")}</strong></>}
-                                    </button>
-                                  ))}
-                              </div>
-                            </div>
-                          </div>
-                          <div className="flex items-center gap-2 shrink-0 ml-4">
-                            <a
-                              href={doc.url}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="text-xs text-gray-500 hover:text-gray-900 dark:hover:text-white transition-colors flex items-center gap-1 px-2 py-1"
-                            >
-                              View ↗
-                            </a>
-                            {doc.is_dismissed && (
-                              <button
-                                onClick={async () => {
-                                  await fetch(
-                                    `/api/documents/${doc.id}/dismiss`,
-                                    { method: "DELETE" },
-                                  );
-                                  refreshAll();
-                                }}
-                                className="text-xs text-rose-600 dark:text-rose-400 hover:underline px-2 py-1"
-                              >
-                                Undo Dismiss
-                              </button>
-                            )}
-                            {godMode && !doc.is_matched && !doc.is_dismissed && (
-                              <button
-                                onClick={() => setMatchingDoc(doc)}
-                                className="text-xs text-blue-600 dark:text-blue-400 hover:underline px-2 py-1"
-                              >
-                                Match
-                              </button>
-                            )}
-                          </div>
-                        </li>
-                      ))}
-                  </ul>
-                </div>
-              </div>
-            )}
-          </div>
+          <DocumentList
+            documents={filteredDocs}
+            unmatchedOnly={unmatchedOnly}
+            godMode={godMode}
+            selectedTab={selectedTab}
+            onTabChange={setSelectedTab}
+            onMatch={setMatchingDoc}
+            onSmartAction={handleSmartAction}
+            onUndoDismiss={async (docId: number) => {
+              await fetch(`/api/documents/${docId}/dismiss`, { method: "DELETE" });
+              refreshAll();
+            }}
+          />
         )}
       </main>
 
+      {/* Modals: matchingDoc → MatchDocumentModal, pendingSmartAction → SmartActionConfirmModal, successInfo → MatchSuccessModal */}
       {matchingDoc && (
         <MatchDocumentErrorBoundary doc={matchingDoc}>
           <MatchDocumentModal
@@ -424,7 +317,6 @@ export default function DocumentsPage() {
             categories={categories}
             selectedSeriesId={selectedSeriesId}
             setSelectedSeriesId={setSelectedSeriesId}
-            selectedSeriesTitle={selectedSeriesTitle}
             setSelectedSeriesTitle={setSelectedSeriesTitle}
             selectedTaskId={selectedTaskId}
             setSelectedTaskId={setSelectedTaskId}

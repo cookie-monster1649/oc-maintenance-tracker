@@ -184,7 +184,6 @@ export default function VendorDetailPage() {
     setMatchingDoc,
     selectedSeriesId,
     setSelectedSeriesId,
-    selectedSeriesTitle,
     setSelectedSeriesTitle,
     selectedTaskId,
     setSelectedTaskId,
@@ -281,7 +280,6 @@ export default function VendorDetailPage() {
       ? tasksWithCost.reduce((s, t) => s + (t.estimated_cost ?? 0), 0) /
         tasksWithCost.length
       : null;
-  const canDelete = completed.length === 0;
 
   const openEdit = () => {
     const initial = {
@@ -817,7 +815,6 @@ export default function VendorDetailPage() {
             categories={categories}
             selectedSeriesId={selectedSeriesId}
             setSelectedSeriesId={setSelectedSeriesId}
-            selectedSeriesTitle={selectedSeriesTitle}
             setSelectedSeriesTitle={setSelectedSeriesTitle}
             selectedTaskId={selectedTaskId}
             setSelectedTaskId={setSelectedTaskId}

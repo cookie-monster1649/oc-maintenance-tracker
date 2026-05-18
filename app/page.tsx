@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { TaskCard, Task, Vendor } from "./components/TaskCard";
 import { getCached, setCached } from "@/lib/cache";
 import { useGodMode } from "./contexts/god-mode";
+import { INPUT_BASE } from "@/lib/ui-constants";
 
 type Frequency =
   | "Weekly"
@@ -383,7 +384,7 @@ export default function Home() {
                       onChange={(e) =>
                         setNewTask((f) => ({ ...f, budget_fy: Number(e.target.value) }))
                       }
-                      className="w-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 rounded-md px-3 py-2 text-sm text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-gray-400"
+                      className={INPUT_BASE}
                     >
                       {[-1, 0, 1, 2].map((offset) => {
                         const now = new Date();
@@ -404,7 +405,7 @@ export default function Home() {
                       onChange={(e) =>
                         setNewTask((f) => ({ ...f, start_date: e.target.value }))
                       }
-                      className="w-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 rounded-md px-3 py-2 text-sm text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-gray-400"
+                      className={INPUT_BASE}
                     />
                   </div>
                 )}
@@ -421,7 +422,7 @@ export default function Home() {
                           frequency: e.target.value as Frequency,
                         }))
                       }
-                      className="w-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 rounded-md px-3 py-2 text-sm text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-gray-400"
+                      className={INPUT_BASE}
                     >
                       {FREQUENCIES.map((f) => (
                         <option key={f}>{f}</option>
@@ -440,7 +441,7 @@ export default function Home() {
                     onChange={(e) =>
                       setNewTask((f) => ({ ...f, category: e.target.value }))
                     }
-                    className="w-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 rounded-md px-3 py-2 text-sm text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-gray-400"
+                    className={INPUT_BASE}
                   >
                     <option value="">Select category</option>
                     {categories.map((c) => (
@@ -475,7 +476,7 @@ export default function Home() {
                   onChange={(e) =>
                     setNewTask((f) => ({ ...f, vendor_id: e.target.value }))
                   }
-                  className="w-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 rounded-md px-3 py-2 text-sm text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-gray-400"
+                  className={INPUT_BASE}
                 >
                   <option value="">None</option>
                   {vendors.map((v) => (

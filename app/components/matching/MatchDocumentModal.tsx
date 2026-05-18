@@ -18,7 +18,6 @@ interface MatchDocumentModalProps {
   // State from useDocumentMatching
   selectedSeriesId: string;
   setSelectedSeriesId: (v: string) => void;
-  selectedSeriesTitle: string;
   setSelectedSeriesTitle: (v: string) => void;
   selectedTaskId: string;
   setSelectedTaskId: (v: string) => void;
@@ -54,7 +53,6 @@ export function MatchDocumentModal({
   defaultVendorId,
   selectedSeriesId,
   setSelectedSeriesId,
-  selectedSeriesTitle,
   setSelectedSeriesTitle,
   selectedTaskId,
   setSelectedTaskId,

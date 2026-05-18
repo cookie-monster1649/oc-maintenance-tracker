@@ -3,6 +3,14 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useGodMode } from "./contexts/god-mode";
+import {
+  NAV_LINK,
+  SETTINGS_BUTTON,
+  BUTTON_SECONDARY,
+  BUTTON_PRIMARY,
+  INPUT_BASE,
+  SELECT_BASE,
+} from "@/lib/ui-constants";
 
 type Theme = "light" | "dark" | "system";
 type ColorName =
@@ -59,7 +67,11 @@ const colorLabels: Record<ColorName, string> = {
 
 export default function Header() {
   const { godMode, enable: enableGodMode, disable: disableGodMode } = useGodMode();
-  const [theme, setTheme] = useState<Theme>("system");
+  // Initialize theme from localStorage immediately to prevent hydration mismatch
+  const [theme, setTheme] = useState<Theme>(() => {
+    if (typeof window === "undefined") return "system";
+    return (localStorage.getItem("theme") as Theme) ?? "system";
+  });
   const [open, setOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
   const [categoriesOpen, setCategoriesOpen] = useState(false);
@@ -238,14 +250,16 @@ export default function Header() {
   }
 
   useEffect(() => {
+    // Mark as mounted and load categories (theme is already initialized from localStorage)
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setMounted(true);
-    const stored = localStorage.getItem("theme") as Theme | null;
-    const initial = stored ?? "system";
-    setTheme(initial);
-    applyTheme(initial);
     loadCategories();
   }, []);
+
+  // Apply theme whenever it changes
+  useEffect(() => {
+    applyTheme(theme);
+  }, [theme]);
 
   // Close on outside click
   useEffect(() => {
@@ -279,10 +293,7 @@ export default function Header() {
     <header className="border-b border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-950 px-4">
       <div className="content-container flex items-center justify-between h-14">
         <nav className="flex gap-8">
-          <Link
-            href="/"
-            className="text-sm font-medium text-gray-900 dark:text-gray-100 hover:text-gray-500 dark:hover:text-gray-400 transition-colors"
-          >
+          <Link href="/" className={NAV_LINK}>
             Tasks
           </Link>
           <Link
@@ -308,7 +319,7 @@ export default function Header() {
         <div ref={ref} className="relative">
           <button
             onClick={() => setOpen((o) => !o)}
-            className="flex items-center justify-center w-8 h-8 rounded-md text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+            className={SETTINGS_BUTTON}
             aria-label="Settings"
           >
             <svg
@@ -474,7 +485,7 @@ export default function Header() {
               <select
                 value={reassignTarget}
                 onChange={(e) => setReassignTarget(e.target.value)}
-                className="w-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 rounded-md px-3 py-2 text-sm text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-gray-400"
+                className={INPUT_BASE}
               >
                 <option value="">Select a category</option>
                 {categories
@@ -500,7 +511,7 @@ export default function Header() {
                   setReassigningCategory(null);
                   setReassignTarget("");
                 }}
-                className="flex-1 text-sm px-4 py-2 rounded-md border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors font-medium"
+                className={`flex-1 ${BUTTON_SECONDARY}`}
               >
                 Cancel
               </button>
@@ -541,7 +552,7 @@ export default function Header() {
             <div className="flex gap-3 mt-6">
               <button
                 onClick={handleGodModeEnable}
-                className="flex-1 text-sm px-4 py-2 rounded-md bg-gray-900 dark:bg-gray-700 text-white hover:bg-gray-700 dark:hover:bg-gray-600 transition-colors font-medium"
+                className={`flex-1 ${BUTTON_PRIMARY}`}
               >
                 Enable
               </button>
@@ -551,7 +562,7 @@ export default function Header() {
                   setGodModePassword("");
                   setGodModeError("");
                 }}
-                className="flex-1 text-sm px-4 py-2 rounded-md border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors font-medium"
+                className={`flex-1 ${BUTTON_SECONDARY}`}
               >
                 Cancel
               </button>
@@ -632,7 +643,7 @@ export default function Header() {
                                 e.target.value as ColorName,
                               )
                             }
-                            className="border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 rounded px-2 py-1 text-sm text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-gray-400"
+                            className={`${SELECT_BASE} px-2 py-1`}
                           >
                             {colorOptions.map((color) => (
                               <option key={color} value={color}>
@@ -662,14 +673,14 @@ export default function Header() {
                       value={newCategoryName}
                       onChange={(e) => setNewCategoryName(e.target.value)}
                       placeholder="Category name"
-                      className="w-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 rounded-md px-3 py-2 text-sm text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-gray-400"
+                      className={INPUT_BASE}
                     />
                     <select
                       value={newCategoryColor}
                       onChange={(e) =>
                         setNewCategoryColor(e.target.value as ColorName)
                       }
-                      className="w-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 rounded-md px-3 py-2 text-sm text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-gray-400"
+                      className={INPUT_BASE}
                     >
                       {colorOptions.map((color) => (
                         <option key={color} value={color}>
@@ -692,7 +703,7 @@ export default function Header() {
             <div className="flex gap-3 mt-8 pt-6 border-t border-gray-100 dark:border-gray-800 shrink-0">
               <button
                 onClick={() => setCategoriesOpen(false)}
-                className="flex-1 text-sm px-4 py-2 rounded-md border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors font-medium"
+                className={`flex-1 ${BUTTON_SECONDARY}`}
               >
                 Close
               </button>

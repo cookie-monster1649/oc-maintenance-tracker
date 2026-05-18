@@ -8,8 +8,10 @@ export function useCachedData(endpoint: string, refreshTrigger?: number) {
   const [data, setData] = useState<unknown>(() => cache.get(endpoint) || null);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
+  // Fetch data from endpoint with deduplication and loading state management.
   useEffect(() => {
     let cancelled = false;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setIsRefreshing(true);
 
     (async () => {

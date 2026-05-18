@@ -5,7 +5,6 @@ import {
   addWeeks,
   addMonths,
   addYears,
-  addDays,
   parseISO,
   format,
   isBefore,
@@ -93,7 +92,7 @@ export function readTasks(): Task[] {
   // due to extrapolateFutureTasks being called on already-dated task IDs.
   // Clean IDs should always be series_id-start_date.
   const seenIds = new Set<string>();
-  const withCleanIds = withSeriesId.reduce((acc: any[], t: any) => {
+  const withCleanIds = withSeriesId.reduce((acc: Task[], t: Task) => {
     const dateCount = (t.id.match(/-\d{4}-\d{2}-\d{2}/g) || []).length;
     const cleanId = dateCount > 1 ? `${t.series_id}-${t.start_date}` : t.id;
     if (dateCount > 1) needsWrite = true;
@@ -107,7 +106,7 @@ export function readTasks(): Task[] {
   }, []);
 
   // Backfill new fields for tasks created before the cost model redesign
-  const withNewFields = withCleanIds.map((t) => {
+  const withNewFields = withCleanIds.map((t: Task) => {
     let changed = false;
     const updated = { ...t };
     if (!updated.task_type) {
@@ -165,6 +164,8 @@ export function nextStartDate(startDate: string, frequency: Frequency | null): s
       return format(addMonths(d, 6), "yyyy-MM-dd");
     case "Annually":
       return format(addYears(d, 1), "yyyy-MM-dd");
+    default:
+      throw new Error(`Unknown frequency: ${frequency}`);
   }
 }
 

@@ -14,14 +14,18 @@ interface GodModeContextType {
 const GodModeContext = createContext<GodModeContextType | undefined>(undefined);
 
 export function GodModeProvider({ children }: { children: React.ReactNode }) {
-  const [godMode, setGodMode] = useState(false);
+  // Use lazy initializer to avoid setState in effect and hydration issues
+  const [godMode, setGodMode] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    return localStorage.getItem('godMode') === 'true';
+  });
   const [mounted, setMounted] = useState(false);
 
+  // Mark as mounted after initial render to prevent hydration mismatch.
+  // setState in effect is necessary here for hydration safety in Next.js to prevent
+  // server/client state divergence when reading from localStorage.
   useEffect(() => {
-    const stored = localStorage.getItem('godMode');
-    if (stored === 'true') {
-      setGodMode(true);
-    }
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setMounted(true);
   }, []);
 

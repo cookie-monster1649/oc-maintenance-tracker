@@ -142,12 +142,6 @@ export default function VendorsPage() {
     fetchVendors();
   }
 
-  async function remove(id: string, name: string) {
-    if (!confirm(`Delete "${name}"? This cannot be undone.`)) return;
-    await fetch(`/api/vendors/${id}`, { method: "DELETE" });
-    fetchVendors();
-  }
-
   const active = vendors.filter((v) => !v.archived);
 
   return (

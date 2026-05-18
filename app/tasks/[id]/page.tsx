@@ -274,8 +274,6 @@ export default function TaskDetailPage() {
         completed.length
       : 0;
 
-  const canDelete = completed.length === 0;
-
   const openEdit = () => {
     const initial = {
       title: currentTask.title,
@@ -401,7 +399,6 @@ export default function TaskDetailPage() {
     }
 
     try {
-      const newTaskId = `${currentTask.series_id}-${occurrenceForm.date}`;
       const body: Record<string, unknown> = {
         series_id: currentTask.series_id,
         title: currentTask.title,
