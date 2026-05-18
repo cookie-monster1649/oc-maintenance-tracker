@@ -96,6 +96,12 @@ export default function DocumentsPage() {
 
   const [vendorError, setVendorError] = useState<string>("");
 
+  const [documentDomain, setDocumentDomain] = useState<string>("#");
+
+  useEffect(() => {
+    setDocumentDomain(process.env.NEXT_PUBLIC_DOCUMENT_DOMAIN || "#");
+  }, []);
+
   useEffect(() => {
     if (refreshStartTime === null) return;
 
@@ -223,15 +229,15 @@ export default function DocumentsPage() {
               Documents
             </h1>
             <p className="text-sm text-gray-500 dark:text-gray-400">
-              All documents from Paperless-ngx
+              All stored documents
             </p>
           </div>
           <div className="flex flex-col items-end gap-3">
             <a
-              href={process.env.NEXT_PUBLIC_DOCUMENT_DOMAIN || "#"}
+              href={documentDomain}
               target="_blank"
               rel="noopener noreferrer"
-              className="relative z-10 text-sm px-3 py-1.5 rounded-md border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors flex items-center gap-1 cursor-pointer"
+              className="text-sm px-3 py-1.5 rounded-md border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors flex items-center gap-1"
             >
               All documents ↗
             </a>
