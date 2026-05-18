@@ -372,7 +372,7 @@ export default function CostsPage() {
                     key={item.key}
                     className="border-b border-gray-50 dark:border-gray-800/50 hover:bg-gray-50 dark:hover:bg-gray-800"
                   >
-                    <td className="py-2 px-3 font-medium">
+                    <td className="py-2 px-3 font-medium break-words">
                       <Link
                         href={`/tasks/${item.id}`}
                         className="hover:underline"

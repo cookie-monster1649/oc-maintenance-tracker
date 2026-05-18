@@ -147,7 +147,7 @@ export default function VendorsPage() {
   return (
     <>
       <main className="animate-page content-container py-10">
-        <div className="flex items-start justify-between gap-8 mb-8">
+        <div className="flex flex-wrap items-start justify-between gap-4 mb-8">
           <div>
             <h1 className="text-2xl font-semibold mb-1 text-gray-900 dark:text-gray-100">
               Vendors
@@ -178,14 +178,14 @@ export default function VendorsPage() {
                 className={`flex items-start justify-between gap-4 py-5 ${i < active.length - 1 ? "border-b border-gray-100 dark:border-gray-800" : ""}`}
               >
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-3 mb-1.5">
+                  <div className="flex flex-wrap items-center gap-3 mb-1.5">
                     <a
                       href={`/vendors/${v.id}`}
-                      className="font-medium text-gray-900 dark:text-gray-100 hover:underline"
+                      className="font-medium text-gray-900 dark:text-gray-100 hover:underline break-words"
                     >
                       {v.name}
                     </a>
-                    <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400">
+                    <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 shrink-0">
                       {v.service_type}
                     </span>
                   </div>

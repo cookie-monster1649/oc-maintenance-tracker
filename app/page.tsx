@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useCachedData, invalidateCache } from "@/lib/data";
 import { useDocumentMatching } from "@/app/components/matching/useDocumentMatching";
 import { MatchDocumentModal } from "@/app/components/matching/MatchDocumentModal";
+import { useGodMode } from "@/app/contexts/god-mode";
 import BinWeekIndicator from "@/app/components/BinWeekIndicator";
 import type { Task } from "@/lib/tasks";
 import type { BinColor } from "@/lib/bin-weeks";
@@ -40,6 +41,7 @@ interface Document {
 export default function Home() {
   // ── Data fetching ──
   const [refreshTrigger, setRefreshTrigger] = useState(0);
+  const { godMode } = useGodMode();
 
   const { data: tasksData } = useCachedData("/api/tasks", refreshTrigger);
   const { data: vendorsData } = useCachedData("/api/vendors", refreshTrigger);
@@ -168,13 +170,10 @@ export default function Home() {
           </h2>
           <div className="space-y-2 pl-5">
             {overdue.map((task) => (
-              <div key={task.id} className="flex gap-8 items-baseline text-sm">
-                <Link href={`/tasks/${task.id}`} className="text-gray-900 dark:text-gray-100 hover:underline">
-                  {task.title}
-                </Link>
-                <span className="text-red-600 dark:text-red-400 shrink-0">
-                  {daysOverdue(task.start_date)} days overdue
-                </span>
+              <div key={task.id} className="text-sm">
+                <Link href={`/tasks/${task.id}`} className="text-gray-900 dark:text-gray-100 hover:underline">{task.title}</Link>
+                {"    "}
+                <span className="text-red-600 dark:text-red-400">{daysOverdue(task.start_date)} days overdue</span>
               </div>
             ))}
           </div>
@@ -197,19 +196,11 @@ export default function Home() {
         ) : (
           <div className="space-y-2 pl-5">
             {newBills.map((doc) => (
-              <div key={doc.id} className="flex gap-8 items-baseline text-sm">
-                <a href={doc.url} target="_blank" rel="noopener noreferrer" className="text-gray-900 dark:text-gray-100 hover:underline">
-                  {doc.title}
-                </a>
-                <span className="text-gray-500 dark:text-gray-400 shrink-0">
-                  {docCreatedDate(doc.created)}
-                </span>
-                <button
-                  onClick={() => setMatchingDoc(doc)}
-                  className="text-blue-600 dark:text-blue-400 hover:underline shrink-0"
-                >
-                  Match
-                </button>
+              <div key={doc.id} className="text-sm">
+                <a href={doc.url} target="_blank" rel="noopener noreferrer" className="text-gray-900 dark:text-gray-100 hover:underline">{doc.title}</a>
+                {"    "}
+                <span className="text-gray-500 dark:text-gray-400">{docCreatedDate(doc.created)}</span>
+                {godMode && <>{"    "}<button onClick={() => setMatchingDoc(doc)} className="text-blue-600 dark:text-blue-400 hover:underline">Match</button></>}
               </div>
             ))}
           </div>
@@ -232,18 +223,14 @@ export default function Home() {
         ) : (
           <div className="space-y-2 pl-5">
             {upcoming.map((task) => (
-              <div key={task.id} className="flex gap-4 items-baseline text-sm">
-                <span className="text-gray-500 dark:text-gray-500 shrink-0 w-16">{formatDate(task.start_date)}</span>
-                <div className="flex gap-3 items-baseline">
-                  <Link href={`/tasks/${task.id}`} className="text-gray-900 dark:text-gray-100 hover:underline">
-                    {task.title}
-                  </Link>
-                  {task.vendor_id && vendorMap[task.vendor_id] ? (
-                    <span className="text-gray-500 dark:text-gray-400 shrink-0">{vendorMap[task.vendor_id]}</span>
-                  ) : (
-                    <span className="text-gray-400 dark:text-gray-600 shrink-0">—</span>
-                  )}
-                </div>
+              <div key={task.id} className="text-sm">
+                <span className="text-gray-500 dark:text-gray-500">{formatDate(task.start_date)}</span>
+                {"    "}
+                <Link href={`/tasks/${task.id}`} className="text-gray-900 dark:text-gray-100 hover:underline">{task.title}</Link>
+                {"    "}
+                {task.vendor_id && vendorMap[task.vendor_id]
+                  ? <span className="text-gray-500 dark:text-gray-400">{vendorMap[task.vendor_id]}</span>
+                  : <span className="text-gray-400 dark:text-gray-600">—</span>}
               </div>
             ))}
           </div>
