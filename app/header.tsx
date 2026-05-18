@@ -292,8 +292,8 @@ export default function Header() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   return (
-    <header className="border-b border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-950 px-4 w-full">
-      <div className="flex items-center justify-between h-14 max-w-full">
+    <header className="border-b border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-950">
+      <div className="content-container flex items-center justify-between h-14">
         <button
           onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
           className="md:hidden flex items-center justify-center w-8 h-8 rounded-md text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
