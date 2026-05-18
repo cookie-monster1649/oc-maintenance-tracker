@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { useGodMode } from "./contexts/god-mode";
 import {
   NAV_LINK,
@@ -290,6 +291,12 @@ export default function Header() {
   }
 
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const pathname = usePathname();
+
+  const navClass = (href: string) => {
+    const isActive = href === "/" ? pathname === "/" : pathname.startsWith(href);
+    return `text-sm ${isActive ? "font-bold" : "font-medium"} text-gray-900 dark:text-gray-100 hover:text-gray-500 dark:hover:text-gray-400 transition-colors`;
+  };
 
   return (
     <header className="border-b border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-950">
@@ -317,30 +324,11 @@ export default function Header() {
         </button>
 
         <nav className="hidden md:flex gap-8">
-          <Link href="/" className={NAV_LINK}>
-            Home
-          </Link>
-          <Link href="/tasks" className={NAV_LINK}>
-            Tasks
-          </Link>
-          <Link
-            href="/vendors"
-            className="text-sm font-medium text-gray-900 dark:text-gray-100 hover:text-gray-500 dark:hover:text-gray-400 transition-colors"
-          >
-            Vendors
-          </Link>
-          <Link
-            href="/documents"
-            className="text-sm font-medium text-gray-900 dark:text-gray-100 hover:text-gray-500 dark:hover:text-gray-400 transition-colors"
-          >
-            Documents
-          </Link>
-          <Link
-            href="/costs"
-            className="text-sm font-medium text-gray-900 dark:text-gray-100 hover:text-gray-500 dark:hover:text-gray-400 transition-colors"
-          >
-            Costs
-          </Link>
+          <Link href="/" className={navClass("/")}>Home</Link>
+          <Link href="/tasks" className={navClass("/tasks")}>Tasks</Link>
+          <Link href="/vendors" className={navClass("/vendors")}>Vendors</Link>
+          <Link href="/documents" className={navClass("/documents")}>Documents</Link>
+          <Link href="/costs" className={navClass("/costs")}>Costs</Link>
         </nav>
 
         <div ref={ref} className="relative">
@@ -487,41 +475,22 @@ export default function Header() {
           />
           <nav className="md:hidden fixed top-14 left-0 right-0 border-b border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-950 z-50 animate-dropdown">
             <div className="flex flex-col gap-0 px-4 py-2">
-              <Link
-                href="/"
-                onClick={() => setMobileMenuOpen(false)}
-                className="py-2.5 text-sm font-medium text-gray-900 dark:text-gray-100 hover:text-gray-500 dark:hover:text-gray-400 transition-colors"
-              >
-                Home
-              </Link>
-              <Link
-                href="/tasks"
-                onClick={() => setMobileMenuOpen(false)}
-                className="py-2.5 text-sm font-medium text-gray-900 dark:text-gray-100 hover:text-gray-500 dark:hover:text-gray-400 transition-colors"
-              >
-                Tasks
-              </Link>
-              <Link
-                href="/vendors"
-                onClick={() => setMobileMenuOpen(false)}
-                className="py-2.5 text-sm font-medium text-gray-900 dark:text-gray-100 hover:text-gray-500 dark:hover:text-gray-400 transition-colors"
-              >
-                Vendors
-              </Link>
-              <Link
-                href="/documents"
-                onClick={() => setMobileMenuOpen(false)}
-                className="py-2.5 text-sm font-medium text-gray-900 dark:text-gray-100 hover:text-gray-500 dark:hover:text-gray-400 transition-colors"
-              >
-                Documents
-              </Link>
-              <Link
-                href="/costs"
-                onClick={() => setMobileMenuOpen(false)}
-                className="py-2.5 text-sm font-medium text-gray-900 dark:text-gray-100 hover:text-gray-500 dark:hover:text-gray-400 transition-colors"
-              >
-                Costs
-              </Link>
+              {[
+                { href: "/", label: "Home" },
+                { href: "/tasks", label: "Tasks" },
+                { href: "/vendors", label: "Vendors" },
+                { href: "/documents", label: "Documents" },
+                { href: "/costs", label: "Costs" },
+              ].map(({ href, label }) => (
+                <Link
+                  key={href}
+                  href={href}
+                  onClick={() => setMobileMenuOpen(false)}
+                  className={`py-2.5 ${navClass(href)}`}
+                >
+                  {label}
+                </Link>
+              ))}
             </div>
           </nav>
         </>
