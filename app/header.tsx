@@ -294,6 +294,9 @@ export default function Header() {
       <div className="content-container flex items-center justify-between h-14">
         <nav className="flex gap-8">
           <Link href="/" className={NAV_LINK}>
+            Home
+          </Link>
+          <Link href="/tasks" className={NAV_LINK}>
             Tasks
           </Link>
           <Link
