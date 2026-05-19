@@ -4,7 +4,6 @@ import type { Vendor } from "@/lib/vendors";
 import {
   INPUT_BASE,
   INPUT_WITH_PLACEHOLDER,
-  SELECT_BASE,
   BUTTON_PRIMARY_DISABLED,
   BUTTON_SECONDARY,
   MODAL_BACKDROP,

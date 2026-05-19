@@ -34,11 +34,10 @@ interface Document {
 
 interface Task {
   id: string;
-  series_id: string;
-  title: string;
-  description: string;
-  frequency: string;
-  category: string;
+  line_item_id: string;
+  title: string | null;
+  description: string | null;
+  frequency: string | null;
   last_completed_date: string | null;
   start_date: string;
   status: string;
@@ -96,11 +95,9 @@ export default function DocumentsPage() {
 
   const [vendorError, setVendorError] = useState<string>("");
 
-  const [documentDomain, setDocumentDomain] = useState<string>("#");
-
-  useEffect(() => {
-    setDocumentDomain(process.env.NEXT_PUBLIC_DOCUMENT_DOMAIN || "#");
-  }, []);
+  const [documentDomain] = useState<string>(
+    () => process.env.NEXT_PUBLIC_DOCUMENT_DOMAIN || "#"
+  );
 
   useEffect(() => {
     if (refreshStartTime === null) return;
@@ -151,7 +148,7 @@ export default function DocumentsPage() {
     confirmSmartAction,
     handleCreateAndMatch,
   } = useDocumentMatching({
-    tasks: tasks as any,
+    tasks: tasks,
     vendors,
     onSuccess: refreshAll,
   });
@@ -318,7 +315,7 @@ export default function DocumentsPage() {
         <MatchDocumentErrorBoundary doc={matchingDoc}>
           <MatchDocumentModal
             doc={matchingDoc}
-            tasks={tasks as any}
+            tasks={tasks}
             vendors={vendors}
             categories={categories}
             selectedSeriesId={selectedSeriesId}
@@ -352,7 +349,7 @@ export default function DocumentsPage() {
       {pendingSmartAction && (
         <SmartActionConfirmModal
           doc={pendingSmartAction.doc}
-          task={tasks.find((t) => t.id === pendingSmartAction.taskId) as any}
+          task={tasks.find((t) => t.id === pendingSmartAction.taskId)}
           confirmDate={pendingSmartAction.confirmDate}
           onConfirmDateChange={(date) =>
             setPendingSmartAction({ ...pendingSmartAction, confirmDate: date })
@@ -367,6 +364,7 @@ export default function DocumentsPage() {
           title={successInfo.title}
           docUrl={successInfo.docUrl}
           taskId={successInfo.taskId}
+          lineItemId={successInfo.lineItemId}
           onClose={() => setSuccessInfo(null)}
         />
       )}

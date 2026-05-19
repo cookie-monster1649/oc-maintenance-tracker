@@ -50,8 +50,6 @@ export default function Home() {
   const { data: binWeeksData } = useCachedData("/api/bin-weeks", refreshTrigger);
 
   const tasks: Task[] = Array.isArray(tasksData) ? tasksData : [];
-  // lineItems fetched but not currently used on home page (kept for consistency with other pages)
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const lineItems: Array<{ id: string; title: string; category: string }> = Array.isArray(lineItemsData) ? lineItemsData : [];
   const vendors: Vendor[] = Array.isArray(vendorsData) ? vendorsData : [];
   const documents: Document[] = Array.isArray(documentsData) ? documentsData : [];
@@ -129,11 +127,6 @@ export default function Home() {
     .slice(0, 10);
 
   // ── Computed values & utilities ––
-  const vendorMap = vendors.reduce((acc: Record<string, string>, v) => {
-    acc[v.id] = v.name;
-    return acc;
-  }, {});
-
   const formatDate = (dateStr: string) => {
     const d = new Date(dateStr);
     return `${d.getDate()} ${MONTHS[d.getMonth()]}`;
@@ -175,7 +168,7 @@ export default function Home() {
           <div className="space-y-2 pl-5">
             {overdue.map((task) => (
               <div key={task.id} className="text-sm">
-                <Link href={`/tasks/${task.id}`} className="text-gray-900 dark:text-gray-100 hover:underline">{task.title}</Link>
+                <Link href={`/line-items/${task.line_item_id}`} className="text-gray-900 dark:text-gray-100 hover:underline">{task.title}</Link>
                 {"    "}
                 <span className="text-red-600 dark:text-red-400">{daysOverdue(task.start_date)} days overdue</span>
               </div>
@@ -230,7 +223,7 @@ export default function Home() {
               <div key={task.id} className="text-sm">
                 <span className="text-gray-500 dark:text-gray-500">{formatDate(task.start_date)}</span>
                 {"    "}
-                <Link href={`/tasks/${task.id}`} className="text-gray-900 dark:text-gray-100 hover:underline">{task.title}</Link>
+                <Link href={`/line-items/${task.line_item_id}`} className="text-gray-900 dark:text-gray-100 hover:underline">{task.title}</Link>
                 {"    "}
                 <span className="text-gray-400 dark:text-gray-600">—</span>
               </div>

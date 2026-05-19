@@ -68,6 +68,7 @@ export function useDocumentMatching(config: UseDocumentMatchingConfig) {
     title: string;
     docUrl: string;
     taskId?: string;
+    lineItemId?: string;
   } | null>(null);
   const [pendingSmartAction, setPendingSmartAction] = useState<{
     doc: Document;
@@ -175,7 +176,8 @@ export function useDocumentMatching(config: UseDocumentMatchingConfig) {
         });
 
         if (res.ok) {
-          setSuccessInfo({ title: action.taskTitle, docUrl: doc.url, taskId: action.taskId });
+          const task = config.tasks.find((t) => t.id === action.taskId);
+          setSuccessInfo({ title: action.taskTitle, docUrl: doc.url, taskId: action.taskId, lineItemId: task?.line_item_id });
           await config.onSuccess();
         }
       } catch (err) {
@@ -207,7 +209,8 @@ export function useDocumentMatching(config: UseDocumentMatchingConfig) {
       });
 
       if (res.ok) {
-        setSuccessInfo({ title: pendingSmartAction.taskTitle, docUrl: doc.url, taskId });
+        const task = config.tasks.find((t) => t.id === taskId);
+        setSuccessInfo({ title: pendingSmartAction.taskTitle, docUrl: doc.url, taskId, lineItemId: task?.line_item_id });
         setPendingSmartAction(null);
         await config.onSuccess();
       }
@@ -343,7 +346,7 @@ export function useDocumentMatching(config: UseDocumentMatchingConfig) {
         setSelectedSeriesId("");
         setSelectedSeriesTitle("");
         setSelectedTaskId("");
-        setSuccessInfo({ title: newTaskForm.title, docUrl: matchingDoc.url, taskId: newTaskData.id });
+        setSuccessInfo({ title: newTaskForm.title, docUrl: matchingDoc.url, taskId: newTaskData.id, lineItemId: newLineItem.id });
         setNewTaskForm({
           title: "",
           description: "",

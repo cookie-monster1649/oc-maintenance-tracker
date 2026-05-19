@@ -7,7 +7,6 @@ import type { LineItem } from "@/lib/line-items";
 import { getCached, setCached } from "@/lib/cache";
 import { badgeColour } from "@/lib/badge-colour";
 import { format, parseISO } from "date-fns";
-import { type PaperlessCorrespondent } from "@/lib/paperless";
 import { useGodMode } from "@/app/contexts/god-mode";
 import { MODAL_BACKDROP, MODAL_CONTENT_LG } from "@/lib/ui-constants";
 import { useDocumentMatching } from "@/app/components/matching/useDocumentMatching";
@@ -99,9 +98,6 @@ export default function VendorDetailPage() {
     () => getCached<LineItem[]>("/api/line-items") ?? [],
   );
   const [vendorDocs, setVendorDocs] = useState<Document[]>([]);
-  const [correspondents, setCorrespondents] = useState<
-    PaperlessCorrespondent[]
-  >([]);
   const [loadingDocs, setLoadingDocs] = useState(false);
   const [categoryColors, setCategoryColors] = useState<Record<string, string>>(
     () =>
@@ -131,21 +127,19 @@ export default function VendorDetailPage() {
   }
 
   const fetchAll = useCallback(async () => {
-    const [vendorsRes, tasksRes, lineItemsRes, categoriesRes, corrRes] = await Promise.all([
+    const [vendorsRes, tasksRes, lineItemsRes, categoriesRes] = await Promise.all([
       fetch("/api/vendors"),
       fetch("/api/tasks"),
       fetch("/api/line-items"),
       fetch("/api/categories"),
-      fetch("/api/paperless/correspondents").catch(() => null),
     ]);
-    const [vendorsData, tasksData, lineItemsData, categoriesData, corrData] =
+    const [vendorsData, tasksData, lineItemsData, categoriesData] =
       (await Promise.all([
         vendorsRes.json(),
         tasksRes.json(),
         lineItemsRes.json(),
         categoriesRes.json(),
-        corrRes ? corrRes.json() : Promise.resolve([]),
-      ])) as [Vendor[], Task[], LineItem[], CategoryColor[], PaperlessCorrespondent[]];
+      ])) as [Vendor[], Task[], LineItem[], CategoryColor[]];
     setCached("/api/vendors", vendorsData);
     setCached("/api/tasks", tasksData);
     setCached("/api/line-items", lineItemsData);
@@ -153,7 +147,6 @@ export default function VendorDetailPage() {
     setVendors(vendorsData);
     setTasks(tasksData);
     setLineItems(lineItemsData);
-    setCorrespondents(Array.isArray(corrData) ? corrData : []);
     setCategories(categoriesData.map((c: CategoryColor) => c.name));
     setCategoryColors(
       categoriesData.reduce((acc: Record<string, string>, c: CategoryColor) => {
@@ -285,13 +278,6 @@ export default function VendorDetailPage() {
     (s, t) => s + (t.estimated_cost ?? 0),
     0,
   );
-  const tasksWithCost = assignedTasks.filter((t) => t.estimated_cost != null);
-  const avgCost =
-    tasksWithCost.length > 0
-      ? tasksWithCost.reduce((s, t) => s + (t.estimated_cost ?? 0), 0) /
-        tasksWithCost.length
-      : null;
-
   const openEdit = () => {
     const initial = {
       name: vendor.name,

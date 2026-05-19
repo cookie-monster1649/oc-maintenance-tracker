@@ -29,6 +29,7 @@ interface LineItem {
   category: string;
   vendor_id: string | null;
   fy_budget: number | null;
+  fy: number;
   archived: boolean;
 }
 

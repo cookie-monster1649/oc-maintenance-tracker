@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import type { LineItem } from "@/lib/line-items";
 
 interface EditLineItemFormState {
@@ -7,6 +7,7 @@ interface EditLineItemFormState {
   category: string;
   vendor_id: string | null;
   fy_budget: string | null;
+  fy: number;
 }
 
 export function useEditLineItemForm(lineItemId: string, onSuccess: () => void) {
@@ -21,17 +22,18 @@ export function useEditLineItemForm(lineItemId: string, onSuccess: () => void) {
     setForm((f) => (f ? { ...f, ...updates } : null));
   };
 
-  const initializeForm = (lineItem: LineItem) => {
+  const initializeForm = useCallback((lineItem: LineItem) => {
     const initial: EditLineItemFormState = {
       title: lineItem.title,
       description: lineItem.description,
       category: lineItem.category,
       vendor_id: lineItem.vendor_id,
       fy_budget: lineItem.fy_budget ? String(lineItem.fy_budget) : null,
+      fy: lineItem.fy,
     };
     setForm(initial);
     setOriginalForm(initial);
-  };
+  }, []);
 
   const hasChanges = () => {
     if (!form || !originalForm) return false;
@@ -53,6 +55,7 @@ export function useEditLineItemForm(lineItemId: string, onSuccess: () => void) {
           category: form.category,
           vendor_id: form.vendor_id,
           fy_budget: form.fy_budget ? Number(form.fy_budget) : null,
+          fy: form.fy,
         }),
       });
 

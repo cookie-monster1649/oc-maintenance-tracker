@@ -6,6 +6,12 @@ interface LineItemFormState {
   category: string;
   vendor_id: string;
   fy_budget: string;
+  fy: number;
+}
+
+function getCurrentFY(): number {
+  const d = new Date();
+  return d.getMonth() >= 6 ? d.getFullYear() + 1 : d.getFullYear();
 }
 
 export function useLineItemForm(onSuccess: () => void) {
@@ -15,6 +21,7 @@ export function useLineItemForm(onSuccess: () => void) {
     category: "",
     vendor_id: "",
     fy_budget: "",
+    fy: getCurrentFY(),
   });
 
   const [form, setForm] = useState<LineItemFormState>(getInitialState());
@@ -42,6 +49,7 @@ export function useLineItemForm(onSuccess: () => void) {
           category: form.category,
           vendor_id: form.vendor_id || null,
           fy_budget: form.fy_budget ? Number(form.fy_budget) : null,
+          fy: form.fy,
           archived: false,
         }),
       });

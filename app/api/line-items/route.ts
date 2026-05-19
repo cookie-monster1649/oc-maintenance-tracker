@@ -16,6 +16,7 @@ export async function POST(req: Request) {
     category: body.category,
     vendor_id: body.vendor_id ?? null,
     fy_budget: body.fy_budget ? Number(body.fy_budget) : null,
+    fy: body.fy ? Number(body.fy) : 2026,
     archived: false,
   };
 

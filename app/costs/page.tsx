@@ -119,9 +119,14 @@ export default function CostsPage() {
   );
   const [availableFYs, setAvailableFYs] = useState<number[]>(() => {
     const cachedTasks = getCached<Task[]>("/api/tasks") ?? [];
+    const cachedLineItems = getCached<LineItem[]>("/api/line-items") ?? [];
     const allDates = cachedTasks.map((t) => t.start_date).filter(Boolean);
-    if (!allDates.length) return [];
-    return [...new Set(allDates.map((d) => fyForDate(d)))].sort();
+    const allFYs = [
+      ...allDates.map((d) => fyForDate(d)),
+      ...cachedLineItems.filter((li) => !li.archived).map((li) => li.fy),
+    ];
+    if (!allFYs.length) return [];
+    return [...new Set(allFYs)].sort();
   });
 
   // ── Sync with Server ──
@@ -164,7 +169,11 @@ export default function CostsPage() {
       );
 
       const allDates = tasksData.map((t: Task) => t.start_date).filter(Boolean);
-      const fys = [...new Set(allDates.map((d: string) => fyForDate(d)))] as number[];
+      const allFYs = [
+        ...allDates.map((d: string) => fyForDate(d)),
+        ...lineItemsData.filter((li: LineItem) => !li.archived).map((li: LineItem) => li.fy),
+      ];
+      const fys = [...new Set(allFYs)] as number[];
       fys.sort((a, b) => a - b);
       setAvailableFYs(fys);
 
@@ -206,13 +215,13 @@ export default function CostsPage() {
     tasksByLineItem.get(t.line_item_id)!.push(t);
   }
 
-  // Build display line items — include all non-archived line items so users can
-  // click into them and create tasks, even if they have no tasks or budget yet.
+  // Build display line items — show line items for the selected FY, either from their own FY field
+  // or from tasks in that FY.
   const displayLineItems: LineItemDisplay[] = [];
 
   const lineItemIdsToShow = new Set([
     ...tasksByLineItem.keys(),
-    ...lineItems.filter((li) => !li.archived).map((li) => li.id),
+    ...lineItems.filter((li) => !li.archived && li.fy === fy).map((li) => li.id),
   ]);
 
   for (const lineItemId of lineItemIdsToShow) {
@@ -442,7 +451,6 @@ export default function CostsPage() {
       <NewLineItemModal
         isOpen={creatingLineItem}
         categories={categories}
-        categoryColors={categoryColors}
         vendors={vendors}
         onSave={() => {
           setCreatingLineItem(false);

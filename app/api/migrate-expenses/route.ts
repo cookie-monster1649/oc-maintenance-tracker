@@ -4,6 +4,11 @@ import { readLineItems, writeLineItems, type LineItem } from "@/lib/line-items";
 import { readExpenses } from "@/lib/expenses";
 import { randomUUID } from "crypto";
 
+function fyForDate(dateStr: string): number {
+  const d = new Date(dateStr + "T00:00:00");
+  return d.getMonth() >= 6 ? d.getFullYear() + 1 : d.getFullYear();
+}
+
 export async function POST() {
   const expenses = readExpenses();
   const tasks = readTasks();
@@ -23,6 +28,7 @@ export async function POST() {
       category: expense.category,
       vendor_id: expense.vendor_id || null,
       fy_budget: null,
+      fy: fyForDate(expense.date_paid),
       archived: false,
     };
 

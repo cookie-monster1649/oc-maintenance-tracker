@@ -4,6 +4,7 @@ interface MatchSuccessModalProps {
   title: string;
   docUrl: string;
   taskId?: string;
+  lineItemId?: string;
   onClose: () => void;
 }
 
@@ -11,6 +12,7 @@ export function MatchSuccessModal({
   title,
   docUrl,
   taskId,
+  lineItemId,
   onClose,
 }: MatchSuccessModalProps) {
   return (
@@ -44,12 +46,12 @@ export function MatchSuccessModal({
           >
             Close
           </button>
-          {taskId && (
+          {(lineItemId || taskId) && (
             <a
-              href={`/tasks/${taskId}`}
+              href={lineItemId ? `/line-items/${lineItemId}` : `/tasks/${taskId}`}
               className="text-sm px-4 py-2 rounded-md bg-blue-600 dark:bg-blue-700 text-white hover:bg-blue-700 dark:hover:bg-blue-600 transition-colors font-medium text-center"
             >
-              Go to Task →
+              {lineItemId ? "Go to Line Item →" : "Go to Task →"}
             </a>
           )}
           <a

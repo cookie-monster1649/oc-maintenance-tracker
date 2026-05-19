@@ -5,7 +5,6 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useGodMode } from "./contexts/god-mode";
 import {
-  NAV_LINK,
   SETTINGS_BUTTON,
   BUTTON_SECONDARY,
   BUTTON_PRIMARY,

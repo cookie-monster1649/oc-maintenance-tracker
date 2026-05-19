@@ -9,16 +9,34 @@ import { badgeColour } from "@/lib/badge-colour";
 import { getColorClasses } from "@/lib/colors";
 import { format, parseISO } from "date-fns";
 import { useGodMode } from "@/app/contexts/god-mode";
-import { MODAL_BACKDROP, MODAL_CONTENT_LG } from "@/lib/ui-constants";
+import { MODAL_BACKDROP } from "@/lib/ui-constants";
 import DetailPageLayout from "@/app/components/DetailPageLayout";
-import NewLineItemModal from "@/app/components/NewLineItemModal";
 import EditLineItemModal from "@/app/components/EditLineItemModal";
 import NewTaskModal from "@/app/components/NewTaskModal";
 import { useDocumentMatching } from "@/app/components/matching/useDocumentMatching";
+import type { Document as MatchingDocument } from "@/app/components/matching/useDocumentMatching";
 import { MatchDocumentModal } from "@/app/components/matching/MatchDocumentModal";
 import { MatchDocumentErrorBoundary } from "@/app/components/matching/MatchDocumentErrorBoundary";
 import type { Vendor } from "@/lib/vendors";
 import { getTaskPatterns } from "@/lib/detail-page-filters";
+
+interface SmartAction {
+  type: string;
+  taskId: string;
+  taskTitle: string;
+  dateLabel: string;
+  confidence: number;
+}
+
+interface VendorDoc {
+  id: number;
+  title: string;
+  created?: string;
+  url: string;
+  document_type_label: string | null;
+  is_matched: boolean;
+  smart_actions: SmartAction[];
+}
 
 interface CategoryColor {
   name: string;
@@ -91,10 +109,10 @@ export default function LineItemDetailPage() {
     _originalTitle: string;
     _originalFrequency: string | null;
   } | null>(null);
-  const [vendorDocs, setVendorDocs] = useState<any[]>([]);
+  const [vendorDocs, setVendorDocs] = useState<VendorDoc[]>([]);
   const [loadingDocs, setLoadingDocs] = useState(false);
-  const [matchingDoc, setMatchingDoc] = useState<any | null>(null);
-  const [selectedDocTab, setSelectedDocTab] = useState<string>("");
+  const [matchingDoc, setMatchingDoc] = useState<MatchingDocument | null>(null);
+  const [selectedTaskPatterns, setSelectedTaskPatterns] = useState<string[]>([]);
 
   const menuRef = useRef<HTMLDivElement>(null);
   const editPatternBackdropRef = useRef<HTMLDivElement>(null);
@@ -155,6 +173,7 @@ export default function LineItemDetailPage() {
   }, [lineItemId, router]);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchAll();
   }, [fetchAll]);
 
@@ -218,7 +237,7 @@ export default function LineItemDetailPage() {
     onSuccess: fetchAll,
   });
 
-  const handleSmartAction = (doc: any, action: any) => {
+  const handleSmartAction = (doc: MatchingDocument, action: SmartAction) => {
     hookHandleSmartAction(doc, {
       type: action.type,
       taskId: action.taskId,
@@ -305,12 +324,25 @@ export default function LineItemDetailPage() {
   }
 
   const lineItemTasks = tasks.filter((t) => t.line_item_id === lineItemId);
-  const completed = lineItemTasks
-    .filter((t) => t.status === "Completed")
-    .sort((a, b) => (b.start_date || "").localeCompare(a.start_date || ""));
-  const upcoming = lineItemTasks
-    .filter((t) => t.status !== "Completed")
-    .sort((a, b) => (a.start_date || "").localeCompare(b.start_date || ""));
+
+  const filterBySelectedPatterns = (taskList: Task[]): Task[] => {
+    if (selectedTaskPatterns.length === 0) return taskList;
+    return taskList.filter((t) => {
+      const patternKey = `${t.title}|${t.frequency ?? ""}`;
+      return selectedTaskPatterns.includes(patternKey);
+    });
+  };
+
+  const completed = filterBySelectedPatterns(
+    lineItemTasks
+      .filter((t) => t.status === "Completed")
+      .sort((a, b) => (b.start_date || "").localeCompare(a.start_date || "")),
+  );
+  const upcoming = filterBySelectedPatterns(
+    lineItemTasks
+      .filter((t) => t.status !== "Completed")
+      .sort((a, b) => (a.start_date || "").localeCompare(b.start_date || "")),
+  );
 
   const actualTotal = completed.reduce(
     (s, t) => s + (t.actual_cost ?? t.estimated_cost ?? 0),
@@ -437,8 +469,8 @@ export default function LineItemDetailPage() {
     </div>
   ) : null;
 
-  // Task patterns section
-  const taskPatternsSection = lineItemTasks.length > 0 ? (
+  // Task patterns section - always show, even with zero tasks
+  const taskPatternsSection = (
     <div className="mb-12 p-4 bg-gray-50 dark:bg-gray-900/50 rounded-lg border border-gray-100 dark:border-gray-800">
       <h2 className="text-sm font-semibold uppercase tracking-widest text-gray-400 dark:text-gray-500 mb-4">
         ── Tasks ──
@@ -446,46 +478,78 @@ export default function LineItemDetailPage() {
       <div className="space-y-2 pl-5">
         {(() => {
           const patterns = getTaskPatterns(lineItemTasks);
-          return Array.from(patterns.values()).map((pattern) => (
-            <div key={`${pattern.title}|${pattern.frequency}`} className="flex items-center justify-between text-sm group">
-              <span className="text-gray-700 dark:text-gray-300">
-                {pattern.title}
-                {pattern.frequency && (
-                  <>
-                    <span className="mx-3 text-gray-400">•</span>
-                    <span className="text-gray-500 dark:text-gray-400">{pattern.frequency}</span>
-                  </>
-                )}
-                {pattern.estimated_cost && (
-                  <>
-                    <span className="mx-3 text-gray-400">•</span>
-                    <span className="text-gray-500 dark:text-gray-400">
-                      ${pattern.estimated_cost}
-                    </span>
-                  </>
-                )}
-              </span>
-              {pattern.frequency && (
+          const patternArray = Array.from(patterns.values());
+
+          if (patternArray.length === 0) {
+            return (
+              <p className="text-sm text-gray-500 dark:text-gray-400 italic">
+                No tasks yet.
+              </p>
+            );
+          }
+
+          return patternArray.map((pattern) => {
+            const patternKey = `${pattern.title}|${pattern.frequency ?? ""}`;
+            const isSelected = selectedTaskPatterns.includes(patternKey);
+
+            const togglePattern = () => {
+              if (isSelected) {
+                setSelectedTaskPatterns(selectedTaskPatterns.filter((p) => p !== patternKey));
+              } else {
+                setSelectedTaskPatterns([...selectedTaskPatterns, patternKey]);
+              }
+            };
+
+            return (
+              <div key={patternKey} className="flex items-center justify-between text-sm group">
                 <button
-                  onClick={() =>
-                    setEditingPattern({
-                      title: pattern.title,
-                      frequency: pattern.frequency,
-                      estimated_cost: pattern.estimated_cost,
-                      vendor_id: pattern.vendor_id,
-                      applyToAll: false,
-                      _originalTitle: pattern.title,
-                      _originalFrequency: pattern.frequency,
-                    })
-                  }
-                  className="opacity-0 group-hover:opacity-100 text-xs px-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-opacity"
-                  title="Edit recurring pattern"
+                  onClick={togglePattern}
+                  className={`flex-1 text-left px-2 py-1 rounded cursor-pointer transition-colors ${
+                    isSelected
+                      ? "bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900 font-medium"
+                      : "text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-800"
+                  }`}
                 >
-                  ✏
+                  {pattern.title}
+                  {pattern.frequency && (
+                    <>
+                      <span className="mx-3 text-gray-400 dark:text-gray-500">•</span>
+                      <span className={isSelected ? "text-gray-100 dark:text-gray-800" : "text-gray-500 dark:text-gray-400"}>
+                        {pattern.frequency}
+                      </span>
+                    </>
+                  )}
+                  {pattern.estimated_cost && (
+                    <>
+                      <span className="mx-3 text-gray-400 dark:text-gray-500">•</span>
+                      <span className={isSelected ? "text-gray-100 dark:text-gray-800" : "text-gray-500 dark:text-gray-400"}>
+                        ${pattern.estimated_cost}
+                      </span>
+                    </>
+                  )}
                 </button>
-              )}
-            </div>
-          ));
+                {pattern.frequency && (
+                  <button
+                    onClick={() =>
+                      setEditingPattern({
+                        title: pattern.title,
+                        frequency: pattern.frequency,
+                        estimated_cost: pattern.estimated_cost,
+                        vendor_id: pattern.vendor_id,
+                        applyToAll: false,
+                        _originalTitle: pattern.title,
+                        _originalFrequency: pattern.frequency,
+                      })
+                    }
+                    className="opacity-0 group-hover:opacity-100 text-xs px-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-opacity"
+                    title="Edit recurring pattern"
+                  >
+                    ✏
+                  </button>
+                )}
+              </div>
+            );
+          });
         })()}
       </div>
       {godMode && (
@@ -497,7 +561,7 @@ export default function LineItemDetailPage() {
         </button>
       )}
     </div>
-  ) : null;
+  );
 
   // Tasks and documents section
   const tasksAndDocumentsSection = (
@@ -630,7 +694,7 @@ export default function LineItemDetailPage() {
                         </h3>
                         {!doc.is_matched && doc.smart_actions.length > 0 && (
                           <div className="flex flex-wrap gap-2 mt-2">
-                            {doc.smart_actions.map((action: any, i: number) => (
+                            {doc.smart_actions.map((action: SmartAction, i: number) => (
                               <button
                                 key={i}
                                 onClick={() => handleSmartAction(doc, action)}

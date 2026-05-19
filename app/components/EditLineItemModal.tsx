@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useEffect } from "react";
+import { useRef, useEffect, useMemo } from "react";
 import { useEditLineItemForm } from "@/app/hooks/useEditLineItemForm";
 import type { LineItem } from "@/lib/line-items";
 import type { Vendor } from "@/lib/vendors";
@@ -26,6 +26,19 @@ export default function EditLineItemModal({
   const backdropRef = useRef<HTMLDivElement>(null);
   const { form, initializeForm, updateForm, submit, hasChanges, isLoading, error } =
     useEditLineItemForm(lineItem?.id || "", onSave);
+
+  const currentFY = useMemo(() => {
+    const d = new Date();
+    return d.getMonth() >= 6 ? d.getFullYear() + 1 : d.getFullYear();
+  }, []);
+
+  const fyOptions = useMemo(() => {
+    const options = [];
+    for (let i = currentFY - 2; i <= currentFY + 2; i++) {
+      options.push(i);
+    }
+    return options;
+  }, [currentFY]);
 
   useEffect(() => {
     if (isOpen && lineItem) {
@@ -101,6 +114,23 @@ export default function EditLineItemModal({
               {categories.map((cat) => (
                 <option key={cat} value={cat}>
                   {cat}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+              Fiscal Year *
+            </label>
+            <select
+              value={form.fy || 2026}
+              onChange={(e) => updateForm({ fy: Number(e.target.value) })}
+              className={INPUT}
+            >
+              {fyOptions.map((fy) => (
+                <option key={fy} value={fy}>
+                  FY{fy}
                 </option>
               ))}
             </select>

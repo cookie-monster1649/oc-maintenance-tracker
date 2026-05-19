@@ -33,6 +33,7 @@ export async function PUT(req: Request, { params }: Params) {
     category: body.category ?? lineItems[idx].category,
     vendor_id: body.vendor_id ?? lineItems[idx].vendor_id,
     fy_budget: body.fy_budget ? Number(body.fy_budget) : lineItems[idx].fy_budget,
+    fy: body.fy ? Number(body.fy) : lineItems[idx].fy,
     archived: body.archived ?? lineItems[idx].archived,
   };
 

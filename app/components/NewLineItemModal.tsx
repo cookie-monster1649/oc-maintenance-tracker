@@ -1,8 +1,7 @@
 "use client";
 
-import { useRef } from "react";
+import { useRef, useMemo } from "react";
 import { useLineItemForm } from "@/app/hooks/useLineItemForm";
-import { getColorClasses } from "@/lib/colors";
 import type { Vendor } from "@/lib/vendors";
 
 const INPUT =
@@ -11,20 +10,31 @@ const INPUT =
 export default function NewLineItemModal({
   isOpen,
   categories,
-  categoryColors,
   vendors,
   onSave,
   onClose,
 }: {
   isOpen: boolean;
   categories: string[];
-  categoryColors: Record<string, string>;
   vendors: Vendor[];
   onSave: () => void;
   onClose: () => void;
 }) {
   const backdropRef = useRef<HTMLDivElement>(null);
   const { form, updateForm, submit, isLoading, error } = useLineItemForm(onSave);
+
+  const currentFY = useMemo(() => {
+    const d = new Date();
+    return d.getMonth() >= 6 ? d.getFullYear() + 1 : d.getFullYear();
+  }, []);
+
+  const fyOptions = useMemo(() => {
+    const options = [];
+    for (let i = currentFY - 2; i <= currentFY + 2; i++) {
+      options.push(i);
+    }
+    return options;
+  }, [currentFY]);
 
   if (!isOpen) return null;
 
@@ -91,6 +101,23 @@ export default function NewLineItemModal({
               {categories.map((cat) => (
                 <option key={cat} value={cat}>
                   {cat}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+              Fiscal Year *
+            </label>
+            <select
+              value={form.fy}
+              onChange={(e) => updateForm({ fy: Number(e.target.value) })}
+              className={INPUT}
+            >
+              {fyOptions.map((fy) => (
+                <option key={fy} value={fy}>
+                  FY{fy}
                 </option>
               ))}
             </select>

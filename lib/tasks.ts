@@ -59,8 +59,6 @@ export function readTasks(): Task[] {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const raw_tasks: any[] = JSON.parse(raw);
 
-  let needsWrite = false;
-
   // Migrate to line_item_id model (from series_id model)
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const rawTasks = raw_tasks as any[];
@@ -160,7 +158,6 @@ export function readTasks(): Task[] {
     finalTasks = migratedTasks;
     fs.writeFileSync(DATA_PATH, JSON.stringify(migratedTasks, null, 2));
     fs.writeFileSync(LINE_ITEMS_PATH, JSON.stringify(lineItems, null, 2));
-    needsWrite = false;
   }
 
   const tasks: Task[] = finalTasks;
