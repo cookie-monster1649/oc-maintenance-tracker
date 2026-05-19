@@ -24,25 +24,30 @@ export interface DocumentRef {
   linked_at: string;
 }
 
-export type TaskType = "budget_item" | "once_off" | "recurring";
-
 export interface Task {
   id: string;
-  series_id: string;
-  title: string;
-  description: string;
-  task_type: TaskType;
+  line_item_id: string;
+  title: string | null;
+  description: string | null;
   frequency: Frequency | null;
-  variable_cost: boolean;
   status: Status;
   start_date: string;
   last_completed_date: string | null;
   estimated_cost: number | null;
   actual_cost: number | null;
-  vendor_id: string | null;
-  category: string;
   archived?: boolean;
-  documents?: DocumentRef[];
+  vendor_id?: string | null;
+  documents: DocumentRef[];
+}
+
+export interface LineItem {
+  id: string;
+  title: string;
+  description: string;
+  category: string;
+  vendor_id: string | null;
+  fy_budget: number | null;
+  archived: boolean;
 }
 
 export interface Vendor {
@@ -62,23 +67,43 @@ const STATUS_STYLES: Record<Status, string> = {
 
 export function TaskCard({
   task,
+  lineItem,
   vendors,
   onCompleteAction,
   completing,
   categoryColors,
   onUnlinkDocumentAction,
   onDeleteOccurrenceAction,
+  showCategory = true,
+  showVendor = true,
 }: {
   task: Task;
+  lineItem?: LineItem;
   vendors: Vendor[];
   onCompleteAction?: (id: string) => void;
   completing?: string | null;
   categoryColors?: Record<string, string>;
   onUnlinkDocumentAction?: (taskId: string, docId: number) => void;
   onDeleteOccurrenceAction?: (id: string) => void;
+  showCategory?: boolean;
+  showVendor?: boolean;
 }) {
   const { godMode } = useGodMode();
-  const vendor = vendors.find((v) => v.id === task.vendor_id);
+
+  // Fallback for pages not yet updated to pass lineItem
+  const defaultLineItem: LineItem = {
+    id: task.line_item_id,
+    title: task.title ?? "Task",
+    description: task.description ?? "",
+    category: "Uncategorized",
+    vendor_id: null,
+    fy_budget: null,
+    archived: task.archived ?? false,
+  };
+  const resolvedLineItem = lineItem ?? defaultLineItem;
+
+  const effectiveVendorId = task.vendor_id ?? resolvedLineItem.vendor_id;
+  const vendor = vendors.find((v) => v.id === effectiveVendorId);
   const isCompleted = task.status === "Completed";
 
   const getCategoryColor = (category: string): { bg: string; text: string } => {
@@ -108,18 +133,18 @@ export function TaskCard({
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-1 flex-wrap">
             <a
-              href={`/tasks/${task.id}`}
+              href={`/line-items/${task.line_item_id}`}
               className={`font-medium hover:underline ${isCompleted ? "line-through text-gray-400 dark:text-gray-500" : "text-gray-900 dark:text-gray-100"}`}
             >
-              {task.title}
+              {task.title ?? resolvedLineItem.title}
             </a>
-            {(() => {
-              const colors = getCategoryColor(task.category);
+            {showCategory && (() => {
+              const colors = getCategoryColor(resolvedLineItem.category);
               return (
                 <span
                   className={`text-xs px-2 py-0.5 rounded-full ${colors.bg} ${colors.text} font-medium`}
                 >
-                  {task.category}
+                  {resolvedLineItem.category}
                 </span>
               );
             })()}
@@ -130,15 +155,17 @@ export function TaskCard({
                 {task.status}
               </span>
             )}
-            {vendor && (
-              <span className="text-xs px-2 py-0.5 rounded-full bg-purple-100 dark:bg-purple-950 text-purple-700 dark:text-purple-400">
-                {vendor.name}
-              </span>
-            )}
           </div>
-          <p className="text-sm text-gray-500 dark:text-gray-400 mb-2">
-            {task.description}
-          </p>
+          {showVendor && vendor && (
+            <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">
+              {vendor.name}
+            </div>
+          )}
+          {(task.description ?? resolvedLineItem.description) && (
+            <p className="text-sm text-gray-500 dark:text-gray-400 mb-2">
+              {task.description ?? resolvedLineItem.description}
+            </p>
+          )}
           <div className="flex gap-4 text-xs text-gray-400 dark:text-gray-500 flex-wrap">
             {task.frequency && <span>{task.frequency}</span>}
             {task.estimated_cost != null && <span>${task.estimated_cost}</span>}

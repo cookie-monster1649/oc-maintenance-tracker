@@ -6,6 +6,7 @@ import {
   getDocumentUrl,
 } from "@/lib/paperless";
 import { readTasks } from "@/lib/tasks";
+import { readLineItems } from "@/lib/line-items";
 import { readVendors } from "@/lib/vendors";
 import { readDismissed } from "@/lib/dismissed";
 import { getSmartActions } from "@/lib/recommendations";
@@ -14,12 +15,13 @@ export const dynamic = "force-dynamic";
 
 export async function GET() {
   try {
-    const [documents, tags, docTypes, tasks, vendors, dismissed] =
+    const [documents, tags, docTypes, tasks, lineItems, vendors, dismissed] =
       await Promise.all([
         listAllDocuments(),
         listTags(),
         listDocumentTypes(),
         readTasks(),
+        readLineItems(),
         readVendors(),
         readDismissed(),
       ]);
@@ -47,7 +49,7 @@ export async function GET() {
       url: getDocumentUrl(doc.id),
       is_matched: matchedDocIds.has(doc.id),
       is_dismissed: dismissedIds.has(doc.id),
-      smart_actions: getSmartActions(doc, tasks, vendors),
+      smart_actions: getSmartActions(doc, tasks, vendors, lineItems),
     }));
 
     return NextResponse.json(augmentedDocs);

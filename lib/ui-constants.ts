@@ -40,8 +40,15 @@ export const SETTINGS_BUTTON =
 export const MODAL_BACKDROP =
   "animate-backdrop fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4";
 
+// Modal content with size variants
+export const MODAL_CONTENT_SM =
+  "animate-modal bg-white dark:bg-gray-900 rounded-lg shadow-xl max-w-md w-full max-h-[90vh] overflow-y-auto flex flex-col p-8";
+
 export const MODAL_CONTENT =
   "animate-modal bg-white dark:bg-gray-900 rounded-lg shadow-xl max-w-lg w-full max-h-[90vh] overflow-y-auto flex flex-col p-8";
+
+export const MODAL_CONTENT_LG =
+  "animate-modal bg-white dark:bg-gray-900 rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto flex flex-col p-6";
 
 export const MODAL_TITLE =
   "text-2xl font-bold mb-8 text-gray-900 dark:text-gray-100 shrink-0";

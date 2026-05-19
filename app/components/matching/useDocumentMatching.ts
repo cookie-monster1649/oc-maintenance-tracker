@@ -9,22 +9,25 @@ export interface Document {
   correspondent?: number | null;
 }
 
+// Temporary: keep old interface during Phase 3 migration
+// Will be unified with lib/tasks.Task once two-step LineItem+Task creation is implemented
 export interface Task {
   id: string;
-  series_id: string;
-  title: string;
-  description: string;
-  task_type?: "budget_item" | "once_off" | "recurring";
+  line_item_id: string;
+  title: string | null;
+  description: string | null;
   frequency: string | null;
-  variable_cost?: boolean;
-  category: string;
   start_date: string;
   status: string;
-  vendor_id: string | null;
   estimated_cost: number | null;
   actual_cost?: number | null;
   archived?: boolean;
   last_completed_date: string | null;
+  // Legacy fields for backward compatibility during migration
+  series_id?: string;
+  task_type?: "budget_item" | "once_off" | "recurring";
+  category?: string;
+  vendor_id?: string | null;
 }
 
 export interface NewTaskForm {
@@ -100,7 +103,7 @@ export function useDocumentMatching(config: UseDocumentMatchingConfig) {
       let taskId = selectedTaskId;
 
       if (createAsOccurrence && occurrenceDate) {
-        const templateTask = config.tasks.find((t) => t.series_id === selectedSeriesId);
+        const templateTask = config.tasks.find((t) => t.line_item_id === selectedSeriesId);
         if (!templateTask) return;
 
         const newTaskRes = await fetch("/api/tasks", {
@@ -110,13 +113,11 @@ export function useDocumentMatching(config: UseDocumentMatchingConfig) {
             title: templateTask.title,
             description: templateTask.description,
             frequency: templateTask.frequency,
-            category: templateTask.category,
+            line_item_id: templateTask.line_item_id,
             start_date: occurrenceDate,
             status: "Completed",
             last_completed_date: occurrenceDate,
             estimated_cost: templateTask.estimated_cost,
-            vendor_id: templateTask.vendor_id,
-            series_id: templateTask.series_id,
             no_extrapolate: true,
           }),
         });
@@ -240,7 +241,7 @@ export function useDocumentMatching(config: UseDocumentMatchingConfig) {
         });
       } else if (createAsOccurrence && occurrenceDate) {
         // No specific task selected — create a new completed occurrence
-        const templateTask = config.tasks.find((t) => t.series_id === selectedSeriesId);
+        const templateTask = config.tasks.find((t) => t.line_item_id === selectedSeriesId);
         if (!templateTask) return;
 
         const newTaskRes = await fetch("/api/tasks", {
@@ -250,13 +251,11 @@ export function useDocumentMatching(config: UseDocumentMatchingConfig) {
             title: templateTask.title,
             description: templateTask.description,
             frequency: templateTask.frequency,
-            category: templateTask.category,
+            line_item_id: templateTask.line_item_id,
             start_date: occurrenceDate,
             status: "Completed",
             last_completed_date: occurrenceDate,
             estimated_cost: templateTask.estimated_cost,
-            vendor_id: templateTask.vendor_id,
-            series_id: templateTask.series_id,
             no_extrapolate: true,
           }),
         });
@@ -292,21 +291,34 @@ export function useDocumentMatching(config: UseDocumentMatchingConfig) {
   async function handleCreateAndMatch(complete?: boolean) {
     if (!matchingDoc || !newTaskForm.title || !newTaskForm.category || !newTaskForm.start_date) return;
     try {
+      // Create the line item first, then create a task under it
+      const lineItemRes = await fetch("/api/line-items", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: newTaskForm.title,
+          description: newTaskForm.description || "",
+          category: newTaskForm.category,
+          vendor_id: newTaskForm.vendor_id || config.defaultVendorId || null,
+        }),
+      });
+
+      if (!lineItemRes.ok) throw new Error("Failed to create line item");
+      const newLineItem = await lineItemRes.json();
+
       const taskBody: Record<string, unknown> = {
+        line_item_id: newLineItem.id,
         title: newTaskForm.title,
         description: newTaskForm.description || "",
-        category: newTaskForm.category,
         start_date: newTaskForm.start_date,
-        frequency: newTaskForm.frequency || "Monthly",
+        frequency: newTaskForm.frequency || null,
+        no_extrapolate: true,
         ...(complete && {
           status: "Completed",
           last_completed_date: newTaskForm.start_date,
         }),
       };
 
-      if (newTaskForm.vendor_id || config.defaultVendorId) {
-        taskBody.vendor_id = newTaskForm.vendor_id || config.defaultVendorId;
-      }
       if (newTaskForm.estimated_cost) {
         taskBody.estimated_cost = Number(newTaskForm.estimated_cost);
       }

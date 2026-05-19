@@ -6,7 +6,6 @@ interface NewTaskFormState {
   description: string;
   task_type: "budget_item" | "once_off" | "recurring";
   frequency: string;
-  variable_cost: boolean;
   start_date: string;
   budget_fy: number;
   estimated_cost: string;
@@ -26,7 +25,6 @@ const getInitialState = (): NewTaskFormState => ({
   description: "",
   task_type: "recurring",
   frequency: "Monthly",
-  variable_cost: false,
   start_date: "",
   budget_fy: getDefaultFY(),
   estimated_cost: "",

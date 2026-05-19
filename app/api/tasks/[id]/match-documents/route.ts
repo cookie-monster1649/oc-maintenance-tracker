@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { readTasks, writeTasks, extrapolateFutureTasks, pushFutureTasks } from "@/lib/tasks";
+import { readLineItems } from "@/lib/line-items";
 import { readVendors } from "@/lib/vendors";
 import {
   listAllDocuments,
@@ -24,8 +25,15 @@ export async function POST(
       return NextResponse.json({ error: "Task not found" }, { status: 404 });
     }
 
+    const lineItems = readLineItems();
+    const lineItem = lineItems.find((li) => li.id === task.line_item_id);
+
+    if (!lineItem || !lineItem.vendor_id) {
+      return NextResponse.json({ linked: [], suggestions: [] });
+    }
+
     const vendors = readVendors();
-    const vendor = vendors.find((v) => v.id === task.vendor_id);
+    const vendor = vendors.find((v) => v.id === lineItem.vendor_id);
 
     if (!vendor) {
       return NextResponse.json({ linked: [], suggestions: [] });

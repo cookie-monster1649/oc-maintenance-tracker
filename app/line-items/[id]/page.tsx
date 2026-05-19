@@ -2,60 +2,28 @@
 
 import { useEffect, useRef, useState, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { TaskCard, Task } from "../../components/TaskCard";
+import { TaskCard, Task } from "@/app/components/TaskCard";
 import type { LineItem } from "@/lib/line-items";
 import { getCached, setCached } from "@/lib/cache";
 import { badgeColour } from "@/lib/badge-colour";
+import { getColorClasses } from "@/lib/colors";
 import { format, parseISO } from "date-fns";
-import { type PaperlessCorrespondent } from "@/lib/paperless";
 import { useGodMode } from "@/app/contexts/god-mode";
 import { MODAL_BACKDROP, MODAL_CONTENT_LG } from "@/lib/ui-constants";
+import DetailPageLayout from "@/app/components/DetailPageLayout";
+import NewLineItemModal from "@/app/components/NewLineItemModal";
+import EditLineItemModal from "@/app/components/EditLineItemModal";
+import NewTaskModal from "@/app/components/NewTaskModal";
 import { useDocumentMatching } from "@/app/components/matching/useDocumentMatching";
 import { MatchDocumentModal } from "@/app/components/matching/MatchDocumentModal";
 import { MatchDocumentErrorBoundary } from "@/app/components/matching/MatchDocumentErrorBoundary";
-import DetailPageLayout from "@/app/components/DetailPageLayout";
-import { getEffectiveVendorId, deduplicateTasks, getTaskPatterns } from "@/lib/detail-page-filters";
+import type { Vendor } from "@/lib/vendors";
+import { getTaskPatterns } from "@/lib/detail-page-filters";
 
 interface CategoryColor {
   name: string;
   color: string;
 }
-
-interface Vendor {
-  id: string;
-  name: string;
-  service_type: string;
-  email: string | null;
-  phone: string | null;
-  address: string | null;
-  hourly_rate: number | null;
-  notes: string | null;
-  archived?: boolean;
-  paperless_correspondent_id?: number | null;
-}
-
-interface SmartAction {
-  type: "MATCH_COMPLETED" | "COMPLETE_SCHEDULED";
-  taskId: string;
-  taskTitle: string;
-  dateLabel: string;
-  confidence: number;
-}
-
-interface Document {
-  id: number;
-  title: string;
-  tag_names: string[];
-  document_type_label: string | null;
-  created?: string;
-  url: string;
-  is_matched: boolean;
-  correspondent: number | null;
-  smart_actions: SmartAction[];
-}
-
-const INPUT =
-  "w-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 rounded-md px-3 py-2 text-sm text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-gray-400 dark:focus:ring-gray-600";
 
 function fmt(n: number): string {
   return n.toLocaleString("en-AU", { style: "currency", currency: "AUD" });
@@ -83,26 +51,22 @@ function groupByYear(
   return groups;
 }
 
-export default function VendorDetailPage() {
+export default function LineItemDetailPage() {
   const { godMode } = useGodMode();
   const params = useParams();
   const router = useRouter();
-  const vendorId = params.id as string;
+  const lineItemId = params.id as string;
 
-  const [vendors, setVendors] = useState<Vendor[]>(
-    () => getCached<Vendor[]>("/api/vendors") ?? [],
-  );
+  const [lineItem, setLineItem] = useState<LineItem | null>(null);
   const [tasks, setTasks] = useState<Task[]>(
     () => getCached<Task[]>("/api/tasks") ?? [],
   );
-  const [lineItems, setLineItems] = useState<LineItem[]>(
-    () => getCached<LineItem[]>("/api/line-items") ?? [],
+  const [vendors, setVendors] = useState<Vendor[]>(
+    () => getCached<Vendor[]>("/api/vendors") ?? [],
   );
-  const [vendorDocs, setVendorDocs] = useState<Document[]>([]);
-  const [correspondents, setCorrespondents] = useState<
-    PaperlessCorrespondent[]
-  >([]);
-  const [loadingDocs, setLoadingDocs] = useState(false);
+  const [categories, setCategories] = useState<string[]>(() =>
+    (getCached<CategoryColor[]>("/api/categories") ?? []).map((c) => c.name),
+  );
   const [categoryColors, setCategoryColors] = useState<Record<string, string>>(
     () =>
       (getCached<CategoryColor[]>("/api/categories") ?? []).reduce(
@@ -113,48 +77,57 @@ export default function VendorDetailPage() {
         {},
       ),
   );
-  const [categories, setCategories] = useState<string[]>([]);
+
   const [editOpen, setEditOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [completing, setCompleting] = useState<string | null>(null);
-  const [form, setForm] = useState<Partial<Vendor>>({});
-  const [originalForm, setOriginalForm] = useState<Partial<Vendor>>({});
+  const [addTaskOpen, setAddTaskOpen] = useState(false);
+  const [editingPattern, setEditingPattern] = useState<{
+    title: string;
+    frequency: string | null;
+    estimated_cost: number | null;
+    vendor_id: string | null;
+    applyToAll: boolean;
+    _originalTitle: string;
+    _originalFrequency: string | null;
+  } | null>(null);
+  const [vendorDocs, setVendorDocs] = useState<any[]>([]);
+  const [loadingDocs, setLoadingDocs] = useState(false);
+  const [matchingDoc, setMatchingDoc] = useState<any | null>(null);
+  const [selectedDocTab, setSelectedDocTab] = useState<string>("");
 
   const menuRef = useRef<HTMLDivElement>(null);
-  const backdropRef = useRef<HTMLDivElement>(null);
-
-  async function fetchTasks() {
-    const res = await fetch("/api/tasks");
-    const data = await res.json();
-    setCached("/api/tasks", data);
-    setTasks(data);
-  }
+  const editPatternBackdropRef = useRef<HTMLDivElement>(null);
 
   const fetchAll = useCallback(async () => {
-    const [vendorsRes, tasksRes, lineItemsRes, categoriesRes, corrRes] = await Promise.all([
-      fetch("/api/vendors"),
+    const [lineItemRes, tasksRes, vendorsRes, categoriesRes] = await Promise.all([
+      fetch(`/api/line-items/${lineItemId}`),
       fetch("/api/tasks"),
-      fetch("/api/line-items"),
+      fetch("/api/vendors"),
       fetch("/api/categories"),
-      fetch("/api/paperless/correspondents").catch(() => null),
     ]);
-    const [vendorsData, tasksData, lineItemsData, categoriesData, corrData] =
+
+    if (!lineItemRes.ok) {
+      router.push("/tasks");
+      return;
+    }
+
+    const [lineItemData, tasksData, vendorsData, categoriesData] =
       (await Promise.all([
-        vendorsRes.json(),
+        lineItemRes.json(),
         tasksRes.json(),
-        lineItemsRes.json(),
+        vendorsRes.json(),
         categoriesRes.json(),
-        corrRes ? corrRes.json() : Promise.resolve([]),
-      ])) as [Vendor[], Task[], LineItem[], CategoryColor[], PaperlessCorrespondent[]];
-    setCached("/api/vendors", vendorsData);
+      ])) as [LineItem, Task[], Vendor[], CategoryColor[]];
+
     setCached("/api/tasks", tasksData);
-    setCached("/api/line-items", lineItemsData);
+    setCached("/api/vendors", vendorsData);
     setCached("/api/categories", categoriesData);
-    setVendors(vendorsData);
+
+    setLineItem(lineItemData);
     setTasks(tasksData);
-    setLineItems(lineItemsData);
-    setCorrespondents(Array.isArray(corrData) ? corrData : []);
-    setCategories(categoriesData.map((c: CategoryColor) => c.name));
+    setVendors(vendorsData);
+    setCategories(categoriesData.map((c) => c.name));
     setCategoryColors(
       categoriesData.reduce((acc: Record<string, string>, c: CategoryColor) => {
         acc[c.name] = c.color;
@@ -162,27 +135,27 @@ export default function VendorDetailPage() {
       }, {}),
     );
 
-    const vendor = vendorsData.find((v) => v.id === vendorId);
-    if (vendor) {
-      setLoadingDocs(true);
+    // Fetch vendor documents if line item has a vendor
+    if (lineItemData.vendor_id) {
       try {
-        const docsRes = await fetch(`/api/vendors/${vendorId}/documents`);
+        setLoadingDocs(true);
+        const docsRes = await fetch(`/api/vendors/${lineItemData.vendor_id}/documents`);
         if (docsRes.ok) {
-          const docsData = await docsRes.json();
-          setVendorDocs(docsData);
+          const docs = await docsRes.json();
+          setVendorDocs(docs);
         }
       } catch (err) {
         console.error("Failed to fetch vendor documents", err);
       } finally {
         setLoadingDocs(false);
       }
+    } else {
+      setVendorDocs([]);
     }
-  }, [vendorId]);
+  }, [lineItemId, router]);
 
   useEffect(() => {
-    (async () => {
-      await fetchAll();
-    })();
+    fetchAll();
   }, [fetchAll]);
 
   useEffect(() => {
@@ -195,10 +168,33 @@ export default function VendorDetailPage() {
     return () => document.removeEventListener("pointerdown", onPointerDown);
   }, []);
 
-  // Document matching hook
+  async function completeTask(id: string) {
+    setCompleting(id);
+    await fetch(`/api/tasks/${id}/complete`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ actual_cost: null }),
+    });
+    await fetchAll();
+    setCompleting(null);
+  }
+
+  async function handleUnlinkDocument(tId: string, docId: number) {
+    if (!confirm("Remove this document link?")) return;
+
+    try {
+      const res = await fetch(`/api/tasks/${tId}/documents/${docId}`, {
+        method: "DELETE",
+      });
+      if (res.ok) {
+        fetchAll();
+      }
+    } catch (err) {
+      console.error("Unlink failed", err);
+    }
+  }
+
   const {
-    matchingDoc,
-    setMatchingDoc,
     selectedSeriesId,
     setSelectedSeriesId,
     setSelectedSeriesTitle,
@@ -218,44 +214,11 @@ export default function VendorDetailPage() {
     handleCreateAndMatch,
   } = useDocumentMatching({
     tasks,
-    defaultVendorId: vendorId,
+    defaultVendorId: lineItem?.vendor_id ?? undefined,
     onSuccess: fetchAll,
   });
 
-  async function completeTask(id: string) {
-    setCompleting(id);
-    await fetch(`/api/tasks/${id}/complete`, { method: "POST" });
-    await fetchTasks();
-    setCompleting(null);
-  }
-
-  async function handleUnlinkDocument(tId: string, docId: number) {
-    if (!confirm("Remove this document link?")) return;
-
-    try {
-      const res = await fetch(`/api/tasks/${tId}/documents/${docId}`, {
-        method: "DELETE",
-      });
-      if (res.ok) {
-        fetchAll();
-      }
-    } catch (err) {
-      console.error("Unlink failed", err);
-    }
-  }
-
-  const vendor = vendors.find((v) => v.id === vendorId);
-  if (!vendor) {
-    return (
-      <main className="animate-page content-container py-10">
-        <p className="text-gray-400">
-          {vendors.length === 0 ? "Loading…" : "Vendor not found"}
-        </p>
-      </main>
-    );
-  }
-
-  const handleSmartAction = (doc: Document, action: SmartAction) => {
+  const handleSmartAction = (doc: any, action: any) => {
     hookHandleSmartAction(doc, {
       type: action.type,
       taskId: action.taskId,
@@ -263,95 +226,106 @@ export default function VendorDetailPage() {
     });
   };
 
-  // Filter tasks by effective vendor
-  const lineItemVendorMap = new Map(lineItems.map((li) => [li.id, li.vendor_id]));
-  const assignedTasks = tasks.filter((t) => {
-    const effectiveVendorId = getEffectiveVendorId(t, lineItemVendorMap);
-    return effectiveVendorId === vendorId;
-  });
+  async function handleDelete() {
+    if (!confirm(`Delete "${lineItem?.title}"? This cannot be undone.`)) return;
+    await fetch(`/api/line-items/${lineItemId}`, { method: "DELETE" });
+    router.push("/tasks");
+  }
 
-  const completed = assignedTasks
-    .filter((t) => t.status === "Completed")
-    .sort((a, b) =>
-      (b.start_date || "").localeCompare(a.start_date || ""),
-    );
-  const upcoming = deduplicateTasks(
-    assignedTasks
-      .filter((t) => t.status !== "Completed")
-      .sort((a, b) => (a.start_date || "").localeCompare(b.start_date || "")),
-  );
-
-  const totalCost = assignedTasks.reduce(
-    (s, t) => s + (t.estimated_cost ?? 0),
-    0,
-  );
-  const tasksWithCost = assignedTasks.filter((t) => t.estimated_cost != null);
-  const avgCost =
-    tasksWithCost.length > 0
-      ? tasksWithCost.reduce((s, t) => s + (t.estimated_cost ?? 0), 0) /
-        tasksWithCost.length
-      : null;
-
-  const openEdit = () => {
-    const initial = {
-      name: vendor.name,
-      service_type: vendor.service_type,
-      email: vendor.email ?? "",
-      phone: vendor.phone ?? "",
-      address: vendor.address ?? "",
-      notes: vendor.notes ?? "",
-      paperless_correspondent_id: vendor.paperless_correspondent_id ?? null,
-    };
-    setForm(initial);
-    setOriginalForm(initial);
-    setEditOpen(true);
-    setMenuOpen(false);
-  };
-
-  const closeEdit = () => {
-    if (
-      JSON.stringify(form) !== JSON.stringify(originalForm) &&
-      !confirm("Discard unsaved changes?")
-    )
-      return;
-    setEditOpen(false);
-  };
-
-  const saveEdit = async () => {
-    await fetch(`/api/vendors/${vendorId}`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(form),
-    });
-    setEditOpen(false);
-    const res = await fetch("/api/vendors");
-    const data = await res.json();
-    setCached("/api/vendors", data);
-    setVendors(data);
-  };
-
-  const handleDelete = async () => {
-    if (!confirm(`Delete "${vendor.name}"? This cannot be undone.`)) return;
-    await fetch(`/api/vendors/${vendorId}`, { method: "DELETE" });
-    router.push("/vendors");
-  };
-
-  const handleArchive = async () => {
-    if (
-      !confirm(
-        `Archive "${vendor.name}"? It will be hidden from the main list but remain in the system.`,
-      )
-    )
-      return;
-    await fetch(`/api/vendors/${vendorId}`, {
+  async function handleArchive() {
+    if (!confirm(`Archive "${lineItem?.title}"? It will be hidden but remain in the system.`)) return;
+    await fetch(`/api/line-items/${lineItemId}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ archived: true }),
     });
-    router.push("/vendors");
-  };
+    router.push("/tasks");
+  }
 
-  // Header left content (Budget/Actuals - FY26 summary)
+  async function handleSavePattern() {
+    if (!editingPattern || !editingPattern._originalFrequency) return;
+
+    const oldFrequency = editingPattern._originalFrequency;
+    const oldTitle = editingPattern._originalTitle;
+    const frequencyChanged = editingPattern.frequency !== oldFrequency;
+
+    const matchingTasks = lineItemTasks.filter(
+      (t) => t.title === oldTitle && t.frequency === oldFrequency && t.status !== "Completed",
+    );
+
+    if (frequencyChanged && matchingTasks.length > 0) {
+      const anchor = matchingTasks
+        .map((t) => t.start_date)
+        .sort()[0];
+
+      await Promise.all(
+        matchingTasks.map((t) =>
+          fetch(`/api/tasks/${t.id}`, { method: "DELETE" }),
+        ),
+      );
+
+      await fetch("/api/tasks", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          line_item_id: lineItemId,
+          title: editingPattern.title || null,
+          frequency: editingPattern.frequency,
+          start_date: anchor,
+          estimated_cost: editingPattern.estimated_cost,
+          vendor_id: editingPattern.vendor_id,
+        }),
+      });
+    } else if (matchingTasks.length > 0) {
+      for (const task of matchingTasks) {
+        const updateBody: Record<string, unknown> = { vendor_id: editingPattern.vendor_id };
+        if (editingPattern.applyToAll) {
+          updateBody.title = editingPattern.title;
+          updateBody.frequency = editingPattern.frequency;
+          updateBody.estimated_cost = editingPattern.estimated_cost;
+        }
+        await fetch(`/api/tasks/${task.id}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(updateBody),
+        });
+      }
+    }
+
+    setEditingPattern(null);
+    await fetchAll();
+  }
+
+  if (!lineItem) {
+    return (
+      <main className="animate-page content-container py-10">
+        <p className="text-gray-400">Loading...</p>
+      </main>
+    );
+  }
+
+  const lineItemTasks = tasks.filter((t) => t.line_item_id === lineItemId);
+  const completed = lineItemTasks
+    .filter((t) => t.status === "Completed")
+    .sort((a, b) => (b.start_date || "").localeCompare(a.start_date || ""));
+  const upcoming = lineItemTasks
+    .filter((t) => t.status !== "Completed")
+    .sort((a, b) => (a.start_date || "").localeCompare(b.start_date || ""));
+
+  const actualTotal = completed.reduce(
+    (s, t) => s + (t.actual_cost ?? t.estimated_cost ?? 0),
+    0,
+  );
+
+  const derivedBudgetTotal = lineItem.fy_budget !== null
+    ? lineItem.fy_budget
+    : lineItemTasks.reduce((s, t) => s + (t.estimated_cost ?? 0), 0);
+
+  const vendor = vendors.find((v) => v.id === lineItem.vendor_id);
+  const upcomingGroups = groupByYear(upcoming);
+  const completedGroups = groupByYear(completed);
+
+  // Header left content (Budget/Actuals)
   const headerLeftContent = (
     <div>
       <div className="flex gap-12">
@@ -363,68 +337,64 @@ export default function VendorDetailPage() {
             <div>
               <div className="text-gray-500 dark:text-gray-400">Budget</div>
               <div className="font-bold text-gray-900 dark:text-gray-100">
-                {fmt(totalCost)}
+                {fmt(derivedBudgetTotal)}
               </div>
             </div>
             <div>
               <div className="text-gray-500 dark:text-gray-400">Actuals</div>
               <div className="font-bold text-gray-900 dark:text-gray-100">
-                {fmt(completed.reduce((s, t) => s + (t.actual_cost ?? t.estimated_cost ?? 0), 0))}
+                {fmt(actualTotal)}
               </div>
             </div>
           </div>
+          {lineItem.fy_budget === null && (
+            <div className="text-xs text-gray-400 dark:text-gray-500 mt-2">Derived from tasks</div>
+          )}
         </div>
       </div>
     </div>
   );
 
-  // Header right content (Contact details)
+  // Header right content (Category/Vendors)
+  const usedVendorIds = new Set<string>();
+  for (const task of lineItemTasks) {
+    const effectiveVendorId = task.vendor_id ?? lineItem.vendor_id;
+    if (effectiveVendorId) usedVendorIds.add(effectiveVendorId);
+  }
+  const usedVendors = Array.from(usedVendorIds)
+    .map((id) => vendors.find((v) => v.id === id))
+    .filter(Boolean) as Vendor[];
+
   const headerRightContent = (
-    <div className="space-y-3 text-sm">
-      {vendor.phone && (
-        <div className="flex justify-between gap-4">
-          <span className="text-gray-500 dark:text-gray-400">
-            Phone
-          </span>
-          <a
-            href={`tel:${vendor.phone}`}
-            className="text-blue-600 dark:text-blue-400 hover:underline font-medium"
-          >
-            {vendor.phone}
-          </a>
-        </div>
-      )}
-      {vendor.email && (
-        <div className="flex justify-between gap-4">
-          <span className="text-gray-500 dark:text-gray-400">
-            Email
-          </span>
-          <a
-            href={`mailto:${vendor.email}`}
-            className="text-blue-600 dark:text-blue-400 hover:underline font-medium text-right"
-          >
-            {vendor.email}
-          </a>
-        </div>
-      )}
-      {vendor.address && (
-        <div className="flex justify-between gap-4">
-          <span className="text-gray-500 dark:text-gray-400">
-            Location
-          </span>
-          <span className="font-medium text-gray-900 dark:text-gray-100 text-right">
-            {vendor.address}
-          </span>
-        </div>
-      )}
-      {vendor.notes && (
-        <div className="flex justify-between gap-4 pt-3 border-t border-gray-100 dark:border-gray-800">
-          <span className="text-gray-500 dark:text-gray-400">
-            Notes
-          </span>
-          <span className="text-gray-600 dark:text-gray-400 text-right">
-            {vendor.notes}
-          </span>
+    <div className="space-y-4 text-sm">
+      <div>
+        <div className="text-gray-500 dark:text-gray-400 mb-1">Category</div>
+        {(() => {
+          const colors = getColorClasses(categoryColors[lineItem.category] || "blue");
+          return (
+            <span className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${colors.bg} ${colors.text}`}>
+              {lineItem.category}
+            </span>
+          );
+        })()}
+      </div>
+      {usedVendors.length > 0 && (
+        <div>
+          <div className="text-gray-500 dark:text-gray-400 mb-2">
+            {usedVendors.length === 1 ? "Vendor" : "Vendors"}
+          </div>
+          <ul className="space-y-1">
+            {usedVendors.map((v) => (
+              <li key={v.id}>
+                <a
+                  href={`/vendors/${v.id}`}
+                  className="text-blue-600 dark:text-blue-400 hover:underline font-medium"
+                >
+                  {v.name}
+                </a>
+              </li>
+            ))}
+          </ul>
         </div>
       )}
     </div>
@@ -442,19 +412,20 @@ export default function VendorDetailPage() {
       {menuOpen && (
         <div className="absolute right-0 mt-1 w-40 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-lg shadow-lg z-10">
           <button
-            onClick={openEdit}
+            onClick={() => {
+              setEditOpen(true);
+              setMenuOpen(false);
+            }}
             className="block w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 border-b border-gray-100 dark:border-gray-800"
           >
             Edit
           </button>
-          {completed.length > 0 && (
-            <button
-              onClick={handleArchive}
-              className="block w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 border-b border-gray-100 dark:border-gray-800"
-            >
-              Archive
-            </button>
-          )}
+          <button
+            onClick={handleArchive}
+            className="block w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 border-b border-gray-100 dark:border-gray-800"
+          >
+            Archive
+          </button>
           <button
             onClick={handleDelete}
             className="block w-full text-left px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950"
@@ -467,32 +438,18 @@ export default function VendorDetailPage() {
   ) : null;
 
   // Task patterns section
-  const taskPatternsSection = assignedTasks.length > 0 ? (
+  const taskPatternsSection = lineItemTasks.length > 0 ? (
     <div className="mb-12 p-4 bg-gray-50 dark:bg-gray-900/50 rounded-lg border border-gray-100 dark:border-gray-800">
       <h2 className="text-sm font-semibold uppercase tracking-widest text-gray-400 dark:text-gray-500 mb-4">
         ── Tasks ──
       </h2>
       <div className="space-y-2 pl-5">
         {(() => {
-          const patterns = getTaskPatterns(assignedTasks);
-          return Array.from(patterns.entries()).map(([key, pattern]) => {
-            const patternTask = assignedTasks.find(
-              (t) => (t.title || "Untitled") === pattern.title && t.frequency === pattern.frequency,
-            );
-            const lineItemId = patternTask?.line_item_id;
-
-            return (
-              <div key={key} className="text-sm text-gray-700 dark:text-gray-300">
-                {lineItemId ? (
-                  <a
-                    href={`/line-items/${lineItemId}`}
-                    className="text-blue-600 dark:text-blue-400 hover:underline"
-                  >
-                    {pattern.title}
-                  </a>
-                ) : (
-                  pattern.title
-                )}
+          const patterns = getTaskPatterns(lineItemTasks);
+          return Array.from(patterns.values()).map((pattern) => (
+            <div key={`${pattern.title}|${pattern.frequency}`} className="flex items-center justify-between text-sm group">
+              <span className="text-gray-700 dark:text-gray-300">
+                {pattern.title}
                 {pattern.frequency && (
                   <>
                     <span className="mx-3 text-gray-400">•</span>
@@ -507,24 +464,49 @@ export default function VendorDetailPage() {
                     </span>
                   </>
                 )}
-              </div>
-            );
-          });
+              </span>
+              {pattern.frequency && (
+                <button
+                  onClick={() =>
+                    setEditingPattern({
+                      title: pattern.title,
+                      frequency: pattern.frequency,
+                      estimated_cost: pattern.estimated_cost,
+                      vendor_id: pattern.vendor_id,
+                      applyToAll: false,
+                      _originalTitle: pattern.title,
+                      _originalFrequency: pattern.frequency,
+                    })
+                  }
+                  className="opacity-0 group-hover:opacity-100 text-xs px-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-opacity"
+                  title="Edit recurring pattern"
+                >
+                  ✏
+                </button>
+              )}
+            </div>
+          ));
         })()}
       </div>
+      {godMode && (
+        <button
+          onClick={() => setAddTaskOpen(true)}
+          className="mt-4 text-sm text-blue-600 dark:text-blue-400 hover:underline"
+        >
+          + Add task
+        </button>
+      )}
     </div>
   ) : null;
 
   // Tasks and documents section
-  const upcomingGroups = groupByYear(upcoming);
-  const completedGroups = groupByYear(completed);
   const tasksAndDocumentsSection = (
     <section className="grid grid-cols-1 md:grid-cols-2 gap-12">
       <div>
         {upcoming.length > 0 && (
           <div className="mb-12">
             <h2 className="text-sm font-semibold uppercase tracking-widest text-gray-400 dark:text-gray-500 mb-6">
-              Upcoming Work ({upcoming.length})
+              Upcoming ({upcoming.length})
             </h2>
             <div className="space-y-6">
               {(() => {
@@ -539,26 +521,19 @@ export default function VendorDetailPage() {
                         </span>
                       </div>
                     )}
-                    {group.tasks.map((task) => {
-                      const li = lineItems.find((li) => li.id === task.line_item_id);
-                      return (
-                        <TaskCard
-                          key={task.id}
-                          task={task}
-                          lineItem={li}
-                          vendors={vendors.map((v) => ({
-                            id: v.id,
-                            name: v.name,
-                            service_type: v.service_type,
-                          }))}
-                          onCompleteAction={completeTask}
-                          completing={completing}
-                          categoryColors={categoryColors}
-                          onUnlinkDocumentAction={handleUnlinkDocument}
-                          showVendor={false}
-                        />
-                      );
-                    })}
+                    {group.tasks.map((task) => (
+                      <TaskCard
+                        key={task.id}
+                        task={task}
+                        lineItem={lineItem}
+                        vendors={vendors}
+                        onCompleteAction={completeTask}
+                        completing={completing}
+                        categoryColors={categoryColors}
+                        onUnlinkDocumentAction={handleUnlinkDocument}
+                        showCategory={false}
+                      />
+                    ))}
                   </div>
                 ));
               })()}
@@ -569,7 +544,7 @@ export default function VendorDetailPage() {
         {completed.length > 0 && (
           <div className="mb-8">
             <h2 className="text-sm font-semibold uppercase tracking-widest text-gray-400 dark:text-gray-500 mb-6">
-              Completed Work ({completed.length})
+              Completed ({completed.length})
             </h2>
             <div className="space-y-8">
               {(() => {
@@ -584,26 +559,19 @@ export default function VendorDetailPage() {
                         </span>
                       </div>
                     )}
-                    {group.tasks.map((task) => {
-                      const li = lineItems.find((li) => li.id === task.line_item_id);
-                      return (
-                        <TaskCard
-                          key={task.id}
-                          task={task}
-                          lineItem={li}
-                          vendors={vendors.map((v) => ({
-                            id: v.id,
-                            name: v.name,
-                            service_type: v.service_type,
-                          }))}
-                          onCompleteAction={completeTask}
-                          completing={completing}
-                          categoryColors={categoryColors}
-                          onUnlinkDocumentAction={handleUnlinkDocument}
-                          showVendor={false}
-                        />
-                      );
-                    })}
+                    {group.tasks.map((task) => (
+                      <TaskCard
+                        key={task.id}
+                        task={task}
+                        lineItem={lineItem}
+                        vendors={vendors}
+                        onCompleteAction={completeTask}
+                        completing={completing}
+                        categoryColors={categoryColors}
+                        onUnlinkDocumentAction={handleUnlinkDocument}
+                        showCategory={false}
+                      />
+                    ))}
                   </div>
                 ));
               })()}
@@ -611,9 +579,9 @@ export default function VendorDetailPage() {
           </div>
         )}
 
-        {assignedTasks.length === 0 && (
+        {lineItemTasks.length === 0 && (
           <p className="text-sm text-gray-400 dark:text-gray-500">
-            No tasks assigned to this vendor.
+            No tasks for this line item. Create one to get started.
           </p>
         )}
       </div>
@@ -630,9 +598,7 @@ export default function VendorDetailPage() {
         {vendorDocs.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-10 text-gray-400 border border-dashed border-gray-100 dark:border-gray-800 rounded-lg">
             <p className="text-xs text-center px-4">
-              {vendor.paperless_correspondent_id
-                ? "No documents found."
-                : "No Paperless correspondent linked."}
+              {lineItem?.vendor_id ? "No documents found." : "No vendor assigned."}
             </p>
           </div>
         ) : (
@@ -664,7 +630,7 @@ export default function VendorDetailPage() {
                         </h3>
                         {!doc.is_matched && doc.smart_actions.length > 0 && (
                           <div className="flex flex-wrap gap-2 mt-2">
-                            {doc.smart_actions.map((action, i) => (
+                            {doc.smart_actions.map((action: any, i: number) => (
                               <button
                                 key={i}
                                 onClick={() => handleSmartAction(doc, action)}
@@ -709,9 +675,9 @@ export default function VendorDetailPage() {
   return (
     <>
       <DetailPageLayout
-        backHref="/vendors"
-        title={vendor.name}
-        subtitle={vendor.service_type}
+        backHref="/tasks"
+        title={lineItem.title}
+        subtitle={lineItem.description}
         menuButton={menuButton}
         headerLeftContent={headerLeftContent}
         headerRightContent={headerRightContent}
@@ -719,95 +685,129 @@ export default function VendorDetailPage() {
         tasksAndDocumentsSection={tasksAndDocumentsSection}
       />
 
-      {editOpen && (
+      <EditLineItemModal
+        isOpen={editOpen}
+        lineItem={lineItem}
+        categories={categories}
+        vendors={vendors}
+        onSave={fetchAll}
+        onClose={() => setEditOpen(false)}
+      />
+
+      {editingPattern && (
         <div
-          ref={backdropRef}
+          ref={editPatternBackdropRef}
           className={MODAL_BACKDROP}
           onClick={(e) => {
-            if (e.target === backdropRef.current) closeEdit();
+            if (e.target === editPatternBackdropRef.current) setEditingPattern(null);
           }}
         >
-          <div className={MODAL_CONTENT_LG}>
-            <h2 className="text-lg font-semibold mb-6 border-b border-gray-200 dark:border-gray-800 pb-4">
-              Edit {vendor.name}
+          <div className="animate-modal bg-white dark:bg-gray-900 rounded-lg shadow-xl w-full max-w-md max-h-[90vh] overflow-y-auto flex flex-col">
+            <h2 className="text-lg font-semibold px-6 py-4 border-b border-gray-200 dark:border-gray-800">
+              Edit Task Pattern
             </h2>
-            <div className="space-y-4 mb-6">
+            <div className="space-y-4 p-6">
               <div>
                 <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
-                  Name
+                  Title
                 </label>
                 <input
                   type="text"
-                  value={form.name || ""}
-                  onChange={(e) => setForm({ ...form, name: e.target.value })}
-                  className={INPUT}
+                  value={editingPattern.title}
+                  onChange={(e) =>
+                    setEditingPattern({ ...editingPattern, title: e.target.value })
+                  }
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
                 />
               </div>
               <div>
                 <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
-                  Service Type
+                  Frequency
+                </label>
+                <select
+                  value={editingPattern.frequency || ""}
+                  onChange={(e) =>
+                    setEditingPattern({
+                      ...editingPattern,
+                      frequency: e.target.value || null,
+                    })
+                  }
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
+                >
+                  <option value="">Once-off</option>
+                  <option value="Weekly">Weekly</option>
+                  <option value="Bi-weekly">Bi-weekly</option>
+                  <option value="Monthly">Monthly</option>
+                  <option value="Quarterly">Quarterly</option>
+                  <option value="Semi-Annually">Semi-Annually</option>
+                  <option value="Annually">Annually</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                  Est. Cost ($)
                 </label>
                 <input
-                  type="text"
-                  value={form.service_type || ""}
-                  onChange={(e) => setForm({ ...form, service_type: e.target.value })}
-                  className={INPUT}
+                  type="number"
+                  value={editingPattern.estimated_cost ?? ""}
+                  onChange={(e) =>
+                    setEditingPattern({
+                      ...editingPattern,
+                      estimated_cost: e.target.value ? Number(e.target.value) : null,
+                    })
+                  }
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
                 />
               </div>
               <div>
                 <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
-                  Phone
+                  Vendor
                 </label>
+                <select
+                  value={editingPattern.vendor_id ?? ""}
+                  onChange={(e) =>
+                    setEditingPattern({
+                      ...editingPattern,
+                      vendor_id: e.target.value || null,
+                    })
+                  }
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
+                >
+                  <option value="">Default ({vendor?.name ?? "none"})</option>
+                  {vendors.map((v) => (
+                    <option key={v.id} value={v.id}>
+                      {v.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="flex items-center gap-2 pt-2">
                 <input
-                  type="tel"
-                  value={form.phone || ""}
-                  onChange={(e) => setForm({ ...form, phone: e.target.value })}
-                  className={INPUT}
+                  type="checkbox"
+                  id="applyToAll"
+                  checked={editingPattern.applyToAll}
+                  onChange={(e) =>
+                    setEditingPattern({ ...editingPattern, applyToAll: e.target.checked })
+                  }
+                  className="w-4 h-4"
                 />
-              </div>
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
-                  Email
+                <label
+                  htmlFor="applyToAll"
+                  className="text-sm text-gray-700 dark:text-gray-300"
+                >
+                  Apply to all future occurrences
                 </label>
-                <input
-                  type="email"
-                  value={form.email || ""}
-                  onChange={(e) => setForm({ ...form, email: e.target.value })}
-                  className={INPUT}
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
-                  Address
-                </label>
-                <input
-                  type="text"
-                  value={form.address || ""}
-                  onChange={(e) => setForm({ ...form, address: e.target.value })}
-                  className={INPUT}
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
-                  Notes
-                </label>
-                <textarea
-                  value={form.notes || ""}
-                  onChange={(e) => setForm({ ...form, notes: e.target.value })}
-                  rows={3}
-                  className={INPUT}
-                />
               </div>
             </div>
-            <div className="flex gap-3 border-t border-gray-200 dark:border-gray-800 pt-4">
+            <div className="flex gap-3 p-6 border-t border-gray-200 dark:border-gray-800">
               <button
-                onClick={closeEdit}
+                onClick={() => setEditingPattern(null)}
                 className="flex-1 px-4 py-2 rounded-md border border-gray-300 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors text-sm"
               >
                 Cancel
               </button>
               <button
-                onClick={saveEdit}
+                onClick={handleSavePattern}
                 className="flex-1 px-4 py-2 rounded-md bg-gray-900 dark:bg-gray-700 text-white hover:bg-gray-700 dark:hover:bg-gray-600 transition-colors text-sm font-medium"
               >
                 Save Changes
@@ -817,14 +817,25 @@ export default function VendorDetailPage() {
         </div>
       )}
 
+      <NewTaskModal
+        isOpen={addTaskOpen}
+        lineItems={[lineItem]}
+        categories={categories}
+        vendors={vendors}
+        onSave={() => {
+          setAddTaskOpen(false);
+          fetchAll();
+        }}
+        onClose={() => setAddTaskOpen(false)}
+      />
+
       <MatchDocumentErrorBoundary>
         {matchingDoc && (
           <MatchDocumentModal
             doc={matchingDoc}
             tasks={tasks}
-            lineItems={lineItems}
-            vendors={vendors}
             categories={categories}
+            defaultVendorId={lineItem?.vendor_id ?? undefined}
             selectedSeriesId={selectedSeriesId}
             setSelectedSeriesId={setSelectedSeriesId}
             setSelectedSeriesTitle={setSelectedSeriesTitle}
@@ -841,7 +852,7 @@ export default function VendorDetailPage() {
             onManualMatch={handleManualMatch}
             onManualMatchAndComplete={handleManualMatchAndComplete}
             onCreateAndMatch={handleCreateAndMatch}
-            onCreateAndMatchComplete={handleCreateAndMatch}
+            onCreateAndMatchComplete={() => {}}
             onClose={() => setMatchingDoc(null)}
           />
         )}

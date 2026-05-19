@@ -3,42 +3,26 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { Vendor } from "@/lib/vendors";
+import type { LineItem } from "@/lib/line-items";
+import type { Task } from "@/lib/tasks";
 import { getColorClasses } from "@/lib/colors";
 import { getCached, setCached } from "@/lib/cache";
 import { useGodMode } from "@/app/contexts/god-mode";
-import EditTaskModal from "@/app/components/EditTaskModal";
 import NewTaskModal from "@/app/components/NewTaskModal";
-import { useNewTaskForm } from "@/app/hooks/useNewTaskForm";
-import { useEditTaskForm } from "@/app/hooks/useEditTaskForm";
+import NewLineItemModal from "@/app/components/NewLineItemModal";
+import EditLineItemModal from "@/app/components/EditLineItemModal";
 
 interface CategoryColor {
   name: string;
   color: string;
 }
 
-interface Task {
-  id: string;
-  series_id: string;
-  title: string;
-  description: string;
-  task_type: "budget_item" | "once_off" | "recurring";
-  frequency: string | null;
-  variable_cost: boolean;
-  status: "Scheduled" | "In Progress" | "Completed" | "Overdue";
-  start_date: string;
-  estimated_cost: number | null;
-  actual_cost: number | null;
-  category: string;
-  vendor_id: string | null;
-}
-
-interface TaskLineItem {
+interface LineItemDisplay {
   type: "task";
   key: string;
-  id: string;
+  lineItemId: string;
   title: string;
   category: string;
-  frequency: string | null;
   unitCost: number | null;
   actualCount: number;
   actualTotal: number;
@@ -46,8 +30,6 @@ interface TaskLineItem {
   budgetTotal: number;
   vendorId: string | null;
 }
-
-type LineItem = TaskLineItem;
 
 
 function fyForDate(dateStr: string): number {
@@ -113,6 +95,9 @@ export default function CostsPage() {
   const [tasks, setTasks] = useState<Task[]>(
     () => getCached<Task[]>("/api/tasks") ?? [],
   );
+  const [lineItems, setLineItems] = useState<LineItem[]>(
+    () => getCached<LineItem[]>("/api/line-items") ?? [],
+  );
   const [vendors, setVendors] = useState<Vendor[]>(
     () => getCached<Vendor[]>("/api/vendors") ?? [],
   );
@@ -141,51 +126,61 @@ export default function CostsPage() {
 
   // ── Sync with Server ──
   const refreshData = useCallback(async () => {
-    const [tasksData, vendorsData, categoriesData] = await Promise.all([
-      fetch("/api/tasks").then((r) => r.json()),
-      fetch("/api/vendors").then((r) => r.json()),
-      fetch("/api/categories").then((r) => r.json()),
-    ]);
-    setCached("/api/tasks", tasksData);
-    setCached("/api/vendors", vendorsData);
-    setCached("/api/categories", categoriesData);
-    setTasks(tasksData);
-    setVendors(vendorsData);
-    setCategories(categoriesData.map((c: CategoryColor) => c.name));
-    setCategoryColors(
-      categoriesData.reduce(
-        (acc: Record<string, string>, c: CategoryColor) => {
-          acc[c.name] = c.color;
-          return acc;
-        },
-        {},
-      ),
-    );
+    try {
+      const [tasksRes, lineItemsRes, vendorsRes, categoriesRes] = await Promise.all([
+        fetch("/api/tasks"),
+        fetch("/api/line-items"),
+        fetch("/api/vendors"),
+        fetch("/api/categories"),
+      ]);
 
-    const allDates = tasksData.map((t: Task) => t.start_date).filter(Boolean);
-    const fys = [...new Set(allDates.map((d: string) => fyForDate(d)))] as number[];
-    fys.sort((a, b) => a - b);
-    setAvailableFYs(fys);
+      if (!tasksRes.ok || !lineItemsRes.ok || !vendorsRes.ok || !categoriesRes.ok) {
+        throw new Error("Failed to fetch data");
+      }
 
-    if (fys.length > 0) {
-      const currentFY = fyForDate(new Date().toISOString().split("T")[0]);
-      setFy(fys.includes(currentFY) ? currentFY : fys[fys.length - 1]);
+      const [tasksData, lineItemsData, vendorsData, categoriesData] = await Promise.all([
+        tasksRes.json(),
+        lineItemsRes.json(),
+        vendorsRes.json(),
+        categoriesRes.json(),
+      ]);
+
+      setCached("/api/tasks", tasksData);
+      setCached("/api/line-items", lineItemsData);
+      setCached("/api/vendors", vendorsData);
+      setCached("/api/categories", categoriesData);
+      setTasks(tasksData);
+      setLineItems(lineItemsData);
+      setVendors(vendorsData);
+      setCategories(categoriesData.map((c: CategoryColor) => c.name));
+      setCategoryColors(
+        categoriesData.reduce(
+          (acc: Record<string, string>, c: CategoryColor) => {
+            acc[c.name] = c.color;
+            return acc;
+          },
+          {},
+        ),
+      );
+
+      const allDates = tasksData.map((t: Task) => t.start_date).filter(Boolean);
+      const fys = [...new Set(allDates.map((d: string) => fyForDate(d)))] as number[];
+      fys.sort((a, b) => a - b);
+      setAvailableFYs(fys);
+
+      if (fys.length > 0) {
+        const currentFY = fyForDate(new Date().toISOString().split("T")[0]);
+        setFy(fys.includes(currentFY) ? currentFY : fys[fys.length - 1]);
+      }
+    } catch (err) {
+      console.error("[refreshData] Failed to refresh data:", err);
     }
   }, []);
 
-  // ── Form State (via custom hooks) ──
-  const [adding, setAdding] = useState(false);
-  const [editingItem, setEditingItem] = useState<{ data: Task } | null>(null);
-
-  const newTaskForm = useNewTaskForm(() => {
-    setAdding(false);
-    refreshData();
-  });
-
-  const editTaskForm = useEditTaskForm(() => {
-    setEditingItem(null);
-    refreshData();
-  });
+  // ── Form State ──
+  const [addingTask, setAddingTask] = useState(false);
+  const [creatingLineItem, setCreatingLineItem] = useState(false);
+  const [editingLineItem, setEditingLineItem] = useState<LineItem | null>(null);
 
   // Fetch data on mount and when refreshData callback changes.
   // refreshData is memoized with useCallback but triggers setState internally.
@@ -194,94 +189,88 @@ export default function CostsPage() {
     refreshData();
   }, [refreshData]);
 
-  // ── Form Handlers ──
-  const handleAddTask = () => {
-    newTaskForm.submit();
-  };
-
-  const openEdit = (item: LineItem) => {
-    const task = tasks.find((t) => t.id === item.id)!;
-    setEditingItem({ data: task });
-    editTaskForm.setForm({
-      title: task.title,
-      description: task.description || "",
-      start_date: task.start_date,
-      frequency: task.frequency || "",
-      estimated_cost: task.estimated_cost || "",
-      category: task.category,
-      vendor_id: task.vendor_id || "",
-    });
-  };
-
-  const closeEdit = () => {
-    setEditingItem(null);
-    editTaskForm.reset();
-  };
-
-  const handleSaveEdit = async () => {
-    if (!editingItem) return;
-    await editTaskForm.submit(editingItem.data.id);
-  };
-
   // ── Budget Calculations ──
-  // Build line items grouped by task series, with budget vs actual totals.
+  // Build line items with budget vs actual totals.
   const { start, end, label } = fyRange(fy);
   const daysInFY = daysInRange(start, end);
 
   // Filter tasks by FY
   const inFY_tasks = tasks.filter((t) => fyForDate(t.start_date) === fy);
 
-  // Group tasks by series_id
-  const tasksBySeries = new Map<string, Task[]>();
+  // Group tasks by line_item_id
+  const tasksByLineItem = new Map<string, Task[]>();
   for (const t of inFY_tasks) {
-    if (!tasksBySeries.has(t.series_id)) {
-      tasksBySeries.set(t.series_id, []);
+    if (!tasksByLineItem.has(t.line_item_id)) {
+      tasksByLineItem.set(t.line_item_id, []);
     }
-    tasksBySeries.get(t.series_id)!.push(t);
+    tasksByLineItem.get(t.line_item_id)!.push(t);
   }
 
-  // Build line items
-  const lineItems: LineItem[] = [];
+  // Build display line items — include all non-archived line items so users can
+  // click into them and create tasks, even if they have no tasks or budget yet.
+  const displayLineItems: LineItemDisplay[] = [];
 
-  for (const [seriesId, taskList] of tasksBySeries) {
-    const representative = taskList[0];
-    const freq = representative.frequency;
-    const taskType = representative.task_type;
-    const unitCost = taskList.find((t) => t.estimated_cost)?.estimated_cost ?? null;
+  const lineItemIdsToShow = new Set([
+    ...tasksByLineItem.keys(),
+    ...lineItems.filter((li) => !li.archived).map((li) => li.id),
+  ]);
+
+  for (const lineItemId of lineItemIdsToShow) {
+    const lineItem = lineItems.find((li) => li.id === lineItemId);
+    if (!lineItem) continue;
+
+    const taskList = tasksByLineItem.get(lineItemId) ?? [];
     const completed = taskList.filter((t) => t.status === "Completed");
     const actualTotal = completed.reduce(
       (s, t) => s + (t.actual_cost ?? t.estimated_cost ?? 0),
       0,
     );
 
-    // Budget calculation depends on task type:
-    // - recurring: estimated_cost × occurrences in FY
-    // - budget_item / once_off: estimated_cost (fixed, regardless of occurrences)
-    const budgetCount = taskType === "recurring" ? occurrencesInRange(freq, daysInFY) : 1;
-    const budgetTotal = unitCost ? budgetCount * unitCost : 0;
+    // Budget calculation:
+    // - If fy_budget is set on lineItem, use that
+    // - Otherwise, calculate from tasks: (estimated_cost × occurrences) for recurring, or just estimated_cost for once-off
+    let budgetTotal = 0;
+    let budgetCount = 0;
+    let unitCost: number | null = null;
 
-    lineItems.push({
+    if (lineItem.fy_budget !== null) {
+      budgetTotal = lineItem.fy_budget;
+      budgetCount = 1;
+      unitCost = lineItem.fy_budget;
+    } else if (taskList.length > 0) {
+      const representative = taskList[0];
+      unitCost = representative.estimated_cost;
+
+      if (representative.frequency && unitCost) {
+        budgetCount = occurrencesInRange(representative.frequency, daysInFY);
+        budgetTotal = budgetCount * unitCost;
+      } else if (unitCost) {
+        budgetCount = 1;
+        budgetTotal = unitCost;
+      }
+    }
+
+    displayLineItems.push({
       type: "task",
-      key: `task-${seriesId}`,
-      id: representative.id,
-      title: representative.title,
-      category: representative.category,
-      frequency: freq,
+      key: `lineitem-${lineItemId}`,
+      lineItemId,
+      title: lineItem.title,
+      category: lineItem.category,
       unitCost,
       actualCount: completed.length,
       actualTotal,
       budgetCount,
       budgetTotal,
-      vendorId: representative.vendor_id,
+      vendorId: lineItem.vendor_id,
     });
   }
 
-  const sortedLineItems = [...lineItems].sort((a, b) =>
+  const sortedLineItems = [...displayLineItems].sort((a, b) =>
     a.category.localeCompare(b.category) || a.title.localeCompare(b.title),
   );
 
-  const grandActual = lineItems.reduce((s, l) => s + l.actualTotal, 0);
-  const grandBudget = lineItems.reduce((s, l) => s + l.budgetTotal, 0);
+  const grandActual = displayLineItems.reduce((s, l) => s + l.actualTotal, 0);
+  const grandBudget = displayLineItems.reduce((s, l) => s + l.budgetTotal, 0);
 
   // ── Render ──
   return (
@@ -305,12 +294,20 @@ export default function CostsPage() {
               ))}
             </select>
             {godMode && (
-              <button
-                onClick={() => setAdding(true)}
-                className="border border-gray-200 dark:border-gray-700 px-3 py-1.5 rounded-md text-sm hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
-              >
-                Add task
-              </button>
+              <>
+                <button
+                  onClick={() => setCreatingLineItem(true)}
+                  className="border border-gray-200 dark:border-gray-700 px-3 py-1.5 rounded-md text-sm hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+                >
+                  New line item
+                </button>
+                <button
+                  onClick={() => setAddingTask(true)}
+                  className="border border-gray-200 dark:border-gray-700 px-3 py-1.5 rounded-md text-sm hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+                >
+                  Add task
+                </button>
+              </>
             )}
           </div>
         </div>
@@ -325,9 +322,6 @@ export default function CostsPage() {
                   <th className="text-left font-bold py-2 px-3">Item</th>
                   <th className="text-left font-bold py-2 px-3 whitespace-nowrap">
                     Category
-                  </th>
-                  <th className="text-center font-bold py-2 px-3 whitespace-nowrap w-24">
-                    Frequency
                   </th>
                   <th className="text-right font-bold py-2 px-3 whitespace-nowrap">
                     Unit Cost
@@ -347,7 +341,6 @@ export default function CostsPage() {
                   <th className="w-auto"></th>
                 </tr>
                 <tr className="border-b border-gray-200">
-                  <th></th>
                   <th></th>
                   <th></th>
                   <th></th>
@@ -374,8 +367,8 @@ export default function CostsPage() {
                   >
                     <td className="py-2 px-3 font-medium break-words">
                       <Link
-                        href={`/tasks/${item.id}`}
-                        className="hover:underline"
+                        href={`/line-items/${item.lineItemId}`}
+                        className="text-gray-900 dark:text-gray-100 hover:underline"
                       >
                         {item.title}
                       </Link>
@@ -393,9 +386,6 @@ export default function CostsPage() {
                           </span>
                         );
                       })()}
-                    </td>
-                    <td className="py-2 px-3 text-center text-gray-500 text-xs whitespace-nowrap w-24">
-                      {item.frequency || "—"}
                     </td>
                     <td className="py-2 px-3 text-right text-gray-500 tabular-nums whitespace-nowrap">
                       {item.unitCost ? fmt(item.unitCost) : "—"}
@@ -415,7 +405,10 @@ export default function CostsPage() {
                     <td className="py-2 pl-1 pr-0 text-center">
                       {godMode && (
                         <button
-                          onClick={() => openEdit(item)}
+                          onClick={() => {
+                            const lineItem = lineItems.find((li) => li.id === item.lineItemId);
+                            if (lineItem) setEditingLineItem(lineItem);
+                          }}
                           className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
                         >
                           ✎
@@ -427,7 +420,7 @@ export default function CostsPage() {
               </tbody>
               <tfoot>
                 <tr className="border-t-2 border-gray-900 dark:border-gray-100">
-                  <td colSpan={4} className="pt-4 pb-3 px-3 font-bold">
+                  <td colSpan={3} className="pt-4 pb-3 px-3 font-bold">
                     Total
                   </td>
                   <td className="border-l border-gray-200 pt-4 pb-3 px-0"></td>
@@ -446,24 +439,42 @@ export default function CostsPage() {
         )}
       </main>
 
-      <EditTaskModal
-        isOpen={!!editingItem}
-        editForm={editTaskForm.form}
-        setEditForm={editTaskForm.updateForm}
+      <NewLineItemModal
+        isOpen={creatingLineItem}
         categories={categories}
+        categoryColors={categoryColors}
         vendors={vendors}
-        onSave={handleSaveEdit}
-        onClose={closeEdit}
+        onSave={() => {
+          setCreatingLineItem(false);
+          refreshData();
+        }}
+        onClose={() => setCreatingLineItem(false)}
       />
 
+      {editingLineItem && (
+        <EditLineItemModal
+          isOpen={true}
+          lineItem={editingLineItem}
+          categories={categories}
+          vendors={vendors}
+          onSave={() => {
+            setEditingLineItem(null);
+            refreshData();
+          }}
+          onClose={() => setEditingLineItem(null)}
+        />
+      )}
+
       <NewTaskModal
-        isOpen={adding}
-        newTask={newTaskForm.form}
-        setNewTask={newTaskForm.updateForm}
+        isOpen={addingTask}
+        lineItems={lineItems}
         categories={categories}
         vendors={vendors}
-        onSave={handleAddTask}
-        onClose={() => setAdding(false)}
+        onSave={() => {
+          setAddingTask(false);
+          refreshData();
+        }}
+        onClose={() => setAddingTask(false)}
       />
     </>
   );

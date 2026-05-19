@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { readVendors } from "@/lib/vendors";
 import { readTasks } from "@/lib/tasks";
+import { readLineItems } from "@/lib/line-items";
 import {
   listCorrespondents,
   listDocumentsForCorrespondent,
@@ -38,7 +39,14 @@ export async function GET(
     }
 
     const tasks = readTasks();
-    const vendorTasks = tasks.filter((t) => t.vendor_id === id);
+    const lineItems = readLineItems();
+
+    // Find all line items for this vendor
+    const vendorLineItems = lineItems.filter((li) => li.vendor_id === id);
+    const vendorLineItemIds = new Set(vendorLineItems.map((li) => li.id));
+
+    // Find all tasks under those line items
+    const vendorTasks = tasks.filter((t) => vendorLineItemIds.has(t.line_item_id));
     const taskDocs = vendorTasks.flatMap((t) => t.documents || []);
 
     const [tags, docTypes, correspondents] = await Promise.all([
@@ -92,7 +100,7 @@ export async function GET(
         url: getDocumentUrl(doc.id),
         is_matched: matchedDocIds.has(doc.id),
         correspondent: doc.correspondent,
-        smart_actions: getSmartActions(doc, tasks, vendors),
+        smart_actions: getSmartActions(doc, tasks, vendors, lineItems),
       });
     });
 

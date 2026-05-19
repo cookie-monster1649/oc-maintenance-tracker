@@ -29,7 +29,7 @@ export async function POST(
   const futureScheduled = tasks
     .filter(
       (t) =>
-        t.series_id === task.series_id &&
+        t.line_item_id === task.line_item_id &&
         t.id !== id &&
         t.status !== "Completed" &&
         isBefore(parseISO(oldDate), parseISO(t.start_date)),

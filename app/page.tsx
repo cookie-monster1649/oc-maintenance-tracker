@@ -44,11 +44,15 @@ export default function Home() {
   const { godMode } = useGodMode();
 
   const { data: tasksData } = useCachedData("/api/tasks", refreshTrigger);
+  const { data: lineItemsData } = useCachedData("/api/line-items", refreshTrigger);
   const { data: vendorsData } = useCachedData("/api/vendors", refreshTrigger);
   const { data: documentsData } = useCachedData("/api/paperless/documents", refreshTrigger);
   const { data: binWeeksData } = useCachedData("/api/bin-weeks", refreshTrigger);
 
   const tasks: Task[] = Array.isArray(tasksData) ? tasksData : [];
+  // lineItems fetched but not currently used on home page (kept for consistency with other pages)
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const lineItems: Array<{ id: string; title: string; category: string }> = Array.isArray(lineItemsData) ? lineItemsData : [];
   const vendors: Vendor[] = Array.isArray(vendorsData) ? vendorsData : [];
   const documents: Document[] = Array.isArray(documentsData) ? documentsData : [];
   const binWeeks = (binWeeksData as { coming_up: BinColor[]; following_week: BinColor[]; rotation_day_of_week: number } | null) ?? { coming_up: ["green", "yellow"], following_week: ["black"], rotation_day_of_week: 2 };
@@ -108,7 +112,7 @@ export default function Home() {
   sixtyDaysFromNow.setDate(sixtyDaysFromNow.getDate() + 60);
 
   const overdue = tasks.filter((t) => {
-    if (t.archived || t.task_type === "budget_item") return false;
+    if (t.archived) return false;
     return t.status === "Overdue";
   })
     .sort((a, b) => new Date(a.start_date).getTime() - new Date(b.start_date).getTime());
@@ -116,7 +120,7 @@ export default function Home() {
   const newBills = documents.filter((d) => !d.is_matched && !d.is_dismissed && d.document_type_label?.toLowerCase() === "bill");
 
   const upcoming = tasks.filter((t) => {
-    if (t.archived || t.task_type === "budget_item" || t.status === "Completed" || t.status === "Overdue") return false;
+    if (t.archived || t.status === "Completed" || t.status === "Overdue") return false;
     const startDate = new Date(t.start_date);
     startDate.setHours(0, 0, 0, 0);
     return startDate >= today && startDate <= sixtyDaysFromNow;
@@ -228,9 +232,7 @@ export default function Home() {
                 {"    "}
                 <Link href={`/tasks/${task.id}`} className="text-gray-900 dark:text-gray-100 hover:underline">{task.title}</Link>
                 {"    "}
-                {task.vendor_id && vendorMap[task.vendor_id]
-                  ? <span className="text-gray-500 dark:text-gray-400">{vendorMap[task.vendor_id]}</span>
-                  : <span className="text-gray-400 dark:text-gray-600">—</span>}
+                <span className="text-gray-400 dark:text-gray-600">—</span>
               </div>
             ))}
           </div>
@@ -241,6 +243,7 @@ export default function Home() {
         <MatchDocumentModal
           doc={matchingDoc}
           tasks={tasks}
+          lineItems={lineItems}
           vendors={vendors}
           categories={categories}
           selectedSeriesId={selectedSeriesId}

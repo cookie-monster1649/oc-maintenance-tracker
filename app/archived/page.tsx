@@ -12,15 +12,24 @@ interface CategoryColor {
 
 interface Task {
   id: string;
-  title: string;
-  description: string;
-  frequency: string;
+  line_item_id: string;
+  title: string | null;
+  description: string | null;
+  frequency: string | null;
   status: "Scheduled" | "In Progress" | "Completed" | "Overdue";
   start_date: string;
   estimated_cost: number | null;
-  vendor_id: string | null;
-  category: string;
   archived?: boolean;
+}
+
+interface LineItem {
+  id: string;
+  title: string;
+  description: string;
+  category: string;
+  vendor_id: string | null;
+  fy_budget: number | null;
+  archived: boolean;
 }
 
 interface Vendor {
@@ -40,6 +49,9 @@ export default function ArchivedPage() {
   const [tasks, setTasks] = useState<Task[]>(() =>
     (getCached<Task[]>("/api/tasks") ?? []).filter((t) => t.archived),
   );
+  const [lineItems, setLineItems] = useState<LineItem[]>(() =>
+    getCached<LineItem[]>("/api/line-items") ?? [],
+  );
   const [vendors, setVendors] = useState<Vendor[]>(() =>
     (getCached<Vendor[]>("/api/vendors") ?? []).filter((v) => v.archived),
   );
@@ -55,20 +67,24 @@ export default function ArchivedPage() {
   const [unarchiving, setUnarchiving] = useState<string | null>(null);
 
   async function fetchAll() {
-    const [tasksRes, vendorsRes, categoriesRes] = await Promise.all([
+    const [tasksRes, vendorsRes, categoriesRes, lineItemsRes] = await Promise.all([
       fetch("/api/tasks"),
       fetch("/api/vendors"),
       fetch("/api/categories"),
+      fetch("/api/line-items"),
     ]);
-    const [tasksData, vendorsData, categoriesData] = await Promise.all([
+    const [tasksData, vendorsData, categoriesData, lineItemsData] = await Promise.all([
       tasksRes.json(),
       vendorsRes.json(),
       categoriesRes.json(),
+      lineItemsRes.json(),
     ]);
     setCached("/api/tasks", tasksData);
     setCached("/api/vendors", vendorsData);
     setCached("/api/categories", categoriesData);
+    setCached("/api/line-items", lineItemsData);
     setTasks(tasksData.filter((t: Task) => t.archived));
+    setLineItems(lineItemsData);
     setVendors(vendorsData.filter((v: Vendor) => v.archived));
     setCategoryColors(
       categoriesData.reduce((acc: Record<string, string>, c: CategoryColor) => {
@@ -131,34 +147,40 @@ export default function ArchivedPage() {
             Archived Tasks ({tasks.length})
           </h2>
           <div className="space-y-4">
-            {tasks.map((task) => (
+            {tasks.map((task) => {
+              const lineItem = lineItems.find((li) => li.id === task.line_item_id);
+              return (
               <div
                 key={task.id}
                 className="flex items-start justify-between gap-4 py-4 border-b border-gray-100 last:border-0"
               >
                 <Link
-                  href={`/tasks/${task.id}`}
+                  href={`/line-items/${task.line_item_id}`}
                   className="flex-1 min-w-0 group"
                 >
                   <h3 className="font-medium text-gray-900 mb-1 group-hover:underline">
-                    {task.title}
+                    {task.title || lineItem?.title || "Untitled"}
                   </h3>
                   <p className="text-sm text-gray-500 mb-2">
                     {task.description}
                   </p>
                   <div className="flex items-center gap-4 text-xs">
-                    {(() => {
-                      const colors = getColorClasses(
-                        categoryColors[task.category] || "blue",
-                      );
-                      return (
-                        <span
-                          className={`px-2 py-0.5 rounded-full ${colors.bg} ${colors.text} font-medium`}
-                        >
-                          {task.category}
-                        </span>
-                      );
-                    })()}
+                    {lineItem && (
+                      <>
+                        {(() => {
+                          const colors = getColorClasses(
+                            categoryColors[lineItem.category] || "blue",
+                          );
+                          return (
+                            <span
+                              className={`px-2 py-0.5 rounded-full ${colors.bg} ${colors.text} font-medium`}
+                            >
+                              {lineItem.category}
+                            </span>
+                          );
+                        })()}
+                      </>
+                    )}
                     <span className="text-gray-400">{task.start_date}</span>
                     {task.estimated_cost && (
                       <span className="text-gray-400">
@@ -175,7 +197,8 @@ export default function ArchivedPage() {
                   {unarchiving === task.id ? "Restoring…" : "Restore"}
                 </button>
               </div>
-            ))}
+            );
+            })}
           </div>
         </section>
       )}

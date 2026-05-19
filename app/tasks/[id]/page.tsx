@@ -3,10 +3,14 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { TaskCard, Task, Vendor } from "../../components/TaskCard";
+import { TaskCard, Task } from "../../components/TaskCard";
+import NewTaskModal from "@/app/components/NewTaskModal";
 import { getColorClasses } from "@/lib/colors";
 import { getCached, setCached } from "@/lib/cache";
 import { useGodMode } from "@/app/contexts/god-mode";
+import type { LineItem } from "@/lib/line-items";
+import type { Vendor } from "@/lib/vendors";
+import { MODAL_BACKDROP, MODAL_CONTENT, MODAL_CONTENT_SM } from "@/lib/ui-constants";
 
 type Frequency =
   | "Weekly"
@@ -72,6 +76,9 @@ export default function TaskDetailPage() {
   const [tasks, setTasks] = useState<Task[]>(
     () => getCached<Task[]>("/api/tasks") ?? [],
   );
+  const [lineItems, setLineItems] = useState<LineItem[]>(
+    () => getCached<LineItem[]>("/api/line-items") ?? [],
+  );
   const [vendors, setVendors] = useState<Vendor[]>(
     () => getCached<Vendor[]>("/api/vendors") ?? [],
   );
@@ -96,6 +103,7 @@ export default function TaskDetailPage() {
     completed: false,
     actual_cost: "",
   });
+  const [addTaskOpen, setAddTaskOpen] = useState(false);
   const [completing, setCompleting] = useState<string | null>(null);
   const [promptingCostFor, setPromptingCostFor] = useState<string | null>(null);
   const [costPromptValue, setCostPromptValue] = useState("");
@@ -116,20 +124,24 @@ export default function TaskDetailPage() {
   }, []);
 
   const fetchAll = useCallback(async () => {
-    const [tasksRes, vendorsRes, categoriesRes] = await Promise.all([
+    const [tasksRes, lineItemsRes, vendorsRes, categoriesRes] = await Promise.all([
       fetch("/api/tasks"),
+      fetch("/api/line-items"),
       fetch("/api/vendors"),
       fetch("/api/categories"),
     ]);
-    const [tasksData, vendorsData, categoriesData] = (await Promise.all([
+    const [tasksData, lineItemsData, vendorsData, categoriesData] = (await Promise.all([
       tasksRes.json(),
+      lineItemsRes.json(),
       vendorsRes.json(),
       categoriesRes.json(),
-    ])) as [Task[], Vendor[], CategoryColor[]];
+    ])) as [Task[], LineItem[], Vendor[], CategoryColor[]];
     setCached("/api/tasks", tasksData);
+    setCached("/api/line-items", lineItemsData);
     setCached("/api/vendors", vendorsData);
     setCached("/api/categories", categoriesData);
     setTasks(tasksData);
+    setLineItems(lineItemsData);
     setVendors(vendorsData);
     setCategories(categoriesData.map((c) => c.name));
     setCategoryColors(
@@ -154,20 +166,24 @@ export default function TaskDetailPage() {
       setAutoLinkedCount(0);
       setLastAutoLinkedIds([]);
       // Fetch without triggering match to prevent immediate re-linking
-      const [tasksRes, vendorsRes, categoriesRes] = await Promise.all([
+      const [tasksRes, lineItemsRes, vendorsRes, categoriesRes] = await Promise.all([
         fetch("/api/tasks"),
+        fetch("/api/line-items"),
         fetch("/api/vendors"),
         fetch("/api/categories"),
       ]);
-      const [tasksData, vendorsData, categoriesData] = await Promise.all([
+      const [tasksData, lineItemsData, vendorsData, categoriesData] = await Promise.all([
         tasksRes.json(),
+        lineItemsRes.json(),
         vendorsRes.json(),
         categoriesRes.json(),
       ]);
       setCached("/api/tasks", tasksData);
+      setCached("/api/line-items", lineItemsData);
       setCached("/api/vendors", vendorsData);
       setCached("/api/categories", categoriesData);
       setTasks(tasksData);
+      setLineItems(lineItemsData);
       setVendors(vendorsData);
       setCategories(categoriesData.map((c: CategoryColor) => c.name));
       setCategoryColors(
@@ -204,12 +220,8 @@ export default function TaskDetailPage() {
 
   async function completeTask(id: string) {
     const task = tasks.find((t) => t.id === id);
-    if (task?.variable_cost) {
-      setPromptingCostFor(id);
-      setCostPromptValue(task.estimated_cost?.toString() || "");
-      return;
-    }
-    await finishCompleteTask(id);
+    setPromptingCostFor(id);
+    setCostPromptValue(task?.estimated_cost?.toString() || "");
   }
 
   async function finishCompleteTask(id: string, actualCost?: number) {
@@ -250,14 +262,14 @@ export default function TaskDetailPage() {
     );
   }
 
-  const isBudgetItem = currentTask.task_type === "budget_item";
+  // Get the lineItem for this task
+  const currentLineItem = lineItems.find((li) => li.id === currentTask.line_item_id);
 
-  // For budget items, the currentTask record is the budget placeholder — exclude it from occurrences.
-  // Occurrences are only those added via "Add occurrence".
+  // Group tasks by line_item_id (replaces old series_id grouping)
   const series = tasks
-    .filter((t) => t.series_id === currentTask.series_id && (!isBudgetItem || t.id !== currentTask.id))
+    .filter((t) => t.line_item_id === currentTask.line_item_id)
     .sort((a, b) => (a.start_date || "").localeCompare(b.start_date || ""));
-  const vendor = vendors.find((v) => v.id === currentTask.vendor_id);
+  const vendor = vendors.find((v) => v.id === currentLineItem?.vendor_id);
   const completed = series
     .filter((t) => t.status === "Completed")
     .sort((a, b) =>
@@ -281,8 +293,6 @@ export default function TaskDetailPage() {
       frequency: (currentTask.frequency as Frequency) ?? undefined,
       start_date: currentTask.start_date,
       estimated_cost: currentTask.estimated_cost,
-      vendor_id: currentTask.vendor_id,
-      category: currentTask.category,
     };
     setForm(initial);
     setOriginalForm(initial);
@@ -300,14 +310,13 @@ export default function TaskDetailPage() {
 
   const saveEdit = async () => {
     if (renameAllInSeries && form.title && form.title !== originalForm.title) {
-      // Update all tasks in the series
-      const tasksToUpdate = series.filter(t => t.series_id === currentTask.series_id);
+      // Update all tasks in the line item
       await Promise.all(
-        tasksToUpdate.map((t) =>
+        series.map((t) =>
           fetch(`/api/tasks/${t.id}`, {
             method: "PUT",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ ...form, series_id: t.series_id }),
+            body: JSON.stringify(form),
           }),
         ),
       );
@@ -400,16 +409,12 @@ export default function TaskDetailPage() {
 
     try {
       const body: Record<string, unknown> = {
-        series_id: currentTask.series_id,
+        line_item_id: currentTask.line_item_id,
         title: currentTask.title,
         description: currentTask.description,
-        task_type: currentTask.task_type,
         frequency: currentTask.frequency,
-        variable_cost: currentTask.variable_cost,
         start_date: occurrenceForm.date,
         estimated_cost: currentTask.estimated_cost,
-        vendor_id: currentTask.vendor_id,
-        category: currentTask.category,
         no_extrapolate: true,
       };
 
@@ -482,6 +487,14 @@ export default function TaskDetailPage() {
               <h1 className="text-4xl font-bold mb-3 text-gray-900 dark:text-gray-100">
                 {currentTask.title}
               </h1>
+              {currentLineItem && (
+                <Link
+                  href={`/line-items/${currentLineItem.id}`}
+                  className="text-sm text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 inline-flex items-center gap-1 mb-3"
+                >
+                  View line item →
+                </Link>
+              )}
               <p className="text-base text-gray-600 dark:text-gray-400 leading-relaxed">
                 {currentTask.description}
               </p>
@@ -514,6 +527,15 @@ export default function TaskDetailPage() {
                     >
                       Add occurrence
                     </button>
+                    <button
+                      onClick={() => {
+                        setAddTaskOpen(true);
+                        setMenuOpen(false);
+                      }}
+                      className="block w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 border-b border-gray-100 dark:border-gray-800"
+                    >
+                      New task
+                    </button>
                     {completed.length > 0 && (
                       <button
                         onClick={() => {
@@ -532,7 +554,7 @@ export default function TaskDetailPage() {
                       }}
                       className="block w-full text-left px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950"
                     >
-                      Delete series
+                      Archive line item
                     </button>
                   </div>
                 )}
@@ -574,35 +596,31 @@ export default function TaskDetailPage() {
 
             {/* Right: Task Details */}
             <div className="space-y-3 text-sm">
+              {currentLineItem && (
+                <div className="flex justify-between gap-4">
+                  <span className="text-gray-500 dark:text-gray-400">
+                    Category
+                  </span>
+                  {(() => {
+                    const colors = getColorClasses(
+                      categoryColors[currentLineItem.category] || "blue",
+                    );
+                    return (
+                      <span
+                        className={`px-2 py-0.5 rounded-full ${colors.bg} ${colors.text} font-medium text-xs`}
+                      >
+                        {currentLineItem.category}
+                      </span>
+                    );
+                  })()}
+                </div>
+              )}
               <div className="flex justify-between gap-4">
                 <span className="text-gray-500 dark:text-gray-400">
-                  Category
-                </span>
-                {(() => {
-                  const colors = getColorClasses(
-                    categoryColors[currentTask.category] || "blue",
-                  );
-                  return (
-                    <span
-                      className={`px-2 py-0.5 rounded-full ${colors.bg} ${colors.text} font-medium text-xs`}
-                    >
-                      {currentTask.category}
-                    </span>
-                  );
-                })()}
-              </div>
-              <div className="flex justify-between gap-4">
-                <span className="text-gray-500 dark:text-gray-400">
-                  {isBudgetItem ? "Fiscal Year" : "Due Date"}
+                  Due Date
                 </span>
                 <span className="font-medium text-gray-900 dark:text-gray-100">
-                  {isBudgetItem
-                    ? (() => {
-                        const d = new Date(currentTask.start_date + "T00:00:00");
-                        const fy = d.getMonth() >= 6 ? d.getFullYear() + 1 : d.getFullYear();
-                        return `FY${fy}`;
-                      })()
-                    : currentTask.start_date}
+                  {currentTask.start_date}
                 </span>
               </div>
               <div className="flex justify-between gap-4">
@@ -720,12 +738,12 @@ export default function TaskDetailPage() {
       {editOpen && (
         <div
           ref={backdropRef}
-          className="animate-backdrop fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
+          className={MODAL_BACKDROP}
           onClick={(e) => {
             if (e.target === backdropRef.current) closeEdit();
           }}
         >
-          <div className="animate-modal bg-white dark:bg-gray-900 rounded-lg shadow-xl max-w-lg w-full max-h-[90vh] overflow-y-auto flex flex-col p-8">
+          <div className={MODAL_CONTENT}>
             <h2 className="text-2xl font-bold mb-8 text-gray-900 dark:text-gray-100 shrink-0">
               Edit Task
             </h2>
@@ -789,63 +807,23 @@ export default function TaskDetailPage() {
                   </select>
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
-                    Category
-                  </label>
-                  <select
-                    value={form.category ?? ""}
-                    onChange={(e) =>
-                      setForm((f) => ({ ...f, category: e.target.value }))
-                    }
-                    className="w-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 rounded-md px-3 py-2 text-sm text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-gray-400"
-                  >
-                    {categories.map((c) => (
-                      <option key={c}>{c}</option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
-                    Est. Cost
-                  </label>
-                  <input
-                    type="number"
-                    value={form.estimated_cost ?? ""}
-                    onChange={(e) =>
-                      setForm((f) => ({
-                        ...f,
-                        estimated_cost: e.target.value
-                          ? Number(e.target.value)
-                          : null,
-                      }))
-                    }
-                    className="w-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 rounded-md px-3 py-2 text-sm text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-gray-400"
-                  />
-                </div>
-              </div>
               <div>
                 <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
-                  Vendor
+                  Est. Cost
                 </label>
-                <select
-                  value={form.vendor_id ?? ""}
+                <input
+                  type="number"
+                  value={form.estimated_cost ?? ""}
                   onChange={(e) =>
                     setForm((f) => ({
                       ...f,
-                      vendor_id: e.target.value || null,
+                      estimated_cost: e.target.value
+                        ? Number(e.target.value)
+                        : null,
                     }))
                   }
                   className="w-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 rounded-md px-3 py-2 text-sm text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-gray-400"
-                >
-                  <option value="">None</option>
-                  {vendors.map((v) => (
-                    <option key={v.id} value={v.id}>
-                      {v.name}
-                    </option>
-                  ))}
-                </select>
+                />
               </div>
             </div>
             {series.length > 1 && form.title && form.title !== originalForm.title && (
@@ -858,22 +836,22 @@ export default function TaskDetailPage() {
                   className="w-4 h-4 rounded border-gray-300 dark:border-gray-600 cursor-pointer"
                 />
                 <label htmlFor="renameAllInSeries" className="text-sm text-blue-700 dark:text-blue-400 cursor-pointer">
-                  Rename all {series.length} occurrences in this series
+                  Apply to all future occurrences in this line item
                 </label>
               </div>
             )}
             <div className="flex gap-3 mt-8 pt-6 border-t border-gray-100 dark:border-gray-800 shrink-0">
               <button
-                onClick={saveEdit}
-                className="flex-1 text-sm px-4 py-2 rounded-md bg-gray-900 dark:bg-gray-700 text-white hover:bg-gray-700 dark:hover:bg-gray-600 transition-colors font-medium"
-              >
-                Save
-              </button>
-              <button
                 onClick={closeEdit}
                 className="flex-1 text-sm px-4 py-2 rounded-md border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors font-medium"
               >
                 Cancel
+              </button>
+              <button
+                onClick={saveEdit}
+                className="flex-1 text-sm px-4 py-2 rounded-md bg-gray-900 dark:bg-gray-700 text-white hover:bg-gray-700 dark:hover:bg-gray-600 transition-colors font-medium"
+              >
+                Save
               </button>
             </div>
           </div>
@@ -883,12 +861,12 @@ export default function TaskDetailPage() {
       {addOccurrenceOpen && (
         <div
           ref={addOccurrenceBackdropRef}
-          className="animate-backdrop fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
+          className={MODAL_BACKDROP}
           onClick={(e) => {
             if (e.target === addOccurrenceBackdropRef.current) setAddOccurrenceOpen(false);
           }}
         >
-          <div className="animate-modal bg-white dark:bg-gray-900 rounded-lg shadow-xl max-w-md w-full max-h-[90vh] overflow-y-auto flex flex-col p-8">
+          <div className={MODAL_CONTENT_SM}>
             <h2 className="text-2xl font-bold mb-8 text-gray-900 dark:text-gray-100 shrink-0">
               Add Occurrence
             </h2>
@@ -919,7 +897,7 @@ export default function TaskDetailPage() {
                   Mark as completed
                 </span>
               </label>
-              {occurrenceForm.completed && currentTask.variable_cost && (
+              {occurrenceForm.completed && (
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
                     Actual Cost ($)
@@ -938,16 +916,16 @@ export default function TaskDetailPage() {
             </div>
             <div className="flex gap-3 mt-8 pt-6 border-t border-gray-100 dark:border-gray-800 shrink-0">
               <button
-                onClick={handleAddOccurrence}
-                className="flex-1 text-sm px-4 py-2 rounded-md bg-gray-900 dark:bg-gray-700 text-white hover:bg-gray-700 dark:hover:bg-gray-600 transition-colors font-medium"
-              >
-                Add
-              </button>
-              <button
                 onClick={() => setAddOccurrenceOpen(false)}
                 className="flex-1 text-sm px-4 py-2 rounded-md border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors font-medium"
               >
                 Cancel
+              </button>
+              <button
+                onClick={handleAddOccurrence}
+                className="flex-1 text-sm px-4 py-2 rounded-md bg-gray-900 dark:bg-gray-700 text-white hover:bg-gray-700 dark:hover:bg-gray-600 transition-colors font-medium"
+              >
+                Add
               </button>
             </div>
           </div>
@@ -955,8 +933,8 @@ export default function TaskDetailPage() {
       )}
 
       {promptingCostFor && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white dark:bg-gray-900 rounded-lg shadow-xl max-w-md w-full p-8">
+        <div className={MODAL_BACKDROP}>
+          <div className={MODAL_CONTENT_SM}>
             <h3 className="text-lg font-bold mb-4 text-gray-900 dark:text-gray-100">
               Enter Actual Cost
             </h3>
@@ -972,21 +950,37 @@ export default function TaskDetailPage() {
             />
             <div className="flex gap-3">
               <button
-                onClick={() => finishCompleteTask(promptingCostFor, Number(costPromptValue) || undefined)}
-                className="flex-1 text-sm px-4 py-2 rounded-md bg-gray-900 dark:bg-gray-700 text-white hover:bg-gray-700 dark:hover:bg-gray-600 transition-colors font-medium"
-              >
-                Complete
-              </button>
-              <button
                 onClick={() => setPromptingCostFor(null)}
                 className="flex-1 text-sm px-4 py-2 rounded-md border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors font-medium"
               >
                 Cancel
               </button>
+              <button
+                onClick={() => finishCompleteTask(promptingCostFor, Number(costPromptValue) || undefined)}
+                className="flex-1 text-sm px-4 py-2 rounded-md bg-gray-900 dark:bg-gray-700 text-white hover:bg-gray-700 dark:hover:bg-gray-600 transition-colors font-medium"
+              >
+                Complete
+              </button>
             </div>
           </div>
         </div>
       )}
+
+      <NewTaskModal
+        isOpen={addTaskOpen}
+        lineItems={lineItems}
+        categories={categories}
+        vendors={vendors}
+        onSave={async () => {
+          await fetchAll();
+          setAddTaskOpen(false);
+        }}
+        onClose={() => setAddTaskOpen(false)}
+        prefilledFrequency="once-off"
+        prefilledCategory={currentLineItem?.category || ""}
+        prefilledVendorId={currentLineItem?.vendor_id || ""}
+        allowCreateAndComplete={true}
+      />
 
     </>
   );

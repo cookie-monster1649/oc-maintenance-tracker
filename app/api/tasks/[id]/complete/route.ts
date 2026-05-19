@@ -28,17 +28,28 @@ export async function POST(
     actual_cost: actualCost,
   };
 
-  // Only generate next tasks if this is a recurring task
+  // Only generate next tasks if this is a recurring task and the immediate next
+  // occurrence in THIS pattern doesn't already exist. Checking the next date
+  // (rather than counting all futures) avoids cross-pattern interference when
+  // multiple recurring tasks share the same line item.
   let nextTask = undefined;
   if (task.frequency) {
     const nextDate = nextStartDate(task.start_date, task.frequency);
 
-    if (!body.no_extrapolate) {
+    const nextAlreadyExists = tasks.some(
+      (t) => t.line_item_id === task.line_item_id && t.start_date === nextDate,
+    );
+
+    const totalScheduled = tasks.filter(
+      (t) => t.line_item_id === task.line_item_id && t.status !== "Completed",
+    ).length;
+
+    if (!body.no_extrapolate && !nextAlreadyExists && totalScheduled < 3) {
       pushFutureTasks(tasks, extrapolateFutureTasks(task));
     }
 
     nextTask = tasks.find(
-      (t) => t.series_id === task.series_id && t.start_date === nextDate,
+      (t) => t.line_item_id === task.line_item_id && t.start_date === nextDate,
     );
   }
 

@@ -11,6 +11,7 @@ interface NewVendorForm {
 interface MatchDocumentModalProps {
   doc: Document;
   tasks: Task[];
+  lineItems?: Array<{ id: string; title: string; category: string }>;
   vendors?: Array<{ id: string; name: string; service_type: string }>;
   categories: string[];
   defaultVendorId?: string;
@@ -48,6 +49,7 @@ interface MatchDocumentModalProps {
 export function MatchDocumentModal({
   doc,
   tasks,
+  lineItems,
   vendors,
   categories,
   defaultVendorId,
@@ -93,8 +95,9 @@ export function MatchDocumentModal({
   try {
     latestBySeries = safeTasks.reduce(
       (acc, t) => {
-        if (!acc[t.series_id] || (t.start_date || "") > (acc[t.series_id].start_date || "")) {
-          acc[t.series_id] = t;
+        const lineItemId = t.line_item_id;
+        if (!acc[lineItemId] || (t.start_date || "") > (acc[lineItemId].start_date || "")) {
+          acc[lineItemId] = t;
         }
         return acc;
       },
@@ -104,12 +107,15 @@ export function MatchDocumentModal({
     console.error("[MatchDocumentModal] Error in reduce:", e, { safeTasks });
   }
 
-  let distinctSeries: Array<{ seriesId: string; title: string }> = [];
+  let distinctSeries: Array<{ seriesId: string; title: string | null }> = [];
   try {
     const entries = Object.entries(latestBySeries);
     const filtered = entries.filter(([, t]) => t.archived !== true);
-    const mapped = filtered.map(([seriesId, latestTask]) => ({ seriesId, title: latestTask.title }));
-    distinctSeries = mapped.sort((a, b) => a.title.localeCompare(b.title));
+    const mapped = filtered.map(([seriesId, latestTask]) => {
+      const lineItem = lineItems?.find((li) => li.id === seriesId);
+      return { seriesId, title: lineItem?.title ?? latestTask.title ?? "Untitled" };
+    });
+    distinctSeries = mapped.sort((a, b) => (a.title ?? "").localeCompare(b.title ?? ""));
   } catch (e) {
     console.error("[MatchDocumentModal] Error creating distinctSeries:", e, { latestBySeries });
   }
@@ -118,7 +124,7 @@ export function MatchDocumentModal({
   try {
     recurrences = selectedSeriesId
       ? safeTasks
-          .filter((t) => t.series_id === selectedSeriesId && t.archived !== true)
+          .filter((t) => t.line_item_id === selectedSeriesId && t.archived !== true)
           .sort((a, b) => (b.start_date || "").localeCompare(a.start_date || ""))
       : [];
   } catch (e) {
@@ -195,7 +201,7 @@ export function MatchDocumentModal({
               <div className="space-y-4">
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
-                    1. Select Task Series
+                    1. Select Line Item
                   </label>
                   <select
                     value={selectedSeriesId}
@@ -221,9 +227,9 @@ export function MatchDocumentModal({
                     }}
                     className="w-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-gray-400"
                   >
-                    <option value="">Select a task series...</option>
+                    <option value="">Select a line item...</option>
                     <option value="NEW TASK" className="font-bold text-blue-600">
-                      + NEW TASK
+                      + CREATE NEW
                     </option>
                     {distinctSeries.map(({ seriesId, title }) => (
                       <option key={seriesId} value={seriesId}>

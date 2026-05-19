@@ -1,45 +1,59 @@
 import { NextResponse } from "next/server";
 import { readTasks, writeTasks, type Task } from "@/lib/tasks";
+import { readLineItems, writeLineItems, type LineItem } from "@/lib/line-items";
 import { readExpenses } from "@/lib/expenses";
 import { randomUUID } from "crypto";
 
 export async function POST() {
   const expenses = readExpenses();
   const tasks = readTasks();
+  const lineItems = readLineItems();
 
+  const newLineItems: LineItem[] = [];
   const newTasks: Task[] = [];
 
   for (const expense of expenses) {
-    const seriesId = randomUUID();
+    const lineItemId = randomUUID();
 
-    // Create a budget_item task with the expense details
-    const budgetItemTask: Task = {
-      id: `${seriesId}-${expense.date_paid}`,
-      series_id: seriesId,
+    // Create a LineItem from the expense
+    const lineItem: LineItem = {
+      id: lineItemId,
       title: expense.description || "(No description)",
       description: "",
-      task_type: "budget_item",
+      category: expense.category,
+      vendor_id: expense.vendor_id || null,
+      fy_budget: null,
+      archived: false,
+    };
+
+    // Create a Task record for the completed expense
+    const task: Task = {
+      id: `${lineItemId}-${expense.date_paid}`,
+      line_item_id: lineItemId,
+      title: null,
+      description: null,
       frequency: null,
-      variable_cost: false,
       status: "Completed",
       start_date: expense.date_paid,
       last_completed_date: expense.date_paid,
       estimated_cost: expense.amount,
       actual_cost: expense.amount,
-      vendor_id: expense.vendor_id,
-      category: expense.category,
       documents: [],
     };
 
-    newTasks.push(budgetItemTask);
+    newLineItems.push(lineItem);
+    newTasks.push(task);
   }
 
-  // Merge new tasks with existing tasks
+  // Merge with existing data
+  const allLineItems = [...lineItems, ...newLineItems];
   const allTasks = [...tasks, ...newTasks];
+
+  writeLineItems(allLineItems);
   writeTasks(allTasks);
 
   return NextResponse.json({
     migrated: newTasks.length,
-    message: `Migrated ${newTasks.length} expenses to budget_item tasks`,
+    message: `Migrated ${newTasks.length} expenses to line items and tasks`,
   });
 }

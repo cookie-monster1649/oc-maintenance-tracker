@@ -151,7 +151,7 @@ export default function DocumentsPage() {
     confirmSmartAction,
     handleCreateAndMatch,
   } = useDocumentMatching({
-    tasks,
+    tasks: tasks as any,
     vendors,
     onSuccess: refreshAll,
   });
@@ -318,7 +318,7 @@ export default function DocumentsPage() {
         <MatchDocumentErrorBoundary doc={matchingDoc}>
           <MatchDocumentModal
             doc={matchingDoc}
-            tasks={tasks}
+            tasks={tasks as any}
             vendors={vendors}
             categories={categories}
             selectedSeriesId={selectedSeriesId}
@@ -352,7 +352,7 @@ export default function DocumentsPage() {
       {pendingSmartAction && (
         <SmartActionConfirmModal
           doc={pendingSmartAction.doc}
-          task={tasks.find((t) => t.id === pendingSmartAction.taskId)}
+          task={tasks.find((t) => t.id === pendingSmartAction.taskId) as any}
           confirmDate={pendingSmartAction.confirmDate}
           onConfirmDateChange={(date) =>
             setPendingSmartAction({ ...pendingSmartAction, confirmDate: date })

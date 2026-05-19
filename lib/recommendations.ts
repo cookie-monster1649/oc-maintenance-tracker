@@ -1,4 +1,5 @@
 import { Task } from "./tasks";
+import { LineItem } from "./line-items";
 import { Vendor } from "./vendors";
 import { PaperlessDocument } from "./paperless";
 import { parseISO, differenceInDays, startOfDay } from "date-fns";
@@ -17,6 +18,7 @@ export function getSmartActions(
   doc: PaperlessDocument,
   tasks: Task[],
   vendors: Vendor[],
+  lineItems: LineItem[],
 ): SmartAction[] {
   if (!doc.correspondent || !doc.created) return [];
 
@@ -31,8 +33,10 @@ export function getSmartActions(
 
   const actions: SmartAction[] = [];
 
-  // Filter tasks for this vendor
-  const vendorTasks = tasks.filter((t) => t.vendor_id === vendor.id);
+  // Filter tasks for this vendor via LineItem vendor_id lookup
+  const vendorLineItems = lineItems.filter((li) => li.vendor_id === vendor.id);
+  const vendorLineItemIds = new Set(vendorLineItems.map((li) => li.id));
+  const vendorTasks = tasks.filter((t) => vendorLineItemIds.has(t.line_item_id));
 
   vendorTasks.forEach((task) => {
     // 1. Check if it's a candidate for "Match Completed"
@@ -44,7 +48,7 @@ export function getSmartActions(
         actions.push({
           type: "MATCH_COMPLETED",
           taskId: task.id,
-          taskTitle: task.title,
+          taskTitle: task.title ?? "Untitled",
           dateLabel: task.last_completed_date,
           confidence: (WINDOW - diff) / WINDOW,
         });
@@ -60,7 +64,7 @@ export function getSmartActions(
         actions.push({
           type: "COMPLETE_SCHEDULED",
           taskId: task.id,
-          taskTitle: task.title,
+          taskTitle: task.title ?? "Untitled",
           dateLabel: task.start_date,
           confidence: (WINDOW - diff) / WINDOW,
         });

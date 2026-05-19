@@ -17,15 +17,12 @@ export async function PUT(req: Request, { params }: Params) {
     ...tasks[idx],
     title: body.title ?? tasks[idx].title,
     description: body.description ?? tasks[idx].description,
-    task_type: body.task_type ?? tasks[idx].task_type,
     frequency: body.frequency ?? tasks[idx].frequency,
-    variable_cost: body.variable_cost ?? tasks[idx].variable_cost,
     start_date: body.start_date ?? tasks[idx].start_date,
     estimated_cost: body.estimated_cost != null ? Number(body.estimated_cost) : tasks[idx].estimated_cost,
     actual_cost: body.actual_cost != null ? Number(body.actual_cost) : tasks[idx].actual_cost,
-    vendor_id: body.vendor_id ?? tasks[idx].vendor_id,
-    category: body.category ?? tasks[idx].category,
     archived: body.archived ?? tasks[idx].archived,
+    vendor_id: "vendor_id" in body ? (body.vendor_id ?? null) : tasks[idx].vendor_id,
   };
 
   writeTasks(tasks);

@@ -12,6 +12,7 @@ import {
 } from "date-fns";
 
 const DATA_PATH = path.join(process.cwd(), "data/tasks.json");
+const LINE_ITEMS_PATH = path.join(process.cwd(), "data/line_items.json");
 
 export type Frequency =
   | "Weekly"
@@ -22,8 +23,6 @@ export type Frequency =
   | "Annually";
 
 export type Status = "Scheduled" | "In Progress" | "Completed" | "Overdue";
-
-export type TaskType = "budget_item" | "once_off" | "recurring";
 
 export interface DocumentRef {
   id: number;
@@ -38,21 +37,18 @@ export interface DocumentRef {
 
 export interface Task {
   id: string;
-  series_id: string;
-  title: string;
-  description: string;
-  task_type: TaskType;
+  line_item_id: string;
+  title: string | null;
+  description: string | null;
   frequency: Frequency | null;
-  variable_cost: boolean;
-  status: Status;
   start_date: string;
-  last_completed_date: string | null;
   estimated_cost: number | null;
   actual_cost: number | null;
-  vendor_id: string | null;
-  category: string;
+  status: Status;
+  last_completed_date: string | null;
+  documents: DocumentRef[];
   archived?: boolean;
-  documents?: DocumentRef[];
+  vendor_id?: string | null;
 }
 
 export function readTasks(): Task[] {
@@ -65,79 +61,131 @@ export function readTasks(): Task[] {
 
   let needsWrite = false;
 
-  // Migrate due_date → start_date for tasks created before the field rename
-  const withStartDate = raw_tasks.map((t) => {
-    if (!t.start_date && t.due_date) {
-      needsWrite = true;
-      const { due_date, ...rest } = t;
-      return { ...rest, start_date: due_date };
-    }
-    return t;
-  });
+  // Migrate to line_item_id model (from series_id model)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const rawTasks = raw_tasks as any[];
+  const needsLineItemMigration =
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    rawTasks.some((t: any) => t.series_id && !t.line_item_id) ||
+    !fs.existsSync(LINE_ITEMS_PATH);
 
-  // Backfill missing series_id by grouping tasks with the same title
-  const seriesMap = new Map<string, string>();
-  const withSeriesId = withStartDate.map((t) => {
-    if (!t.series_id) {
-      needsWrite = true;
-      if (!seriesMap.has(t.title)) {
-        seriesMap.set(t.title, randomUUID());
+  let finalTasks: Task[] = rawTasks;
+  if (needsLineItemMigration) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const lineItems: any[] = [];
+    const migratedTasks: Task[] = [];
+
+    // Group tasks by series_id to create line items
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const groupedBySeries = new Map<string, any[]>();
+    for (const t of rawTasks) {
+      const seriesId = t.series_id || randomUUID();
+      if (!groupedBySeries.has(seriesId)) {
+        groupedBySeries.set(seriesId, []);
       }
-      return { ...t, series_id: seriesMap.get(t.title) };
+      groupedBySeries.get(seriesId)!.push(t);
     }
-    return t;
-  });
 
-  // Migrate corrupt IDs: tasks that accumulated multiple dates (e.g. base-2025-09-30-2025-11-30)
-  // due to extrapolateFutureTasks being called on already-dated task IDs.
-  // Clean IDs should always be series_id-start_date.
-  const seenIds = new Set<string>();
-  const withCleanIds = withSeriesId.reduce((acc: Task[], t: Task) => {
-    const dateCount = (t.id.match(/-\d{4}-\d{2}-\d{2}/g) || []).length;
-    const cleanId = dateCount > 1 ? `${t.series_id}-${t.start_date}` : t.id;
-    if (dateCount > 1) needsWrite = true;
-    if (!seenIds.has(cleanId)) {
-      seenIds.add(cleanId);
-      acc.push(dateCount > 1 ? { ...t, id: cleanId } : t);
-    } else {
-      needsWrite = true; // drop duplicate after ID normalisation
-    }
-    return acc;
-  }, []);
+    // Process each series group
+    for (const [, tasksInSeries] of groupedBySeries) {
+      const taskType = tasksInSeries[0].task_type || "once_off";
 
-  // Backfill new fields for tasks created before the cost model redesign
-  const withNewFields = withCleanIds.map((t: Task) => {
-    let changed = false;
-    const updated = { ...t };
-    if (!updated.task_type) {
-      updated.task_type = updated.frequency ? "recurring" : "budget_item";
-      changed = true;
-    }
-    if (updated.variable_cost === undefined) {
-      updated.variable_cost = false;
-      changed = true;
-    }
-    if (updated.actual_cost === undefined) {
-      updated.actual_cost = null;
-      changed = true;
-    }
-    if (changed) needsWrite = true;
-    return updated;
-  });
+      if (taskType === "budget_item") {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const budgetItemTask = tasksInSeries.find((t: any) => t.task_type === "budget_item");
+        if (budgetItemTask) {
+          const lineItemId = randomUUID();
+          lineItems.push({
+            id: lineItemId,
+            title: budgetItemTask.title,
+            description: budgetItemTask.description || "",
+            category: budgetItemTask.category,
+            vendor_id: budgetItemTask.vendor_id || null,
+            fy_budget: budgetItemTask.estimated_cost || null,
+            archived: budgetItemTask.archived || false,
+          });
 
-  if (needsWrite) {
-    fs.writeFileSync(DATA_PATH, JSON.stringify(withNewFields, null, 2));
+          // Only include child tasks (skip the budget_item itself)
+          for (const t of tasksInSeries) {
+            if (t.task_type !== "budget_item") {
+              migratedTasks.push({
+                id: t.id,
+                line_item_id: lineItemId,
+                title: t.title || null,
+                description: t.description || null,
+                frequency: t.frequency,
+                start_date: t.start_date,
+                estimated_cost: t.estimated_cost || null,
+                actual_cost: t.actual_cost || null,
+                status: t.status,
+                last_completed_date: t.last_completed_date || null,
+                documents: t.documents || [],
+                archived: t.archived || false,
+              });
+            }
+          }
+        }
+      } else {
+        const lineItemId = randomUUID();
+        const firstTask = tasksInSeries[0];
+        lineItems.push({
+          id: lineItemId,
+          title: firstTask.title,
+          description: firstTask.description || "",
+          category: firstTask.category,
+          vendor_id: firstTask.vendor_id || null,
+          fy_budget: null,
+          archived: firstTask.archived || false,
+        });
+
+        for (const t of tasksInSeries) {
+          migratedTasks.push({
+            id: t.id,
+            line_item_id: lineItemId,
+            title: t.title || null,
+            description: t.description || null,
+            frequency: t.frequency,
+            start_date: t.start_date,
+            estimated_cost: t.estimated_cost || null,
+            actual_cost: t.actual_cost || null,
+            status: t.status,
+            last_completed_date: t.last_completed_date || null,
+            documents: t.documents || [],
+            archived: t.archived || false,
+          });
+        }
+      }
+    }
+
+    finalTasks = migratedTasks;
+    fs.writeFileSync(DATA_PATH, JSON.stringify(migratedTasks, null, 2));
+    fs.writeFileSync(LINE_ITEMS_PATH, JSON.stringify(lineItems, null, 2));
+    needsWrite = false;
   }
 
-  const tasks: Task[] = withNewFields;
+  const tasks: Task[] = finalTasks;
+
+  // Deduplicate by line_item_id + start_date, keeping the most recent status (Completed wins)
+  const seen = new Map<string, Task>();
+  for (const t of tasks) {
+    const key = `${t.line_item_id}|${t.start_date}`;
+    const existing = seen.get(key);
+    if (!existing || t.status === "Completed") {
+      seen.set(key, t);
+    }
+  }
+  const dedupedTasks = Array.from(seen.values());
+
   const today = startOfDay(new Date());
-  return tasks.map((t) => ({
-    ...t,
-    status:
-      t.status !== "Completed" && t.start_date && isBefore(parseISO(t.start_date), today)
-        ? "Overdue"
-        : t.status,
-  }));
+  return dedupedTasks
+    .sort((a, b) => (a.start_date || "").localeCompare(b.start_date || ""))
+    .map((t) => ({
+      ...t,
+      status:
+        t.status !== "Completed" && t.start_date && isBefore(parseISO(t.start_date), today)
+          ? "Overdue"
+          : t.status,
+    }));
 }
 
 export function writeTasks(tasks: Task[]): void {
@@ -172,7 +220,7 @@ export function nextStartDate(startDate: string, frequency: Frequency | null): s
 export function pushFutureTasks(tasks: Task[], futureTasks: Task[]): void {
   for (const fTask of futureTasks) {
     const exists = tasks.some(
-      (t) => t.series_id === fTask.series_id && t.start_date === fTask.start_date,
+      (t) => t.line_item_id === fTask.line_item_id && t.start_date === fTask.start_date,
     );
     if (!exists) tasks.push(fTask);
   }
@@ -190,8 +238,8 @@ export function extrapolateFutureTasks(task: Task): Task[] {
   while (futureTasks.length < 3 && isBefore(parseISO(current), cutoff)) {
     futureTasks.push({
       ...task,
-      id: `${task.series_id}-${current}`,
-      series_id: task.series_id,
+      id: `${task.line_item_id}-${current}`,
+      line_item_id: task.line_item_id,
       start_date: current,
       status: "Scheduled",
       last_completed_date: null,

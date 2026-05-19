@@ -9,24 +9,38 @@ export async function POST(req: Request) {
   const body = await req.json();
   const tasks = readTasks();
 
+  if (!body.line_item_id) {
+    return NextResponse.json(
+      { error: "line_item_id is required" },
+      { status: 400 },
+    );
+  }
+
   const task: Task = {
-    id: crypto.randomUUID(),
-    series_id: body.series_id ?? crypto.randomUUID(),
-    title: body.title,
-    description: body.description ?? "",
-    task_type: body.task_type ?? "recurring",
+    id: `${body.line_item_id}-${body.start_date}`,
+    line_item_id: body.line_item_id,
+    title: body.title ?? null,
+    description: body.description ?? null,
     frequency: body.frequency ?? null,
-    variable_cost: body.variable_cost ?? false,
     status: body.status ?? "Scheduled",
     start_date: body.start_date,
     last_completed_date: body.last_completed_date ?? null,
     estimated_cost: body.estimated_cost ? Number(body.estimated_cost) : null,
-    actual_cost: body.actual_cost ? Number(body.actual_cost) : null,
-    vendor_id: body.vendor_id || null,
-    category: body.category,
+    actual_cost: body.actual_cost != null
+      ? Number(body.actual_cost)
+      : body.status === "Completed"
+        ? (body.estimated_cost ? Number(body.estimated_cost) : null)
+        : null,
+    vendor_id: body.vendor_id ?? null,
+    documents: [],
   };
 
-  tasks.push(task);
+  const alreadyExists = tasks.some(
+    (t) => t.line_item_id === task.line_item_id && t.start_date === task.start_date,
+  );
+  if (!alreadyExists) {
+    tasks.push(task);
+  }
 
   if (!body.no_extrapolate && task.frequency) {
     pushFutureTasks(tasks, extrapolateFutureTasks(task));
