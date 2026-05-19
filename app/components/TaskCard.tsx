@@ -159,8 +159,13 @@ export function TaskCard({
             )}
           </div>
           {showVendor && vendor && (
-            <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">
-              {vendor.name}
+            <div className="mb-1">
+              <a
+                href={`/vendors/${vendor.id}`}
+                className="inline-block text-xs text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 px-2 py-0.5 rounded transition-colors"
+              >
+                {vendor.name}
+              </a>
             </div>
           )}
           {(task.description ?? resolvedLineItem.description) && (

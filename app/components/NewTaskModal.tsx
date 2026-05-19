@@ -19,6 +19,7 @@ interface NewTaskData {
   start_date: string;
   estimated_cost: string;
   line_item_id: string; // FK to LineItem
+  vendor_id: string;
 }
 
 interface NewLineItemInline {
@@ -74,6 +75,7 @@ export default function NewTaskModal({
     start_date: "",
     estimated_cost: "",
     line_item_id: "",
+    vendor_id: prefilledVendorId,
   });
   const [createNewLineItem, setCreateNewLineItem] = useState(false);
   const [newLineItem, setNewLineItem] = useState<NewLineItemInline>({
@@ -161,6 +163,7 @@ export default function NewTaskModal({
         start_date: newTask.start_date,
         estimated_cost: newTask.estimated_cost ? Number(newTask.estimated_cost) : null,
         line_item_id: lineItemId,
+        vendor_id: newTask.vendor_id || null,
         no_extrapolate: newTask.frequency === "once-off",
       };
 
@@ -183,6 +186,7 @@ export default function NewTaskModal({
         start_date: "",
         estimated_cost: "",
         line_item_id: "",
+        vendor_id: prefilledVendorId,
       });
       setCreateNewLineItem(false);
       setNewLineItem({ title: "", category: prefilledCategory, vendor_id: prefilledVendorId });
@@ -297,9 +301,14 @@ export default function NewTaskModal({
                   <>
                     <select
                       value={newTask.line_item_id}
-                      onChange={(e) =>
-                        setNewTask({ ...newTask, line_item_id: e.target.value })
-                      }
+                      onChange={(e) => {
+                        const li = lineItems.find((li) => li.id === e.target.value);
+                        setNewTask({
+                          ...newTask,
+                          line_item_id: e.target.value,
+                          vendor_id: li?.vendor_id ?? "",
+                        });
+                      }}
                       className={INPUT_BASE}
                     >
                       <option value="">Select existing line item</option>
@@ -386,9 +395,26 @@ export default function NewTaskModal({
               {selectedLineItem && (
                 <div className="p-2 bg-gray-100 dark:bg-gray-800 rounded text-sm text-gray-600 dark:text-gray-400">
                   Category: {selectedLineItem.category}
-                  {selectedLineItem.vendor_id && ` • ${vendors.find((v) => v.id === selectedLineItem.vendor_id)?.name ?? selectedLineItem.vendor_id}`}
                 </div>
               )}
+
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                  Vendor (optional)
+                </label>
+                <select
+                  value={newTask.vendor_id}
+                  onChange={(e) => setNewTask({ ...newTask, vendor_id: e.target.value })}
+                  className={INPUT_BASE}
+                >
+                  <option value="">None</option>
+                  {vendors.map((v) => (
+                    <option key={v.id} value={v.id}>
+                      {v.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
 
               <div>
                 <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">

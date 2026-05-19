@@ -115,6 +115,7 @@ export default function VendorDetailPage() {
   const [completing, setCompleting] = useState<string | null>(null);
   const [form, setForm] = useState<Partial<Vendor>>({});
   const [originalForm, setOriginalForm] = useState<Partial<Vendor>>({});
+  const [selectedTaskPatterns, setSelectedTaskPatterns] = useState<string[]>([]);
 
   const menuRef = useRef<HTMLDivElement>(null);
   const backdropRef = useRef<HTMLDivElement>(null);
@@ -263,15 +264,25 @@ export default function VendorDetailPage() {
     return effectiveVendorId === vendorId;
   });
 
-  const completed = assignedTasks
-    .filter((t) => t.status === "Completed")
-    .sort((a, b) =>
-      (b.start_date || "").localeCompare(a.start_date || ""),
-    );
-  const upcoming = deduplicateTasks(
+  const filterBySelectedPatterns = <T extends { title?: string | null; frequency?: string | null }>(list: T[]): T[] => {
+    if (selectedTaskPatterns.length === 0) return list;
+    return list.filter((t) => {
+      const patternKey = `${t.title ?? ""}|${t.frequency ?? ""}`;
+      return selectedTaskPatterns.includes(patternKey);
+    });
+  };
+
+  const completed = filterBySelectedPatterns(
     assignedTasks
-      .filter((t) => t.status !== "Completed")
-      .sort((a, b) => (a.start_date || "").localeCompare(b.start_date || "")),
+      .filter((t) => t.status === "Completed")
+      .sort((a, b) => (b.start_date || "").localeCompare(a.start_date || "")),
+  );
+  const upcoming = filterBySelectedPatterns(
+    deduplicateTasks(
+      assignedTasks
+        .filter((t) => t.status !== "Completed")
+        .sort((a, b) => (a.start_date || "").localeCompare(b.start_date || "")),
+    ),
   );
 
   const totalCost = assignedTasks.reduce(
@@ -466,32 +477,53 @@ export default function VendorDetailPage() {
               (t) => (t.title || "Untitled") === pattern.title && t.frequency === pattern.frequency,
             );
             const lineItemId = patternTask?.line_item_id;
+            const patternKey = `${pattern.title}|${pattern.frequency ?? ""}`;
+            const isSelected = selectedTaskPatterns.includes(patternKey);
+
+            const togglePattern = () => {
+              if (isSelected) {
+                setSelectedTaskPatterns(selectedTaskPatterns.filter((p) => p !== patternKey));
+              } else {
+                setSelectedTaskPatterns([...selectedTaskPatterns, patternKey]);
+              }
+            };
 
             return (
-              <div key={key} className="text-sm text-gray-700 dark:text-gray-300">
-                {lineItemId ? (
+              <div key={key} className="flex items-center text-sm group">
+                <button
+                  onClick={togglePattern}
+                  className={`flex-1 text-left px-2 py-1 rounded cursor-pointer transition-colors ${
+                    isSelected
+                      ? "bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900 font-medium"
+                      : "text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-800"
+                  }`}
+                >
+                  {pattern.title}
+                  {pattern.frequency && (
+                    <>
+                      <span className="mx-3 text-gray-400 dark:text-gray-500">•</span>
+                      <span className={isSelected ? "text-gray-100 dark:text-gray-800" : "text-gray-500 dark:text-gray-400"}>
+                        {pattern.frequency}
+                      </span>
+                    </>
+                  )}
+                  {pattern.estimated_cost && (
+                    <>
+                      <span className="mx-3 text-gray-400 dark:text-gray-500">•</span>
+                      <span className={isSelected ? "text-gray-100 dark:text-gray-800" : "text-gray-500 dark:text-gray-400"}>
+                        ${pattern.estimated_cost}
+                      </span>
+                    </>
+                  )}
+                </button>
+                {lineItemId && (
                   <a
                     href={`/line-items/${lineItemId}`}
-                    className="text-blue-600 dark:text-blue-400 hover:underline"
+                    className="opacity-0 group-hover:opacity-100 ml-2 text-xs text-blue-500 dark:text-blue-400 hover:underline transition-opacity"
+                    title="Go to line item"
                   >
-                    {pattern.title}
+                    →
                   </a>
-                ) : (
-                  pattern.title
-                )}
-                {pattern.frequency && (
-                  <>
-                    <span className="mx-3 text-gray-400">•</span>
-                    <span className="text-gray-500 dark:text-gray-400">{pattern.frequency}</span>
-                  </>
-                )}
-                {pattern.estimated_cost && (
-                  <>
-                    <span className="mx-3 text-gray-400">•</span>
-                    <span className="text-gray-500 dark:text-gray-400">
-                      ${pattern.estimated_cost}
-                    </span>
-                  </>
                 )}
               </div>
             );

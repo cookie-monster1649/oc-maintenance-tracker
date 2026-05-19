@@ -399,8 +399,8 @@ export default function LineItemDetailPage() {
 
   const headerRightContent = (
     <div className="space-y-4 text-sm">
-      <div>
-        <div className="text-gray-500 dark:text-gray-400 mb-1">Category</div>
+      <div className="flex items-center gap-2">
+        <div className="text-gray-500 dark:text-gray-400">Category</div>
         {(() => {
           const colors = getColorClasses(categoryColors[lineItem.category] || "blue");
           return (
@@ -415,7 +415,7 @@ export default function LineItemDetailPage() {
           <div className="text-gray-500 dark:text-gray-400 mb-2">
             {usedVendors.length === 1 ? "Vendor" : "Vendors"}
           </div>
-          <ul className="space-y-1">
+          <ul className="space-y-1 pl-4">
             {usedVendors.map((v) => (
               <li key={v.id}>
                 <a
@@ -555,7 +555,7 @@ export default function LineItemDetailPage() {
       {godMode && (
         <button
           onClick={() => setAddTaskOpen(true)}
-          className="mt-4 text-sm text-blue-600 dark:text-blue-400 hover:underline"
+          className="mt-4 ml-5 text-sm text-blue-600 dark:text-blue-400 hover:underline"
         >
           + Add task
         </button>
