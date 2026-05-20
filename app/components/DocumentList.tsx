@@ -32,6 +32,7 @@ interface DocumentListProps {
   onMatch: (doc: Document) => void;
   onSmartAction: (doc: Document, action: SmartAction) => void;
   onUndoDismiss: (docId: number) => void;
+  onEditLinks?: (doc: Document) => void;
   selectedTab?: string;
   onTabChange?: (type: string) => void;
 }
@@ -43,6 +44,7 @@ export default function DocumentList({
   onMatch,
   onSmartAction,
   onUndoDismiss,
+  onEditLinks,
   selectedTab = "",
   onTabChange,
 }: DocumentListProps) {
@@ -159,6 +161,14 @@ export default function DocumentList({
                       >
                         View ↗
                       </a>
+                      {onEditLinks && !doc.is_dismissed && doc.document_type_label?.toLowerCase() !== "bill" && (
+                        <button
+                          onClick={() => onEditLinks(doc)}
+                          className="text-xs text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors px-2 py-1"
+                        >
+                          Edit links
+                        </button>
+                      )}
                       {doc.is_dismissed && (
                         <button
                           onClick={() => onUndoDismiss(doc.id)}
@@ -167,7 +177,7 @@ export default function DocumentList({
                           Undo Dismiss
                         </button>
                       )}
-                      {godMode && !doc.is_matched && !doc.is_dismissed && (
+                      {godMode && !doc.is_dismissed && doc.document_type_label?.toLowerCase() === "bill" && !doc.is_matched && (
                         <button
                           onClick={() => onMatch(doc)}
                           className="text-xs text-blue-600 dark:text-blue-400 hover:underline px-2 py-1"

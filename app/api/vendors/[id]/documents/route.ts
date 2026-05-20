@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
-import { readVendors } from "@/lib/vendors";
+import { readVendors, writeVendors } from "@/lib/vendors";
 import { readTasks } from "@/lib/tasks";
+import type { DocumentRef } from "@/lib/tasks";
 import { readLineItems } from "@/lib/line-items";
 import {
   listCorrespondents,
@@ -121,6 +122,42 @@ export async function GET(
       }
     });
 
+    // 3. Add docs linked directly to the vendor
+    (vendor.documents || []).forEach((doc) => {
+      if (!mergedDocs.has(doc.id)) {
+        mergedDocs.set(doc.id, {
+          id: doc.id,
+          title: doc.title,
+          tag_names: [],
+          document_type_label: doc.document_type_label,
+          created: doc.created,
+          url: doc.url,
+          is_matched: true,
+          correspondent: null,
+          smart_actions: [],
+        });
+      }
+    });
+
+    // 4. Add docs linked directly to any of the vendor's line items
+    vendorLineItems.forEach((li) => {
+      (li.documents || []).forEach((doc) => {
+        if (!mergedDocs.has(doc.id)) {
+          mergedDocs.set(doc.id, {
+            id: doc.id,
+            title: doc.title,
+            tag_names: [],
+            document_type_label: doc.document_type_label,
+            created: doc.created,
+            url: doc.url,
+            is_matched: true,
+            correspondent: null,
+            smart_actions: [],
+          });
+        }
+      });
+    });
+
     const result = Array.from(mergedDocs.values()).sort((a, b) =>
       (b.created || "").localeCompare(a.created || ""),
     );
@@ -132,5 +169,73 @@ export async function GET(
       { error: "Failed to fetch vendor documents" },
       { status: 500 },
     );
+  }
+}
+
+export async function POST(
+  request: Request,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  try {
+    const { id } = await params;
+    const { document } = await request.json();
+
+    const vendors = readVendors();
+    const idx = vendors.findIndex((v) => v.id === id);
+
+    if (idx === -1) {
+      return NextResponse.json({ error: "Vendor not found" }, { status: 404 });
+    }
+
+    const { getDocumentUrl, listDocumentTypes } = await import("@/lib/paperless");
+    const docTypes = await listDocumentTypes();
+    const typeMap = new Map(docTypes.map((t: { id: number; name: string }) => [t.id, t.name]));
+
+    const ref: DocumentRef = {
+      id: document.id,
+      title: document.title,
+      document_type_id: document.document_type,
+      document_type_label: document.document_type
+        ? typeMap.get(document.document_type) || null
+        : null,
+      created: document.created ? document.created.split("T")[0] : "",
+      url: getDocumentUrl(document.id),
+      auto_linked: false,
+      linked_at: new Date().toISOString(),
+    };
+
+    vendors[idx].documents = [...(vendors[idx].documents || []), ref];
+    writeVendors(vendors);
+
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    console.error("Vendor document link error:", error);
+    return NextResponse.json({ error: "Link failed" }, { status: 500 });
+  }
+}
+
+export async function DELETE(
+  request: Request,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  try {
+    const { id } = await params;
+    const { searchParams } = new URL(request.url);
+    const docId = Number(searchParams.get("docId"));
+
+    const vendors = readVendors();
+    const idx = vendors.findIndex((v) => v.id === id);
+
+    if (idx === -1) {
+      return NextResponse.json({ error: "Vendor not found" }, { status: 404 });
+    }
+
+    vendors[idx].documents = (vendors[idx].documents || []).filter((d) => d.id !== docId);
+    writeVendors(vendors);
+
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    console.error("Vendor document unlink error:", error);
+    return NextResponse.json({ error: "Unlink failed" }, { status: 500 });
   }
 }

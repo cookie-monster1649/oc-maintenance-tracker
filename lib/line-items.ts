@@ -1,5 +1,6 @@
 import fs from "fs";
 import path from "path";
+import type { DocumentRef } from "./tasks";
 
 const DATA_PATH = path.join(process.cwd(), "data/line_items.json");
 
@@ -12,6 +13,7 @@ export interface LineItem {
   fy_budget: number | null;
   fy: number;
   archived: boolean;
+  documents?: DocumentRef[];
 }
 
 export function readLineItems(): LineItem[] {

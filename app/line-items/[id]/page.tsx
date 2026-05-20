@@ -219,6 +219,8 @@ export default function LineItemDetailPage() {
     setSelectedSeriesTitle,
     selectedTaskId,
     setSelectedTaskId,
+    selectedVendorId,
+    setSelectedVendorId,
     createAsOccurrence,
     setCreateAsOccurrence,
     occurrenceDate,
@@ -231,6 +233,8 @@ export default function LineItemDetailPage() {
     handleManualMatchAndComplete,
     handleSmartAction: hookHandleSmartAction,
     handleCreateAndMatch,
+    handleLinkToLineItem,
+    handleLinkToVendor,
   } = useDocumentMatching({
     tasks,
     defaultVendorId: lineItem?.vendor_id ?? undefined,
@@ -898,6 +902,7 @@ export default function LineItemDetailPage() {
           <MatchDocumentModal
             doc={matchingDoc}
             tasks={tasks}
+            vendors={vendors}
             categories={categories}
             defaultVendorId={lineItem?.vendor_id ?? undefined}
             selectedSeriesId={selectedSeriesId}
@@ -905,6 +910,8 @@ export default function LineItemDetailPage() {
             setSelectedSeriesTitle={setSelectedSeriesTitle}
             selectedTaskId={selectedTaskId}
             setSelectedTaskId={setSelectedTaskId}
+            selectedVendorId={selectedVendorId}
+            setSelectedVendorId={setSelectedVendorId}
             createAsOccurrence={createAsOccurrence}
             setCreateAsOccurrence={setCreateAsOccurrence}
             occurrenceDate={occurrenceDate}
@@ -917,6 +924,8 @@ export default function LineItemDetailPage() {
             onManualMatchAndComplete={handleManualMatchAndComplete}
             onCreateAndMatch={handleCreateAndMatch}
             onCreateAndMatchComplete={() => {}}
+            onLinkToLineItem={handleLinkToLineItem}
+            onLinkToVendor={handleLinkToVendor}
             onClose={() => setMatchingDoc(null)}
           />
         )}

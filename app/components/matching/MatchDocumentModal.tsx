@@ -22,6 +22,8 @@ interface MatchDocumentModalProps {
   setSelectedSeriesTitle: (v: string) => void;
   selectedTaskId: string;
   setSelectedTaskId: (v: string) => void;
+  selectedVendorId?: string;
+  setSelectedVendorId?: (v: string) => void;
   createAsOccurrence: boolean;
   setCreateAsOccurrence: (v: boolean) => void;
   occurrenceDate: string;
@@ -35,7 +37,10 @@ interface MatchDocumentModalProps {
   onManualMatchAndComplete: () => void;
   onCreateAndMatch: () => void;
   onCreateAndMatchComplete: () => void;
+  onLinkToLineItem?: () => void;
+  onLinkToVendor?: () => void;
   onClose: () => void;
+  onBack?: () => void;
 
   // Vendor creation (documents page only — omit on vendors page)
   isCreatingVendor?: boolean;
@@ -58,6 +63,8 @@ export function MatchDocumentModal({
   setSelectedSeriesTitle,
   selectedTaskId,
   setSelectedTaskId,
+  selectedVendorId = "",
+  setSelectedVendorId,
   createAsOccurrence,
   setCreateAsOccurrence,
   occurrenceDate,
@@ -70,7 +77,10 @@ export function MatchDocumentModal({
   onManualMatchAndComplete,
   onCreateAndMatch,
   onCreateAndMatchComplete,
+  onLinkToLineItem,
+  onLinkToVendor,
   onClose,
+  onBack,
   isCreatingVendor = false,
   setIsCreatingVendor,
   newVendorForm,
@@ -146,14 +156,25 @@ export function MatchDocumentModal({
     console.error("[MatchDocumentModal] Error creating visibleRecurrences:", e, { recurrences });
   }
 
-  const handleClose = () => {
+  const clearState = () => {
     setSelectedSeriesId("");
     setSelectedSeriesTitle("");
     setSelectedTaskId("");
+    if (setSelectedVendorId) setSelectedVendorId("");
     setCreateAsOccurrence(false);
     setOccurrenceDate("");
     setConfirmedDate("");
+  };
+
+  const handleClose = () => {
+    clearState();
     onClose();
+  };
+
+  const handleCancel = () => {
+    clearState();
+    if (onBack) onBack();
+    else onClose();
   };
 
   return (
@@ -365,7 +386,7 @@ export function MatchDocumentModal({
                   <div className="space-y-4">
                     <div>
                       <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
-                        2. Select Recurrence
+                        2. Select Recurrence <span className="text-xs font-normal text-gray-400">(optional)</span>
                       </label>
                       <div className="space-y-2 max-h-60 overflow-y-auto pr-2">
                         {visibleRecurrences.map((task) => (
@@ -452,54 +473,89 @@ export function MatchDocumentModal({
                 )}
               </div>
 
+              {vendors && vendors.length > 0 && setSelectedVendorId && (
+                <div className="pt-4 border-t border-gray-100 dark:border-gray-800">
+                  <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                    Or link directly to a vendor
+                  </label>
+                  <select
+                    value={selectedVendorId}
+                    onChange={(e) => setSelectedVendorId(e.target.value)}
+                    className="w-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-gray-400"
+                  >
+                    <option value="">Select a vendor...</option>
+                    {vendors.map((v) => (
+                      <option key={v.id} value={v.id}>
+                        {v.name} ({v.service_type})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
               <div className="flex gap-3 pt-4 border-t border-gray-100 dark:border-gray-800">
                 <button
-                  onClick={handleClose}
+                  onClick={handleCancel}
                   className="text-sm px-4 py-2 rounded-md border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors font-medium"
                 >
-                  Cancel
+                  {onBack ? "← Back" : "Cancel"}
                 </button>
                 <div className="flex gap-2 flex-1">
-                  <button
-                    type="button"
-                    onClick={
-                      selectedSeriesId === "NEW TASK"
-                        ? onCreateAndMatch
-                        : onManualMatch
-                    }
-                    disabled={
-                      selectedSeriesId === "NEW TASK"
-                        ? !newTaskForm.title ||
-                          !newTaskForm.category ||
-                          !newTaskForm.start_date
-                        : createAsOccurrence
-                          ? !occurrenceDate
-                          : !selectedTaskId
-                    }
-                    className="flex-1 text-sm px-4 py-2 rounded-md bg-gray-900 dark:bg-gray-700 text-white hover:bg-gray-700 dark:hover:bg-gray-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors font-medium"
-                  >
-                    {selectedSeriesId === "NEW TASK" ? "Create & Link" : "Link"}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={
-                      selectedSeriesId === "NEW TASK"
-                        ? onCreateAndMatchComplete
-                        : onManualMatchAndComplete
-                    }
-                    disabled={
-                      selectedSeriesId === "NEW TASK"
-                        ? !newTaskForm.title ||
-                          !newTaskForm.category ||
-                          !newTaskForm.start_date
-                        : createAsOccurrence
-                          ? !occurrenceDate
-                          : !selectedTaskId
-                    }
-                    className="flex-1 text-sm px-4 py-2 rounded-md bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors font-medium"
-                  >
-                    {selectedSeriesId === "NEW TASK" ? "Create & Link + Complete" : "Link + Complete"}
-                  </button>
+                  {selectedVendorId && onLinkToVendor ? (
+                    <button
+                      type="button"
+                      onClick={onLinkToVendor}
+                      className="flex-1 text-sm px-4 py-2 rounded-md bg-gray-900 dark:bg-gray-700 text-white hover:bg-gray-700 dark:hover:bg-gray-600 transition-colors font-medium"
+                    >
+                      Link to vendor
+                    </button>
+                  ) : selectedSeriesId === "NEW TASK" ? (
+                    <>
+                      <button
+                        type="button"
+                        onClick={onCreateAndMatch}
+                        disabled={!newTaskForm.title || !newTaskForm.category || !newTaskForm.start_date}
+                        className="flex-1 text-sm px-4 py-2 rounded-md bg-gray-900 dark:bg-gray-700 text-white hover:bg-gray-700 dark:hover:bg-gray-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors font-medium"
+                      >
+                        Create & Link
+                      </button>
+                      <button
+                        type="button"
+                        onClick={onCreateAndMatchComplete}
+                        disabled={!newTaskForm.title || !newTaskForm.category || !newTaskForm.start_date}
+                        className="flex-1 text-sm px-4 py-2 rounded-md bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors font-medium"
+                      >
+                        Create & Link + Complete
+                      </button>
+                    </>
+                  ) : selectedSeriesId && !selectedTaskId && !createAsOccurrence && onLinkToLineItem ? (
+                    <button
+                      type="button"
+                      onClick={onLinkToLineItem}
+                      className="flex-1 text-sm px-4 py-2 rounded-md bg-gray-900 dark:bg-gray-700 text-white hover:bg-gray-700 dark:hover:bg-gray-600 transition-colors font-medium"
+                    >
+                      Link to line item
+                    </button>
+                  ) : (
+                    <>
+                      <button
+                        type="button"
+                        onClick={onManualMatch}
+                        disabled={createAsOccurrence ? !occurrenceDate : !selectedTaskId}
+                        className="flex-1 text-sm px-4 py-2 rounded-md bg-gray-900 dark:bg-gray-700 text-white hover:bg-gray-700 dark:hover:bg-gray-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors font-medium"
+                      >
+                        Link
+                      </button>
+                      <button
+                        type="button"
+                        onClick={onManualMatchAndComplete}
+                        disabled={createAsOccurrence ? !occurrenceDate : !selectedTaskId}
+                        className="flex-1 text-sm px-4 py-2 rounded-md bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors font-medium"
+                      >
+                        Link + Complete
+                      </button>
+                    </>
+                  )}
                 </div>
               </div>
             </>

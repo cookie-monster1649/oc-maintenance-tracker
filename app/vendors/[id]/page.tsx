@@ -198,6 +198,8 @@ export default function VendorDetailPage() {
     setSelectedSeriesTitle,
     selectedTaskId,
     setSelectedTaskId,
+    selectedVendorId,
+    setSelectedVendorId,
     createAsOccurrence,
     setCreateAsOccurrence,
     occurrenceDate,
@@ -210,6 +212,8 @@ export default function VendorDetailPage() {
     handleManualMatchAndComplete,
     handleSmartAction: hookHandleSmartAction,
     handleCreateAndMatch,
+    handleLinkToLineItem,
+    handleLinkToVendor,
   } = useDocumentMatching({
     tasks,
     defaultVendorId: vendorId,
@@ -848,6 +852,8 @@ export default function VendorDetailPage() {
             setSelectedSeriesTitle={setSelectedSeriesTitle}
             selectedTaskId={selectedTaskId}
             setSelectedTaskId={setSelectedTaskId}
+            selectedVendorId={selectedVendorId}
+            setSelectedVendorId={setSelectedVendorId}
             createAsOccurrence={createAsOccurrence}
             setCreateAsOccurrence={setCreateAsOccurrence}
             occurrenceDate={occurrenceDate}
@@ -860,6 +866,8 @@ export default function VendorDetailPage() {
             onManualMatchAndComplete={handleManualMatchAndComplete}
             onCreateAndMatch={handleCreateAndMatch}
             onCreateAndMatchComplete={handleCreateAndMatch}
+            onLinkToLineItem={handleLinkToLineItem}
+            onLinkToVendor={handleLinkToVendor}
             onClose={() => setMatchingDoc(null)}
           />
         )}

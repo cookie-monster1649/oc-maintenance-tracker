@@ -8,6 +8,7 @@ import { MatchDocumentModal } from "@/app/components/matching/MatchDocumentModal
 import { MatchDocumentErrorBoundary } from "@/app/components/matching/MatchDocumentErrorBoundary";
 import { SmartActionConfirmModal } from "@/app/components/matching/SmartActionConfirmModal";
 import { MatchSuccessModal } from "@/app/components/matching/MatchSuccessModal";
+import { DocumentLinksModal } from "@/app/components/matching/DocumentLinksModal";
 import DocumentList from "@/app/components/DocumentList";
 
 interface SmartAction {
@@ -84,9 +85,10 @@ export default function DocumentsPage() {
   const vendors = Array.isArray(vendorsData) ? vendorsData : [];
 
   // ── UI State ──
-  const [unmatchedOnly, setUnmatchedOnly] = useState(true);
+  const [unmatchedOnly, setUnmatchedOnly] = useState(false);
   const [isCreatingVendor, setIsCreatingVendor] = useState(false);
   const [selectedTab, setSelectedTab] = useState<string>("");
+  const [editLinksDoc, setEditLinksDoc] = useState<Document | null>(null);
 
   const [newVendorForm, setNewVendorForm] = useState({
     name: "",
@@ -130,6 +132,8 @@ export default function DocumentsPage() {
     setSelectedSeriesTitle,
     selectedTaskId,
     setSelectedTaskId,
+    selectedVendorId,
+    setSelectedVendorId,
     createAsOccurrence,
     setCreateAsOccurrence,
     occurrenceDate,
@@ -147,6 +151,8 @@ export default function DocumentsPage() {
     handleSmartAction: hookHandleSmartAction,
     confirmSmartAction,
     handleCreateAndMatch,
+    handleLinkToLineItem,
+    handleLinkToVendor,
   } = useDocumentMatching({
     tasks: tasks,
     vendors,
@@ -302,6 +308,7 @@ export default function DocumentsPage() {
             onTabChange={setSelectedTab}
             onMatch={setMatchingDoc}
             onSmartAction={handleSmartAction}
+            onEditLinks={setEditLinksDoc}
             onUndoDismiss={async (docId: number) => {
               await fetch(`/api/documents/${docId}/dismiss`, { method: "DELETE" });
               refreshAll();
@@ -310,7 +317,19 @@ export default function DocumentsPage() {
         )}
       </main>
 
-      {/* Modals: matchingDoc → MatchDocumentModal, pendingSmartAction → SmartActionConfirmModal, successInfo → MatchSuccessModal */}
+      {/* Modals: editLinksDoc → DocumentLinksModal, matchingDoc → MatchDocumentModal, pendingSmartAction → SmartActionConfirmModal, successInfo → MatchSuccessModal */}
+      {editLinksDoc && !matchingDoc && (
+        <DocumentLinksModal
+          docId={editLinksDoc.id}
+          docTitle={editLinksDoc.title}
+          docUrl={editLinksDoc.url}
+          allVendors={vendors}
+          onAddLink={() => setMatchingDoc(editLinksDoc)}
+          onClose={() => setEditLinksDoc(null)}
+          onUnlinked={refreshAll}
+        />
+      )}
+
       {matchingDoc && (
         <MatchDocumentErrorBoundary doc={matchingDoc}>
           <MatchDocumentModal
@@ -323,6 +342,8 @@ export default function DocumentsPage() {
             setSelectedSeriesTitle={setSelectedSeriesTitle}
             selectedTaskId={selectedTaskId}
             setSelectedTaskId={setSelectedTaskId}
+            selectedVendorId={selectedVendorId}
+            setSelectedVendorId={setSelectedVendorId}
             createAsOccurrence={createAsOccurrence}
             setCreateAsOccurrence={setCreateAsOccurrence}
             occurrenceDate={occurrenceDate}
@@ -335,7 +356,10 @@ export default function DocumentsPage() {
             onManualMatchAndComplete={handleManualMatchAndComplete}
             onCreateAndMatch={handleCreateAndMatch}
             onCreateAndMatchComplete={() => handleCreateAndMatch(true)}
-            onClose={() => setMatchingDoc(null)}
+            onLinkToLineItem={handleLinkToLineItem}
+            onLinkToVendor={handleLinkToVendor}
+            onClose={() => { setMatchingDoc(null); setEditLinksDoc(null); }}
+            onBack={editLinksDoc ? () => setMatchingDoc(null) : undefined}
             isCreatingVendor={isCreatingVendor}
             setIsCreatingVendor={setIsCreatingVendor}
             newVendorForm={newVendorForm}

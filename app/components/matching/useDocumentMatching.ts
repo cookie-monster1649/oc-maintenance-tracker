@@ -52,6 +52,7 @@ export function useDocumentMatching(config: UseDocumentMatchingConfig) {
   const [selectedSeriesId, setSelectedSeriesId] = useState("");
   const [selectedSeriesTitle, setSelectedSeriesTitle] = useState("");
   const [selectedTaskId, setSelectedTaskId] = useState("");
+  const [selectedVendorId, setSelectedVendorId] = useState("");
   const [createAsOccurrence, setCreateAsOccurrence] = useState(false);
   const [occurrenceDate, setOccurrenceDate] = useState("");
   const [confirmedDate, setConfirmedDate] = useState("");
@@ -82,6 +83,7 @@ export function useDocumentMatching(config: UseDocumentMatchingConfig) {
     setSelectedSeriesId("");
     setSelectedSeriesTitle("");
     setSelectedTaskId("");
+    setSelectedVendorId("");
     setCreateAsOccurrence(false);
     setOccurrenceDate("");
     setConfirmedDate("");
@@ -363,6 +365,40 @@ export function useDocumentMatching(config: UseDocumentMatchingConfig) {
     }
   }
 
+  async function handleLinkToLineItem() {
+    if (!matchingDoc || !selectedSeriesId) return;
+    try {
+      const res = await fetch(`/api/line-items/${selectedSeriesId}/documents`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ document: matchingDoc }),
+      });
+      if (res.ok) {
+        resetMatchingState();
+        await config.onSuccess();
+      }
+    } catch (err) {
+      console.error("Link to line item failed", err);
+    }
+  }
+
+  async function handleLinkToVendor() {
+    if (!matchingDoc || !selectedVendorId) return;
+    try {
+      const res = await fetch(`/api/vendors/${selectedVendorId}/documents`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ document: matchingDoc }),
+      });
+      if (res.ok) {
+        resetMatchingState();
+        await config.onSuccess();
+      }
+    } catch (err) {
+      console.error("Link to vendor failed", err);
+    }
+  }
+
   return {
     matchingDoc,
     setMatchingDoc,
@@ -372,6 +408,8 @@ export function useDocumentMatching(config: UseDocumentMatchingConfig) {
     setSelectedSeriesTitle,
     selectedTaskId,
     setSelectedTaskId,
+    selectedVendorId,
+    setSelectedVendorId,
     createAsOccurrence,
     setCreateAsOccurrence,
     occurrenceDate,
@@ -389,6 +427,8 @@ export function useDocumentMatching(config: UseDocumentMatchingConfig) {
     handleSmartAction,
     confirmSmartAction,
     handleCreateAndMatch,
+    handleLinkToLineItem,
+    handleLinkToVendor,
     resetMatchingState,
   };
 }

@@ -1,5 +1,6 @@
 import fs from "fs";
 import path from "path";
+import type { DocumentRef } from "./tasks";
 
 const DATA_PATH = path.join(process.cwd(), "data/vendors.json");
 
@@ -14,6 +15,7 @@ export interface Vendor {
   notes: string | null;
   archived?: boolean;
   paperless_correspondent_id?: number | null;
+  documents?: DocumentRef[];
 }
 
 export function readVendors(): Vendor[] {
