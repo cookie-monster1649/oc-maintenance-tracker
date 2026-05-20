@@ -23,7 +23,6 @@ export interface LineItem {
 function migrateLineItem(item: Record<string, unknown>): LineItem {
   // Migrate old ocy/ocy_budget or fy/fy_budget to ocy_entries array
   let ocY: number;
-  let budget: number | null;
 
   if (item.ocy_entries !== undefined && Array.isArray(item.ocy_entries)) {
     // Already migrated
@@ -49,7 +48,7 @@ function migrateLineItem(item: Record<string, unknown>): LineItem {
     ocY = 2026;
   }
 
-  budget = item.ocy_budget !== undefined ? (item.ocy_budget as number | null) : (item.fy_budget as number | null);
+  const budget = item.ocy_budget !== undefined ? (item.ocy_budget as number | null) : (item.fy_budget as number | null);
 
   return {
     id: item.id as string,

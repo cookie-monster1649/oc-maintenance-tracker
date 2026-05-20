@@ -61,6 +61,7 @@ export function DocumentLinksModal({
   };
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchLinks();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [docId]);

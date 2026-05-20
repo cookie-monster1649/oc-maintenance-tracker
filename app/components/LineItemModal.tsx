@@ -93,6 +93,7 @@ export default function LineItemModal({
   }, [isEdit, lineItem, taskYears]);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (isOpen) initialize();
   }, [isOpen, initialize]);
 

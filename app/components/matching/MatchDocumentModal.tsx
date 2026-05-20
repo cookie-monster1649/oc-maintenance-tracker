@@ -166,11 +166,6 @@ export function MatchDocumentModal({
     setConfirmedDate("");
   };
 
-  const handleClose = () => {
-    clearState();
-    onClose();
-  };
-
   const handleCancel = () => {
     clearState();
     if (onBack) onBack();
