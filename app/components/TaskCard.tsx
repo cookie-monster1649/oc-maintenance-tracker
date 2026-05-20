@@ -32,6 +32,7 @@ export interface Task {
   frequency: Frequency | null;
   status: Status;
   start_date: string;
+  end_date: string | null;
   last_completed_date: string | null;
   estimated_cost: number | null;
   actual_cost: number | null;

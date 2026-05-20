@@ -69,6 +69,7 @@ export function getTaskPatterns(tasks: Task[]): Map<
     frequency: string | null;
     estimated_cost: number | null;
     vendor_id: string | null;
+    end_date: string | null;
   }
 > {
   const patterns = new Map<
@@ -78,6 +79,7 @@ export function getTaskPatterns(tasks: Task[]): Map<
       frequency: string | null;
       estimated_cost: number | null;
       vendor_id: string | null;
+      end_date: string | null;
     }
   >();
 
@@ -89,6 +91,7 @@ export function getTaskPatterns(tasks: Task[]): Map<
         frequency: task.frequency,
         estimated_cost: task.estimated_cost,
         vendor_id: task.vendor_id ?? null,
+        end_date: task.end_date ?? null,
       });
     }
   }

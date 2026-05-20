@@ -19,6 +19,7 @@ export async function PUT(req: Request, { params }: Params) {
     description: body.description ?? tasks[idx].description,
     frequency: body.frequency ?? tasks[idx].frequency,
     start_date: body.start_date ?? tasks[idx].start_date,
+    end_date: "end_date" in body ? (body.end_date ?? null) : tasks[idx].end_date,
     estimated_cost: body.estimated_cost != null ? Number(body.estimated_cost) : tasks[idx].estimated_cost,
     actual_cost: body.actual_cost != null ? Number(body.actual_cost) : tasks[idx].actual_cost,
     archived: body.archived ?? tasks[idx].archived,

@@ -105,9 +105,12 @@ export default function LineItemDetailPage() {
     frequency: string | null;
     estimated_cost: number | null;
     vendor_id: string | null;
+    end_date: string | null;
     applyToAll: boolean;
     _originalTitle: string;
     _originalFrequency: string | null;
+    _description: string | null;
+    _start_date: string | null;
   } | null>(null);
   const [vendorDocs, setVendorDocs] = useState<VendorDoc[]>([]);
   const [loadingDocs, setLoadingDocs] = useState(false);
@@ -115,7 +118,6 @@ export default function LineItemDetailPage() {
   const [selectedTaskPatterns, setSelectedTaskPatterns] = useState<string[]>([]);
 
   const menuRef = useRef<HTMLDivElement>(null);
-  const editPatternBackdropRef = useRef<HTMLDivElement>(null);
 
   const fetchAll = useCallback(async () => {
     const [lineItemRes, tasksRes, vendorsRes, categoriesRes] = await Promise.all([
@@ -263,60 +265,6 @@ export default function LineItemDetailPage() {
       body: JSON.stringify({ archived: true }),
     });
     router.push("/tasks");
-  }
-
-  async function handleSavePattern() {
-    if (!editingPattern || !editingPattern._originalFrequency) return;
-
-    const oldFrequency = editingPattern._originalFrequency;
-    const oldTitle = editingPattern._originalTitle;
-    const frequencyChanged = editingPattern.frequency !== oldFrequency;
-
-    const matchingTasks = lineItemTasks.filter(
-      (t) => t.title === oldTitle && t.frequency === oldFrequency && t.status !== "Completed",
-    );
-
-    if (frequencyChanged && matchingTasks.length > 0) {
-      const anchor = matchingTasks
-        .map((t) => t.start_date)
-        .sort()[0];
-
-      await Promise.all(
-        matchingTasks.map((t) =>
-          fetch(`/api/tasks/${t.id}`, { method: "DELETE" }),
-        ),
-      );
-
-      await fetch("/api/tasks", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          line_item_id: lineItemId,
-          title: editingPattern.title || null,
-          frequency: editingPattern.frequency,
-          start_date: anchor,
-          estimated_cost: editingPattern.estimated_cost,
-          vendor_id: editingPattern.vendor_id,
-        }),
-      });
-    } else if (matchingTasks.length > 0) {
-      for (const task of matchingTasks) {
-        const updateBody: Record<string, unknown> = { vendor_id: editingPattern.vendor_id };
-        if (editingPattern.applyToAll) {
-          updateBody.title = editingPattern.title;
-          updateBody.frequency = editingPattern.frequency;
-          updateBody.estimated_cost = editingPattern.estimated_cost;
-        }
-        await fetch(`/api/tasks/${task.id}`, {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(updateBody),
-        });
-      }
-    }
-
-    setEditingPattern(null);
-    await fetchAll();
   }
 
   if (!lineItem) {
@@ -536,17 +484,23 @@ export default function LineItemDetailPage() {
                 </button>
                 {pattern.frequency && (
                   <button
-                    onClick={() =>
+                    onClick={() => {
+                      const matchingTask = lineItemTasks.find(
+                        (t) => t.title === pattern.title && t.frequency === pattern.frequency && t.status !== "Completed",
+                      );
                       setEditingPattern({
                         title: pattern.title,
                         frequency: pattern.frequency,
                         estimated_cost: pattern.estimated_cost,
                         vendor_id: pattern.vendor_id,
+                        end_date: pattern.end_date || null,
                         applyToAll: false,
                         _originalTitle: pattern.title,
                         _originalFrequency: pattern.frequency,
-                      })
-                    }
+                        _description: matchingTask?.description || null,
+                        _start_date: matchingTask?.start_date || null,
+                      });
+                    }}
                     className="opacity-0 group-hover:opacity-100 text-xs px-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-opacity"
                     title="Edit recurring pattern"
                   >
@@ -770,128 +724,79 @@ export default function LineItemDetailPage() {
         onClose={() => setEditOpen(false)}
       />
 
-      {editingPattern && (
-        <div
-          ref={editPatternBackdropRef}
-          className={MODAL_BACKDROP}
-          onClick={(e) => {
-            if (e.target === editPatternBackdropRef.current) setEditingPattern(null);
-          }}
-        >
-          <div className="animate-modal bg-white dark:bg-gray-900 rounded-lg shadow-xl w-full max-w-md max-h-[90vh] overflow-y-auto flex flex-col">
-            <h2 className="text-lg font-semibold px-6 py-4 border-b border-gray-200 dark:border-gray-800">
-              Edit Task Pattern
-            </h2>
-            <div className="space-y-4 p-6">
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
-                  Title
-                </label>
-                <input
-                  type="text"
-                  value={editingPattern.title}
-                  onChange={(e) =>
-                    setEditingPattern({ ...editingPattern, title: e.target.value })
-                  }
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
-                  Frequency
-                </label>
-                <select
-                  value={editingPattern.frequency || ""}
-                  onChange={(e) =>
-                    setEditingPattern({
-                      ...editingPattern,
-                      frequency: e.target.value || null,
-                    })
-                  }
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
-                >
-                  <option value="">Once-off</option>
-                  <option value="Weekly">Weekly</option>
-                  <option value="Bi-weekly">Bi-weekly</option>
-                  <option value="Monthly">Monthly</option>
-                  <option value="Quarterly">Quarterly</option>
-                  <option value="Semi-Annually">Semi-Annually</option>
-                  <option value="Annually">Annually</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
-                  Est. Cost ($)
-                </label>
-                <input
-                  type="number"
-                  value={editingPattern.estimated_cost ?? ""}
-                  onChange={(e) =>
-                    setEditingPattern({
-                      ...editingPattern,
-                      estimated_cost: e.target.value ? Number(e.target.value) : null,
-                    })
-                  }
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
-                  Vendor
-                </label>
-                <select
-                  value={editingPattern.vendor_id ?? ""}
-                  onChange={(e) =>
-                    setEditingPattern({
-                      ...editingPattern,
-                      vendor_id: e.target.value || null,
-                    })
-                  }
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
-                >
-                  <option value="">Default ({vendor?.name ?? "none"})</option>
-                  {vendors.map((v) => (
-                    <option key={v.id} value={v.id}>
-                      {v.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div className="flex items-center gap-2 pt-2">
-                <input
-                  type="checkbox"
-                  id="applyToAll"
-                  checked={editingPattern.applyToAll}
-                  onChange={(e) =>
-                    setEditingPattern({ ...editingPattern, applyToAll: e.target.checked })
-                  }
-                  className="w-4 h-4"
-                />
-                <label
-                  htmlFor="applyToAll"
-                  className="text-sm text-gray-700 dark:text-gray-300"
-                >
-                  Apply to all future occurrences
-                </label>
-              </div>
-            </div>
-            <div className="flex gap-3 p-6 border-t border-gray-200 dark:border-gray-800">
-              <button
-                onClick={() => setEditingPattern(null)}
-                className="flex-1 px-4 py-2 rounded-md border border-gray-300 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors text-sm"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleSavePattern}
-                className="flex-1 px-4 py-2 rounded-md bg-gray-900 dark:bg-gray-700 text-white hover:bg-gray-700 dark:hover:bg-gray-600 transition-colors text-sm font-medium"
-              >
-                Save Changes
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <NewTaskModal
+        isOpen={editingPattern !== null}
+        mode="edit"
+        lineItems={[]}
+        categories={categories}
+        vendors={vendors}
+        onSave={() => {}}
+        onClose={() => setEditingPattern(null)}
+        editingData={editingPattern ? {
+          title: editingPattern.title,
+          frequency: editingPattern.frequency,
+          estimated_cost: editingPattern.estimated_cost,
+          vendor_id: editingPattern.vendor_id,
+          end_date: editingPattern.end_date,
+          description: editingPattern._description,
+          start_date: editingPattern._start_date,
+        } : undefined}
+        onEditSave={async (data) => {
+          if (!editingPattern || !editingPattern._originalFrequency) return;
+
+          const oldFrequency = editingPattern._originalFrequency;
+          const oldTitle = editingPattern._originalTitle;
+          const frequencyChanged = data.frequency !== oldFrequency;
+
+          const matchingTasks = lineItemTasks.filter(
+            (t) => t.title === oldTitle && t.frequency === oldFrequency && t.status !== "Completed",
+          );
+
+          if (frequencyChanged && matchingTasks.length > 0) {
+            const anchor = matchingTasks
+              .map((t) => t.start_date)
+              .sort()[0];
+
+            await Promise.all(
+              matchingTasks.map((t) =>
+                fetch(`/api/tasks/${t.id}`, { method: "DELETE" }),
+              ),
+            );
+
+            await fetch("/api/tasks", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                line_item_id: lineItemId,
+                title: data.title || null,
+                frequency: data.frequency,
+                start_date: anchor,
+                estimated_cost: data.estimated_cost,
+                vendor_id: data.vendor_id,
+                end_date: data.end_date || null,
+              }),
+            });
+          } else if (matchingTasks.length > 0) {
+            for (const task of matchingTasks) {
+              const updateBody: Record<string, unknown> = { vendor_id: data.vendor_id };
+              if (editingPattern.applyToAll) {
+                updateBody.title = data.title;
+                updateBody.frequency = data.frequency;
+                updateBody.estimated_cost = data.estimated_cost;
+                updateBody.end_date = data.end_date;
+              }
+              await fetch(`/api/tasks/${task.id}`, {
+                method: "PUT",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(updateBody),
+              });
+            }
+          }
+
+          setEditingPattern(null);
+          await fetchAll();
+        }}
+      />
 
       <NewTaskModal
         isOpen={addTaskOpen}

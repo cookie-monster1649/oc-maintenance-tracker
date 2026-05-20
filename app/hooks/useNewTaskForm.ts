@@ -7,6 +7,7 @@ interface NewTaskFormState {
   task_type: "budget_item" | "once_off" | "recurring";
   frequency: string;
   start_date: string;
+  end_date: string;
   budget_ocy: number;
   estimated_cost: string;
   vendor_id: string;
@@ -26,6 +27,7 @@ const getInitialState = (): NewTaskFormState => ({
   task_type: "recurring",
   frequency: "Monthly",
   start_date: "",
+  end_date: "",
   budget_ocy: getDefaultOCYear(),
   estimated_cost: "",
   vendor_id: "",
@@ -76,6 +78,7 @@ export function useNewTaskForm(onSuccess?: () => void) {
         const payload = {
           ...form,
           start_date,
+          end_date: form.end_date || null,
           frequency: form.task_type === "recurring" ? form.frequency : null,
           estimated_cost: form.estimated_cost || null,
           vendor_id: form.vendor_id || null,

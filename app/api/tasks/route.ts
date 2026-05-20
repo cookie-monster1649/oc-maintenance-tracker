@@ -24,6 +24,7 @@ export async function POST(req: Request) {
     frequency: body.frequency ?? null,
     status: body.status ?? "Scheduled",
     start_date: body.start_date,
+    end_date: body.end_date ?? null,
     last_completed_date: body.last_completed_date ?? null,
     estimated_cost: body.estimated_cost ? Number(body.estimated_cost) : null,
     actual_cost: body.actual_cost != null

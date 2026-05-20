@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useRef, useState, useEffect } from "react";
 import type { LineItem } from "@/lib/line-items";
 import type { Vendor } from "@/lib/vendors";
 import {
@@ -17,6 +17,7 @@ interface NewTaskData {
   description: string;
   frequency: string; // null (once-off) or "Weekly", "Monthly", etc.
   start_date: string;
+  end_date: string;
   estimated_cost: string;
   line_item_id: string; // FK to LineItem
   vendor_id: string;
@@ -44,6 +45,17 @@ interface NewTaskModalProps {
   prefilledCategory?: string;
   prefilledVendorId?: string;
   allowCreateAndComplete?: boolean;
+  mode?: "create" | "edit";
+  editingData?: {
+    title?: string;
+    description?: string | null;
+    frequency?: string | null;
+    estimated_cost?: number | null;
+    vendor_id?: string | null;
+    end_date?: string | null;
+    start_date?: string | null;
+  };
+  onEditSave?: (data: Record<string, unknown>) => Promise<void>;
 }
 
 const FREQUENCIES = [
@@ -66,16 +78,34 @@ export default function NewTaskModal({
   prefilledCategory = "",
   prefilledVendorId = "",
   allowCreateAndComplete = false,
+  mode = "create",
+  editingData,
+  onEditSave,
 }: NewTaskModalProps) {
   const backdropRef = useRef<HTMLDivElement>(null);
-  const [newTask, setNewTask] = useState<NewTaskData>({
-    title: "",
-    description: "",
-    frequency: prefilledFrequency,
-    start_date: "",
-    estimated_cost: "",
-    line_item_id: "",
-    vendor_id: prefilledVendorId,
+  const [newTask, setNewTask] = useState<NewTaskData>(() => {
+    if (mode === "edit" && editingData) {
+      return {
+        title: editingData.title || "",
+        description: editingData.description || "",
+        frequency: editingData.frequency || "",
+        start_date: editingData.start_date || "",
+        end_date: editingData.end_date || "",
+        estimated_cost: editingData.estimated_cost?.toString() || "",
+        line_item_id: "",
+        vendor_id: editingData.vendor_id || "",
+      };
+    }
+    return {
+      title: "",
+      description: "",
+      frequency: prefilledFrequency,
+      start_date: "",
+      end_date: "",
+      estimated_cost: "",
+      line_item_id: "",
+      vendor_id: prefilledVendorId,
+    };
   });
   const [createNewLineItem, setCreateNewLineItem] = useState(false);
   const [newLineItem, setNewLineItem] = useState<NewLineItemInline>({
@@ -91,14 +121,31 @@ export default function NewTaskModal({
   const [isLoading, setIsLoading] = useState(false);
   const [vendorError, setVendorError] = useState("");
 
+  useEffect(() => {
+    if (mode === "edit" && isOpen && editingData) {
+      setNewTask({
+        title: editingData.title || "",
+        description: editingData.description || "",
+        frequency: editingData.frequency || "",
+        start_date: editingData.start_date || "",
+        end_date: editingData.end_date || "",
+        estimated_cost: editingData.estimated_cost?.toString() || "",
+        line_item_id: "",
+        vendor_id: editingData.vendor_id || "",
+      });
+    }
+  }, [isOpen, editingData, mode]);
+
   if (!isOpen) return null;
 
   const selectedLineItem = lineItems.find((li) => li.id === newTask.line_item_id);
   const isValid =
-    newTask.start_date &&
-    (createNewLineItem
-      ? newLineItem.title && newLineItem.category && newTask.line_item_id === ""
-      : newTask.line_item_id);
+    mode === "edit"
+      ? newTask.title && newTask.frequency
+      : newTask.start_date &&
+        (createNewLineItem
+          ? newLineItem.title && newLineItem.category && newTask.line_item_id === ""
+          : newTask.line_item_id);
 
   const handleCreateVendor = async () => {
     if (!newVendor.name) return;
@@ -135,6 +182,19 @@ export default function NewTaskModal({
     setIsLoading(true);
 
     try {
+      if (mode === "edit" && onEditSave) {
+        const editPayload = {
+          title: newTask.title || null,
+          frequency: newTask.frequency === "once-off" ? null : newTask.frequency,
+          end_date: newTask.end_date || null,
+          estimated_cost: newTask.estimated_cost ? Number(newTask.estimated_cost) : null,
+          vendor_id: newTask.vendor_id || null,
+        };
+        await onEditSave(editPayload);
+        onClose();
+        return;
+      }
+
       // If creating new line item, do that first
       let lineItemId = newTask.line_item_id;
       if (createNewLineItem) {
@@ -161,6 +221,7 @@ export default function NewTaskModal({
         description: newTask.description || null,
         frequency: newTask.frequency === "once-off" ? null : newTask.frequency,
         start_date: newTask.start_date,
+        end_date: newTask.end_date || null,
         estimated_cost: newTask.estimated_cost ? Number(newTask.estimated_cost) : null,
         line_item_id: lineItemId,
         vendor_id: newTask.vendor_id || null,
@@ -184,6 +245,7 @@ export default function NewTaskModal({
         description: "",
         frequency: prefilledFrequency,
         start_date: "",
+        end_date: "",
         estimated_cost: "",
         line_item_id: "",
         vendor_id: prefilledVendorId,
@@ -192,7 +254,7 @@ export default function NewTaskModal({
       setNewLineItem({ title: "", category: prefilledCategory, vendor_id: prefilledVendorId });
       onSave();
     } catch (err) {
-      console.error("Task creation failed:", err);
+      console.error("Task operation failed:", err);
       alert(`Error: ${err instanceof Error ? err.message : "Unknown error"}`);
     } finally {
       setIsLoading(false);
@@ -209,8 +271,8 @@ export default function NewTaskModal({
     >
       <div className={MODAL_CONTENT}>
         <div className="flex items-center justify-between mb-8 shrink-0">
-          <h2 className={MODAL_TITLE}>New Task</h2>
-          {!isCreatingVendor && (
+          <h2 className={MODAL_TITLE}>{mode === "edit" ? "Edit Task Pattern" : "New Task"}</h2>
+          {mode === "create" && !isCreatingVendor && (
             <button
               onClick={() => {
                 setNewVendor({ name: "", service_type: "" });
@@ -221,7 +283,7 @@ export default function NewTaskModal({
               Make vendor
             </button>
           )}
-          {isCreatingVendor && (
+          {mode === "create" && isCreatingVendor && (
             <button
               onClick={() => setIsCreatingVendor(false)}
               className="text-xs font-bold text-gray-500 dark:text-gray-400 hover:underline"
@@ -232,7 +294,7 @@ export default function NewTaskModal({
         </div>
 
         <div className="space-y-5 flex-1 overflow-y-auto">
-          {isCreatingVendor ? (
+          {mode === "create" && isCreatingVendor ? (
             <>
               {vendorError && (
                 <div className="p-3 bg-rose-50 dark:bg-rose-950 border border-rose-200 dark:border-rose-800 rounded-md">
@@ -293,10 +355,11 @@ export default function NewTaskModal({
                 />
               </div>
 
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
-                  Line Item *
-                </label>
+              {mode === "create" && (
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                    Line Item *
+                  </label>
                 {!createNewLineItem ? (
                   <>
                     <select
@@ -391,6 +454,7 @@ export default function NewTaskModal({
                   </>
                 )}
               </div>
+              )}
 
               {selectedLineItem && (
                 <div className="p-2 bg-gray-100 dark:bg-gray-800 rounded text-sm text-gray-600 dark:text-gray-400">
@@ -438,7 +502,7 @@ export default function NewTaskModal({
 
               <div>
                 <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
-                  Start date *
+                  Start date {mode === "create" && "*"}
                 </label>
                 <input
                   type="date"
@@ -447,8 +511,25 @@ export default function NewTaskModal({
                     setNewTask({ ...newTask, start_date: e.target.value })
                   }
                   className={INPUT_BASE}
+                  disabled={mode === "edit"}
                 />
               </div>
+
+              {newTask.frequency !== "once-off" && (
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                    End date (optional)
+                  </label>
+                  <input
+                    type="date"
+                    value={newTask.end_date}
+                    onChange={(e) =>
+                      setNewTask({ ...newTask, end_date: e.target.value })
+                    }
+                    className={INPUT_BASE}
+                  />
+                </div>
+              )}
 
               <div>
                 <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
@@ -469,7 +550,7 @@ export default function NewTaskModal({
         </div>
 
         <div className={MODAL_DIVIDER}>
-          {isCreatingVendor ? (
+          {mode === "create" && isCreatingVendor ? (
             <>
               <button
                 onClick={() => setIsCreatingVendor(false)}
@@ -495,9 +576,11 @@ export default function NewTaskModal({
                 disabled={!isValid || isLoading}
                 className={`flex-1 ${BUTTON_PRIMARY_DISABLED}`}
               >
-                {isLoading ? "Creating..." : "Create Task"}
+                {isLoading
+                  ? (mode === "edit" ? "Saving..." : "Creating...")
+                  : (mode === "edit" ? "Save Changes" : "Create Task")}
               </button>
-              {allowCreateAndComplete && newTask.frequency === "once-off" && (
+              {mode === "create" && allowCreateAndComplete && newTask.frequency === "once-off" && (
                 <button
                   onClick={() => handleSave(true)}
                   disabled={!isValid || isLoading}

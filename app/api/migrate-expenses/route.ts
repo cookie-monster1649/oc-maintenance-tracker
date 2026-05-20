@@ -40,6 +40,7 @@ export async function POST() {
       frequency: null,
       status: "Completed",
       start_date: expense.date_paid,
+      end_date: null,
       last_completed_date: expense.date_paid,
       estimated_cost: expense.amount,
       actual_cost: expense.amount,

@@ -42,6 +42,7 @@ export interface Task {
   description: string | null;
   frequency: Frequency | null;
   start_date: string;
+  end_date: string | null;
   estimated_cost: number | null;
   actual_cost: number | null;
   status: Status;
@@ -113,6 +114,7 @@ export function readTasks(): Task[] {
                 description: t.description || null,
                 frequency: t.frequency,
                 start_date: t.start_date,
+                end_date: t.end_date || null,
                 estimated_cost: t.estimated_cost || null,
                 actual_cost: t.actual_cost || null,
                 status: t.status,
@@ -144,6 +146,7 @@ export function readTasks(): Task[] {
             description: t.description || null,
             frequency: t.frequency,
             start_date: t.start_date,
+            end_date: t.end_date || null,
             estimated_cost: t.estimated_cost || null,
             actual_cost: t.actual_cost || null,
             status: t.status,
@@ -229,7 +232,7 @@ export function extrapolateFutureTasks(task: Task): Task[] {
   // 5-year window gives annual tasks room to generate 3 future occurrences even
   // when leap-year date shifts (e.g. Feb 29 → Mar 1) push dates slightly forward.
   // The 3-task cap in the while condition limits quantity for high-frequency tasks.
-  const cutoff = addYears(parseISO(task.start_date), 5);
+  const cutoff = task.end_date ? parseISO(task.end_date) : addYears(parseISO(task.start_date), 5);
   let current = nextStartDate(task.start_date, task.frequency);
 
   while (futureTasks.length < 3 && isBefore(parseISO(current), cutoff)) {

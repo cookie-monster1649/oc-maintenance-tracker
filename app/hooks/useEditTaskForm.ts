@@ -5,6 +5,7 @@ export interface EditFormData {
   title?: string;
   description?: string;
   start_date?: string;
+  end_date?: string;
   frequency?: string;
   estimated_cost?: number | string;
   category?: string;
@@ -38,6 +39,7 @@ export function useEditTaskForm(onSuccess?: () => void) {
           title: form.title,
           description: form.description,
           start_date: form.start_date,
+          end_date: form.end_date || null,
           frequency: form.frequency || null,
           estimated_cost: form.estimated_cost
             ? parseFloat(String(form.estimated_cost))
