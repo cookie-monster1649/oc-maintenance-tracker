@@ -1,7 +1,7 @@
 import fs from "fs";
 import path from "path";
 
-export type BinColor = "green" | "yellow" | "black";
+export type BinColor = "green" | "yellow" | "black" | "purple" | "red";
 
 export interface BinWeeksConfig {
   coming_up: BinColor[];

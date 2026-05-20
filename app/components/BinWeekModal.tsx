@@ -11,9 +11,11 @@ const BIN_EMOJI: Record<BinColor, string> = {
   green: "🟢",
   yellow: "🟡",
   black: "⚫",
+  purple: "🟣",
+  red: "🔴",
 };
 
-const BIN_COLORS: BinColor[] = ["green", "yellow", "black"];
+const BIN_COLORS: BinColor[] = ["green", "yellow", "black", "purple"];
 
 export default function BinWeekModal({ onClose }: BinWeekModalProps) {
   const [config, setConfig] = useState<BinWeeksConfig | null>(null);
