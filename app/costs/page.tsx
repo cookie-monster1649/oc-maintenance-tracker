@@ -9,8 +9,7 @@ import { getColorClasses } from "@/lib/colors";
 import { getCached, setCached } from "@/lib/cache";
 import { useGodMode } from "@/app/contexts/god-mode";
 import NewTaskModal from "@/app/components/NewTaskModal";
-import NewLineItemModal from "@/app/components/NewLineItemModal";
-import EditLineItemModal from "@/app/components/EditLineItemModal";
+import LineItemModal from "@/app/components/LineItemModal";
 
 interface CategoryColor {
   name: string;
@@ -123,7 +122,9 @@ export default function CostsPage() {
     const allDates = cachedTasks.map((t) => t.start_date).filter(Boolean);
     const allOCYs = [
       ...allDates.map((d) => ocYearForDate(d)),
-      ...cachedLineItems.filter((li) => !li.archived).map((li) => li.fy),
+      ...cachedLineItems
+        .filter((li) => !li.archived)
+        .flatMap((li) => li.ocy_entries.map((e) => e.year)),
     ];
     if (!allOCYs.length) return [];
     return [...new Set(allOCYs)].sort();
@@ -171,7 +172,9 @@ export default function CostsPage() {
       const allDates = tasksData.map((t: Task) => t.start_date).filter(Boolean);
       const allOCYs = [
         ...allDates.map((d: string) => ocYearForDate(d)),
-        ...lineItemsData.filter((li: LineItem) => !li.archived).map((li: LineItem) => li.fy),
+        ...lineItemsData
+          .filter((li: LineItem) => !li.archived)
+          .flatMap((li: LineItem) => li.ocy_entries.map((e) => e.year)),
       ];
       const ocYears = [...new Set(allOCYs)] as number[];
       ocYears.sort((a, b) => a - b);
@@ -221,7 +224,9 @@ export default function CostsPage() {
 
   const lineItemIdsToShow = new Set([
     ...tasksByLineItem.keys(),
-    ...lineItems.filter((li) => !li.archived && li.fy === ocY).map((li) => li.id),
+    ...lineItems
+      .filter((li) => !li.archived && li.ocy_entries.some((e) => e.year === ocY))
+      .map((li) => li.id),
   ]);
 
   for (const lineItemId of lineItemIdsToShow) {
@@ -236,16 +241,19 @@ export default function CostsPage() {
     );
 
     // Budget calculation:
-    // - If fy_budget is set on lineItem, use that
+    // - If ocy_budget is set for this year on lineItem, use that
     // - Otherwise, calculate from tasks: (estimated_cost × occurrences) for recurring, or just estimated_cost for once-off
     let budgetTotal = 0;
     let budgetCount = 0;
     let unitCost: number | null = null;
 
-    if (lineItem.fy_budget !== null) {
-      budgetTotal = lineItem.fy_budget;
+    const ocyEntry = lineItem.ocy_entries.find((e) => e.year === ocY);
+    const explicitBudget = ocyEntry?.budget ?? null;
+
+    if (explicitBudget !== null) {
+      budgetTotal = explicitBudget;
       budgetCount = 1;
-      unitCost = lineItem.fy_budget;
+      unitCost = explicitBudget;
     } else if (taskList.length > 0) {
       const representative = taskList[0];
       unitCost = representative.estimated_cost;
@@ -448,23 +456,25 @@ export default function CostsPage() {
         )}
       </main>
 
-      <NewLineItemModal
+      <LineItemModal
         isOpen={creatingLineItem}
         categories={categories}
         vendors={vendors}
-        onSave={() => {
-          setCreatingLineItem(false);
-          refreshData();
-        }}
+        onSave={refreshData}
         onClose={() => setCreatingLineItem(false)}
       />
 
       {editingLineItem && (
-        <EditLineItemModal
+        <LineItemModal
           isOpen={true}
           lineItem={editingLineItem}
           categories={categories}
           vendors={vendors}
+          taskYears={[...new Set(
+            tasks
+              .filter((t) => t.line_item_id === editingLineItem.id)
+              .map((t) => ocYearForDate(t.start_date))
+          )]}
           onSave={() => {
             setEditingLineItem(null);
             refreshData();

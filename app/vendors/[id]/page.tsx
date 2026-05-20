@@ -352,7 +352,7 @@ export default function VendorDetailPage() {
     router.push("/vendors");
   };
 
-  // Header left content (Budget/Actuals - FY26 summary)
+  // Header left content (Budget/Actuals - OC-Y summary)
   const headerLeftContent = (
     <div>
       <div className="flex gap-12">

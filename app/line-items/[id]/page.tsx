@@ -11,7 +11,7 @@ import { format, parseISO } from "date-fns";
 import { useGodMode } from "@/app/contexts/god-mode";
 import { MODAL_BACKDROP } from "@/lib/ui-constants";
 import DetailPageLayout from "@/app/components/DetailPageLayout";
-import EditLineItemModal from "@/app/components/EditLineItemModal";
+import LineItemModal from "@/app/components/LineItemModal";
 import NewTaskModal from "@/app/components/NewTaskModal";
 import { useDocumentMatching } from "@/app/components/matching/useDocumentMatching";
 import type { Document as MatchingDocument } from "@/app/components/matching/useDocumentMatching";
@@ -353,8 +353,10 @@ export default function LineItemDetailPage() {
     0,
   );
 
-  const derivedBudgetTotal = lineItem.fy_budget !== null
-    ? lineItem.fy_budget
+  const currentOCYear = new Date().getFullYear() + (new Date().getMonth() >= 3 ? 1 : 0);
+  const currentYearEntry = lineItem.ocy_entries.find((e) => e.year === currentOCYear);
+  const derivedBudgetTotal = currentYearEntry?.budget !== null && currentYearEntry?.budget !== undefined
+    ? currentYearEntry.budget
     : lineItemTasks.reduce((s, t) => s + (t.estimated_cost ?? 0), 0);
 
   const vendor = vendors.find((v) => v.id === lineItem.vendor_id);
@@ -366,7 +368,7 @@ export default function LineItemDetailPage() {
     <div>
       <div className="flex gap-12">
         <div className="text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest min-w-fit">
-          FY{new Date().getFullYear() + (new Date().getMonth() >= 6 ? 1 : 0)}
+          OC-Y{new Date().getFullYear() + (new Date().getMonth() >= 3 ? 1 : 0)}
         </div>
         <div>
           <div className="flex items-start gap-12 text-sm">
@@ -383,7 +385,7 @@ export default function LineItemDetailPage() {
               </div>
             </div>
           </div>
-          {lineItem.fy_budget === null && (
+          {(currentYearEntry?.budget === null || currentYearEntry?.budget === undefined) && (
             <div className="text-xs text-gray-400 dark:text-gray-500 mt-2">Derived from tasks</div>
           )}
         </div>
@@ -753,11 +755,17 @@ export default function LineItemDetailPage() {
         tasksAndDocumentsSection={tasksAndDocumentsSection}
       />
 
-      <EditLineItemModal
+      <LineItemModal
         isOpen={editOpen}
         lineItem={lineItem}
         categories={categories}
         vendors={vendors}
+        taskYears={[...new Set(
+          lineItemTasks.map((t) => {
+            const d = new Date(t.start_date + "T00:00:00");
+            return d.getMonth() >= 3 ? d.getFullYear() + 1 : d.getFullYear();
+          })
+        )]}
         onSave={fetchAll}
         onClose={() => setEditOpen(false)}
       />

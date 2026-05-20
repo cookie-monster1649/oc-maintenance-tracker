@@ -53,8 +53,7 @@ export async function GET(
                 description: lineItem.description,
                 category: lineItem.category,
                 vendor_id: lineItem.vendor_id,
-                fy_budget: lineItem.fy_budget,
-                fy: lineItem.fy,
+                ocy_entries: lineItem.ocy_entries,
                 archived: lineItem.archived,
               }
             : null,

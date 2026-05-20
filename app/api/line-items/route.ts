@@ -9,14 +9,17 @@ export async function POST(req: Request) {
   const body = await req.json();
   const lineItems = readLineItems();
 
+  const currentOCYear = new Date().getMonth() >= 3 ? new Date().getFullYear() + 1 : new Date().getFullYear();
+  const ocyYear = body.ocy || body.fy ? Number(body.ocy || body.fy) : currentOCYear;
+  const budget = body.ocy_budget || body.fy_budget ? Number(body.ocy_budget || body.fy_budget) : null;
+
   const lineItem: LineItem = {
     id: crypto.randomUUID(),
     title: body.title,
     description: body.description ?? "",
     category: body.category,
     vendor_id: body.vendor_id ?? null,
-    fy_budget: body.fy_budget ? Number(body.fy_budget) : null,
-    fy: body.fy ? Number(body.fy) : 2026,
+    ocy_entries: body.ocy_entries ? body.ocy_entries : [{ year: ocyYear, budget }],
     archived: false,
   };
 

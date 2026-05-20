@@ -4,9 +4,9 @@ import { readLineItems, writeLineItems, type LineItem } from "@/lib/line-items";
 import { readExpenses } from "@/lib/expenses";
 import { randomUUID } from "crypto";
 
-function fyForDate(dateStr: string): number {
+function ocYearForDate(dateStr: string): number {
   const d = new Date(dateStr + "T00:00:00");
-  return d.getMonth() >= 6 ? d.getFullYear() + 1 : d.getFullYear();
+  return d.getMonth() >= 3 ? d.getFullYear() + 1 : d.getFullYear();
 }
 
 export async function POST() {
@@ -27,8 +27,7 @@ export async function POST() {
       description: "",
       category: expense.category,
       vendor_id: expense.vendor_id || null,
-      fy_budget: null,
-      fy: fyForDate(expense.date_paid),
+      ocy_entries: [{ year: ocYearForDate(expense.date_paid), budget: null }],
       archived: false,
     };
 

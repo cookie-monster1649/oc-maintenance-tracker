@@ -46,8 +46,7 @@ export interface LineItem {
   description: string;
   category: string;
   vendor_id: string | null;
-  fy_budget: number | null;
-  fy: number;
+  ocy_entries: Array<{ year: number; budget: number | null }>;
   archived: boolean;
 }
 
@@ -98,8 +97,7 @@ export function TaskCard({
     description: task.description ?? "",
     category: "Uncategorized",
     vendor_id: null,
-    fy_budget: null,
-    fy: 2026,
+    ocy_entries: [{ year: 2026, budget: null }],
     archived: task.archived ?? false,
   };
   const resolvedLineItem = lineItem ?? defaultLineItem;

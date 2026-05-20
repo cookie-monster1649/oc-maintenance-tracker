@@ -28,8 +28,7 @@ interface LineItem {
   description: string;
   category: string;
   vendor_id: string | null;
-  fy_budget: number | null;
-  fy: number;
+  ocy_entries: Array<{ year: number; budget: number | null }>;
   archived: boolean;
 }
 

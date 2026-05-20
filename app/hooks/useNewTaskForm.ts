@@ -7,17 +7,17 @@ interface NewTaskFormState {
   task_type: "budget_item" | "once_off" | "recurring";
   frequency: string;
   start_date: string;
-  budget_fy: number;
+  budget_ocy: number;
   estimated_cost: string;
   vendor_id: string;
   category: string;
 }
 
 // ── Utilities ––
-const getDefaultFY = () => {
+const getDefaultOCYear = () => {
   const now = new Date();
-  // Australian FY starts in July (month 6). If current month >= July, next FY is current year + 1.
-  return now.getMonth() >= 6 ? now.getFullYear() + 1 : now.getFullYear();
+  // OC Year starts in April (month 3). If current month >= April, next OC year is current year + 1.
+  return now.getMonth() >= 3 ? now.getFullYear() + 1 : now.getFullYear();
 };
 
 const getInitialState = (): NewTaskFormState => ({
@@ -26,7 +26,7 @@ const getInitialState = (): NewTaskFormState => ({
   task_type: "recurring",
   frequency: "Monthly",
   start_date: "",
-  budget_fy: getDefaultFY(),
+  budget_ocy: getDefaultOCYear(),
   estimated_cost: "",
   vendor_id: "",
   category: "",
@@ -70,7 +70,7 @@ export function useNewTaskForm(onSuccess?: () => void) {
       try {
         const start_date =
           form.task_type === "budget_item"
-            ? `${form.budget_fy - 1}-07-01`
+            ? `${form.budget_ocy - 1}-04-01`
             : form.start_date;
 
         const payload = {
