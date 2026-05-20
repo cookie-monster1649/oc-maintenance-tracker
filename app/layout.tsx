@@ -31,6 +31,18 @@ export default function RootLayout({
       suppressHydrationWarning
     >
       <head>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `/*
+Well hello there, General Kenobi! 👋
+
+This site has been vibecoded to the extreme, performing miracles of schema changes, reverting bad decisions and playing with prototyping on an app I care about the longevity of.
+
+This is designed as my first properly sharable and usable tool with a decent level of complexity baked in. Have a fun play around and please report any bugs you find.
+
+*/`,
+          }}
+        />
         {/* Runs synchronously before first paint — prevents dark mode flash */}
         <script
           dangerouslySetInnerHTML={{

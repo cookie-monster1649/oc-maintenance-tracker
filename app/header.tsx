@@ -93,6 +93,31 @@ export default function Header() {
   const ref = useRef<HTMLDivElement>(null);
   const importInputRef = useRef<HTMLInputElement>(null);
 
+  function trapFocus(e: React.KeyboardEvent<HTMLDivElement>, onClose: () => void) {
+    if (e.key === "Escape") { e.preventDefault(); onClose(); return; }
+    if (e.key !== "Tab") return;
+
+    const focusable = Array.from(
+      e.currentTarget.querySelectorAll<HTMLElement>(
+        "button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), a[href], [tabindex]:not([tabindex='-1'])"
+      )
+    ).filter((el) => {
+      const s = window.getComputedStyle(el);
+      return s.display !== "none" && s.visibility !== "hidden";
+    });
+
+    if (!focusable.length) { e.preventDefault(); return; }
+
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+
+    if (e.shiftKey && document.activeElement === first) {
+      e.preventDefault(); last.focus();
+    } else if (!e.shiftKey && document.activeElement === last) {
+      e.preventDefault(); first.focus();
+    }
+  }
+
   async function handleExport() {
     const res = await fetch("/api/data");
     const blob = await res.blob();
@@ -294,16 +319,21 @@ export default function Header() {
 
   const navClass = (href: string) => {
     const isActive = href === "/" ? pathname === "/" : pathname.startsWith(href);
-    return `text-sm ${isActive ? "font-bold" : "font-medium"} text-gray-900 dark:text-gray-100 hover:text-gray-500 dark:hover:text-gray-400 transition-colors`;
+    return `text-sm ${isActive ? "font-bold" : "font-medium"} text-gray-900 dark:text-gray-100 hover:text-gray-500 dark:hover:text-gray-400 transition-colors focus-ring rounded px-1`;
   };
 
   return (
     <header className="border-b border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-950">
+      <a href="#main-content" className="sr-only focus:static focus:block focus:bg-blue-500 focus:text-white focus:px-4 focus:py-2 focus:text-sm focus:font-medium">
+        Skip to main content
+      </a>
       <div className="content-container flex items-center justify-between h-14">
         <button
           onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-          className="md:hidden flex items-center justify-center w-8 h-8 rounded-md text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
-          aria-label="Menu"
+          className="md:hidden flex items-center justify-center w-8 h-8 rounded-md text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors focus-ring"
+          aria-label="Navigation menu"
+          aria-expanded={mobileMenuOpen}
+          aria-controls="mobile-menu"
         >
           <svg
             xmlns="http://www.w3.org/2000/svg"
@@ -322,19 +352,21 @@ export default function Header() {
           </svg>
         </button>
 
-        <nav className="hidden md:flex gap-8">
-          <Link href="/" className={navClass("/")}>Home</Link>
-          <Link href="/tasks" className={navClass("/tasks")}>Tasks</Link>
-          <Link href="/vendors" className={navClass("/vendors")}>Vendors</Link>
-          <Link href="/documents" className={navClass("/documents")}>Documents</Link>
-          <Link href="/costs" className={navClass("/costs")}>Costs</Link>
+        <nav className="hidden md:flex gap-8" aria-label="Main navigation">
+          <Link href="/" className={navClass("/")} aria-label="Home page">Home</Link>
+          <Link href="/tasks" className={navClass("/tasks")} aria-label="View all tasks">Tasks</Link>
+          <Link href="/vendors" className={navClass("/vendors")} aria-label="View all vendors">Vendors</Link>
+          <Link href="/documents" className={navClass("/documents")} aria-label="View all documents">Documents</Link>
+          <Link href="/costs" className={navClass("/costs")} aria-label="View cost tracking">Costs</Link>
         </nav>
 
         <div ref={ref} className="relative">
           <button
             onClick={() => setOpen((o) => !o)}
-            className={SETTINGS_BUTTON}
+            className={`${SETTINGS_BUTTON} focus-ring`}
             aria-label="Settings"
+            aria-expanded={open}
+            aria-controls="settings-menu"
           >
             <svg
               xmlns="http://www.w3.org/2000/svg"
@@ -353,17 +385,20 @@ export default function Header() {
           </button>
 
           {open && mounted && (
-            <div className="animate-dropdown absolute right-0 mt-2 w-56 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-lg shadow-xl z-50">
+            <div id="settings-menu" className="animate-dropdown absolute right-0 mt-2 w-56 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-lg shadow-xl z-50">
               <div className="px-4 pt-4 pb-3 border-b border-gray-100 dark:border-gray-800">
-                <p className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-widest mb-3">
+                <p id="theme-label" className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-widest mb-3">
                   Theme
                 </p>
-                <div className="flex rounded-md border border-gray-200 dark:border-gray-700 overflow-hidden">
+                <div className="flex rounded-md border border-gray-200 dark:border-gray-700 overflow-hidden" role="radiogroup" aria-labelledby="theme-label">
                   {THEMES.map(({ value, label }) => (
                     <button
                       key={value}
                       onClick={() => handleThemeChange(value)}
-                      className={`flex-1 text-xs py-1.5 font-medium transition-colors ${
+                      role="radio"
+                      aria-checked={theme === value}
+                      aria-label={`${label} theme`}
+                      className={`flex-1 text-xs py-1.5 font-medium transition-colors focus-ring ${
                         theme === value
                           ? "bg-gray-900 dark:bg-gray-600 text-white"
                           : "text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800"
@@ -380,7 +415,8 @@ export default function Header() {
                     setCategoriesOpen(true);
                     setOpen(false);
                   }}
-                  className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors border-b border-gray-100 dark:border-gray-800"
+                  aria-label="Manage categories"
+                  className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors border-b border-gray-100 dark:border-gray-800 focus-ring"
                 >
                   Categories
                 </button>
@@ -389,7 +425,8 @@ export default function Header() {
                 <div className="flex gap-0 border-b border-gray-100 dark:border-gray-800">
                   <button
                     onClick={handleExport}
-                    className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors border-r border-gray-100 dark:border-gray-800"
+                    aria-label="Download backup of all data as JSON"
+                    className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors border-r border-gray-100 dark:border-gray-800 focus-ring"
                   >
                     Export data
                   </button>
@@ -399,7 +436,8 @@ export default function Header() {
                       importInputRef.current?.click();
                     }}
                     disabled={importing}
-                    className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors disabled:opacity-50"
+                    aria-label="Upload and restore data from backup file"
+                    className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors disabled:opacity-50 focus-ring"
                   >
                     {importing ? "Importing…" : "Import data"}
                   </button>
@@ -414,7 +452,8 @@ export default function Header() {
                     setGodModeOpen(true);
                   }
                 }}
-                className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors border-b border-gray-100 dark:border-gray-800"
+                aria-label={godMode ? "Disable God mode (admin access)" : "Enable God mode (admin access)"}
+                className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors border-b border-gray-100 dark:border-gray-800 focus-ring"
               >
                 {godMode ? (
                   <>
@@ -457,7 +496,8 @@ export default function Header() {
               <Link
                 href="/archived"
                 onClick={() => setOpen(false)}
-                className="flex items-center gap-2 px-4 py-2.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors rounded-b-lg"
+                aria-label="View archived items"
+                className="flex items-center gap-2 px-4 py-2.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors rounded-b-lg focus-ring"
               >
                 Archived
               </Link>
@@ -472,7 +512,7 @@ export default function Header() {
             className="md:hidden fixed inset-0 top-14 bg-black/20 z-40"
             onClick={() => setMobileMenuOpen(false)}
           />
-          <nav className="md:hidden fixed top-14 left-0 right-0 border-b border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-950 z-50 animate-dropdown">
+          <nav id="mobile-menu" className="md:hidden fixed top-14 left-0 right-0 border-b border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-950 z-50 animate-dropdown">
             <div className="flex flex-col gap-0 px-4 py-2">
               {[
                 { href: "/", label: "Home" },
@@ -485,7 +525,7 @@ export default function Header() {
                   key={href}
                   href={href}
                   onClick={() => setMobileMenuOpen(false)}
-                  className={`py-2.5 ${navClass(href)}`}
+                  className={`py-2.5 block rounded ${navClass(href)}`}
                 >
                   {label}
                 </Link>
@@ -497,8 +537,12 @@ export default function Header() {
 
       {reassigningCategory && mounted && (
         <div className="animate-backdrop fixed inset-0 bg-black/50 flex items-center justify-center z-60 p-4">
-          <div className="bg-white dark:bg-gray-900 rounded-lg shadow-xl max-w-lg w-full max-h-[90vh] overflow-y-auto flex flex-col p-8">
-            <h2 className="text-2xl font-bold mb-6 text-gray-900 dark:text-gray-100 shrink-0">
+          <div
+            className="bg-white dark:bg-gray-900 rounded-lg shadow-xl max-w-lg w-full max-h-[90vh] overflow-y-auto flex flex-col p-8"
+            role="dialog" aria-modal="true" aria-labelledby="reassign-title"
+            onKeyDown={(e) => trapFocus(e, () => { setReassigningCategory(null); setReassignTarget(""); })}
+          >
+            <h2 id="reassign-title" className="text-2xl font-bold mb-6 text-gray-900 dark:text-gray-100 shrink-0">
               Reassign Tasks
             </h2>
 
@@ -522,13 +566,15 @@ export default function Header() {
             </div>
 
             <div className="mb-6">
-              <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+              <label htmlFor="reassign-select" className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
                 Reassign to category:
               </label>
               <select
+                id="reassign-select"
                 value={reassignTarget}
                 onChange={(e) => setReassignTarget(e.target.value)}
-                className={INPUT_BASE}
+                aria-label="Select target category"
+                className={`${INPUT_BASE} focus-ring`}
               >
                 <option value="">Select a category</option>
                 {categories
@@ -545,7 +591,7 @@ export default function Header() {
               <button
                 onClick={confirmReassignment}
                 disabled={!reassignTarget}
-                className="flex-1 text-sm px-4 py-2 rounded-md bg-gray-900 dark:bg-gray-700 text-white hover:bg-gray-700 dark:hover:bg-gray-600 disabled:opacity-40 transition-colors font-medium"
+                className="flex-1 text-sm px-4 py-2 rounded-md bg-gray-900 dark:bg-gray-700 text-white hover:bg-gray-700 dark:hover:bg-gray-600 disabled:opacity-40 transition-colors font-medium focus-ring"
               >
                 Reassign & Delete
               </button>
@@ -554,7 +600,7 @@ export default function Header() {
                   setReassigningCategory(null);
                   setReassignTarget("");
                 }}
-                className={`flex-1 ${BUTTON_SECONDARY}`}
+                className={`flex-1 ${BUTTON_SECONDARY} focus-ring`}
               >
                 Cancel
               </button>
@@ -565,8 +611,12 @@ export default function Header() {
 
       {godModeOpen && mounted && (
         <div className="animate-backdrop fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white dark:bg-gray-900 rounded-lg shadow-xl max-w-sm w-full flex flex-col p-8">
-            <h2 className="text-2xl font-bold mb-6 text-gray-900 dark:text-gray-100">
+          <div
+            className="bg-white dark:bg-gray-900 rounded-lg shadow-xl max-w-sm w-full flex flex-col p-8"
+            role="dialog" aria-modal="true" aria-labelledby="god-mode-title"
+            onKeyDown={(e) => trapFocus(e, () => { setGodModeOpen(false); setGodModePassword(""); setGodModeError(""); })}
+          >
+            <h2 id="god-mode-title" className="text-2xl font-bold mb-6 text-gray-900 dark:text-gray-100">
               Enable God Mode
             </h2>
             <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
@@ -585,17 +635,21 @@ export default function Header() {
                 }
               }}
               placeholder="Password"
-              className="w-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 rounded-md px-3 py-2 text-sm text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-gray-400 mb-2"
+              autoFocus
+              aria-label="God mode password"
+              aria-describedby={godModeError ? "god-mode-error" : undefined}
+              aria-invalid={!!godModeError}
+              className="w-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 rounded-md px-3 py-2 text-sm text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-gray-400 mb-2 focus-ring"
             />
             {godModeError && (
-              <p className="text-sm text-red-600 dark:text-red-400 mb-4">
+              <p id="god-mode-error" role="alert" className="text-sm text-red-600 dark:text-red-400 mb-4">
                 {godModeError}
               </p>
             )}
             <div className="flex gap-3 mt-6">
               <button
                 onClick={handleGodModeEnable}
-                className={`flex-1 ${BUTTON_PRIMARY}`}
+                className={`flex-1 ${BUTTON_PRIMARY} focus-ring`}
               >
                 Enable
               </button>
@@ -605,7 +659,7 @@ export default function Header() {
                   setGodModePassword("");
                   setGodModeError("");
                 }}
-                className={`flex-1 ${BUTTON_SECONDARY}`}
+                className={`flex-1 ${BUTTON_SECONDARY} focus-ring`}
               >
                 Cancel
               </button>
@@ -616,8 +670,12 @@ export default function Header() {
 
       {categoriesOpen && mounted && (
         <div className="animate-backdrop fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white dark:bg-gray-900 rounded-lg shadow-xl max-w-lg w-full max-h-[90vh] overflow-y-auto flex flex-col p-8">
-            <h2 className="text-2xl font-bold mb-6 text-gray-900 dark:text-gray-100 shrink-0">
+          <div
+            className="bg-white dark:bg-gray-900 rounded-lg shadow-xl max-w-lg w-full max-h-[90vh] overflow-y-auto flex flex-col p-8"
+            role="dialog" aria-modal="true" aria-labelledby="categories-title"
+            onKeyDown={(e) => trapFocus(e, () => setCategoriesOpen(false))}
+          >
+            <h2 id="categories-title" className="text-2xl font-bold mb-6 text-gray-900 dark:text-gray-100 shrink-0">
               Categories
             </h2>
 
@@ -686,7 +744,8 @@ export default function Header() {
                                 e.target.value as ColorName,
                               )
                             }
-                            className={`${SELECT_BASE} px-2 py-1`}
+                            aria-label={`Color for ${cat.name} category`}
+                            className={`${SELECT_BASE} px-2 py-1 focus-ring`}
                           >
                             {colorOptions.map((color) => (
                               <option key={color} value={color}>
@@ -696,7 +755,8 @@ export default function Header() {
                           </select>
                           <button
                             onClick={() => deleteCategory(cat.name)}
-                            className="text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 text-sm font-medium"
+                            aria-label={`Delete ${cat.name} category`}
+                            className="text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 text-sm font-medium focus-ring rounded px-1"
                           >
                             Delete
                           </button>
@@ -716,14 +776,16 @@ export default function Header() {
                       value={newCategoryName}
                       onChange={(e) => setNewCategoryName(e.target.value)}
                       placeholder="Category name"
-                      className={INPUT_BASE}
+                      aria-label="New category name"
+                      className={`${INPUT_BASE} focus-ring`}
                     />
                     <select
                       value={newCategoryColor}
                       onChange={(e) =>
                         setNewCategoryColor(e.target.value as ColorName)
                       }
-                      className={INPUT_BASE}
+                      aria-label="Category color"
+                      className={`${INPUT_BASE} focus-ring`}
                     >
                       {colorOptions.map((color) => (
                         <option key={color} value={color}>
@@ -734,7 +796,7 @@ export default function Header() {
                     <button
                       onClick={addCategory}
                       disabled={!newCategoryName.trim()}
-                      className="w-full text-sm px-4 py-2 rounded-md bg-gray-900 dark:bg-gray-700 text-white hover:bg-gray-700 dark:hover:bg-gray-600 disabled:opacity-40 transition-colors font-medium"
+                      className="w-full text-sm px-4 py-2 rounded-md bg-gray-900 dark:bg-gray-700 text-white hover:bg-gray-700 dark:hover:bg-gray-600 disabled:opacity-40 transition-colors font-medium focus-ring"
                     >
                       Add Category
                     </button>
@@ -746,7 +808,7 @@ export default function Header() {
             <div className="flex gap-3 mt-8 pt-6 border-t border-gray-100 dark:border-gray-800 shrink-0">
               <button
                 onClick={() => setCategoriesOpen(false)}
-                className={`flex-1 ${BUTTON_SECONDARY}`}
+                className={`flex-1 ${BUTTON_SECONDARY} focus-ring`}
               >
                 Close
               </button>
