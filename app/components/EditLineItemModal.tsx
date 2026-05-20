@@ -27,18 +27,18 @@ export default function EditLineItemModal({
   const { form, initializeForm, updateForm, submit, hasChanges, isLoading, error } =
     useEditLineItemForm(lineItem?.id || "", onSave);
 
-  const currentFY = useMemo(() => {
+  const currentOCYear = useMemo(() => {
     const d = new Date();
-    return d.getMonth() >= 6 ? d.getFullYear() + 1 : d.getFullYear();
+    return d.getMonth() >= 3 ? d.getFullYear() + 1 : d.getFullYear();
   }, []);
 
-  const fyOptions = useMemo(() => {
+  const ocYearOptions = useMemo(() => {
     const options = [];
-    for (let i = currentFY - 2; i <= currentFY + 2; i++) {
+    for (let i = currentOCYear - 2; i <= currentOCYear + 2; i++) {
       options.push(i);
     }
     return options;
-  }, [currentFY]);
+  }, [currentOCYear]);
 
   useEffect(() => {
     if (isOpen && lineItem) {
@@ -121,16 +121,16 @@ export default function EditLineItemModal({
 
           <div>
             <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
-              Fiscal Year *
+              OC Year *
             </label>
             <select
               value={form.fy || 2026}
               onChange={(e) => updateForm({ fy: Number(e.target.value) })}
               className={INPUT}
             >
-              {fyOptions.map((fy) => (
-                <option key={fy} value={fy}>
-                  FY{fy}
+              {ocYearOptions.map((ocY) => (
+                <option key={ocY} value={ocY}>
+                  OC-Y{ocY}
                 </option>
               ))}
             </select>
@@ -158,7 +158,7 @@ export default function EditLineItemModal({
 
           <div>
             <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
-              FY Budget (Optional)
+              OC-Y Budget (Optional)
             </label>
             <input
               type="text"
@@ -166,7 +166,7 @@ export default function EditLineItemModal({
               onChange={(e) =>
                 updateForm({ fy_budget: e.target.value || null })
               }
-              placeholder="Fixed budget for this fiscal year (null = derived from tasks)"
+              placeholder="Fixed budget for this OC year (null = derived from tasks)"
               className={INPUT}
             />
             <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">

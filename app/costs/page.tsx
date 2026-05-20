@@ -32,18 +32,18 @@ interface LineItemDisplay {
 }
 
 
-function fyForDate(dateStr: string): number {
+function ocYearForDate(dateStr: string): number {
   const d = new Date(dateStr + "T00:00:00");
-  // Australian FY starts in July (month 6, since JS months are 0-indexed).
-  // Dates in Jul–Dec belong to the next FY (e.g., 2024-07-15 → FY2025).
-  return d.getMonth() >= 6 ? d.getFullYear() + 1 : d.getFullYear();
+  // OC Year starts in April (month 3, since JS months are 0-indexed).
+  // Dates in Apr–Dec belong to the next OC Year (e.g., 2024-04-15 → OC-Y2025).
+  return d.getMonth() >= 3 ? d.getFullYear() + 1 : d.getFullYear();
 }
 
-function fyRange(fy: number): { start: Date; end: Date; label: string } {
+function ocYearRange(ocY: number): { start: Date; end: Date; label: string } {
   return {
-    start: new Date(`${fy - 1}-07-01T00:00:00Z`),
-    end: new Date(`${fy}-06-30T23:59:59Z`),
-    label: `1 July ${fy - 1} – 30 June ${fy}`,
+    start: new Date(`${ocY - 1}-04-01T00:00:00Z`),
+    end: new Date(`${ocY}-03-31T23:59:59Z`),
+    label: `1 April ${ocY - 1} – 31 March ${ocY}`,
   };
 }
 
@@ -86,12 +86,12 @@ function fmt(n: number): string {
 }
 
 // ── Utility Functions ──
-// Fiscal year calculations, budget math, and formatting.
+// OC year calculations, budget math, and formatting.
 
 export default function CostsPage() {
   const { godMode } = useGodMode();
 
-  // ── Data & FY State ──
+  // ── Data & OC Year State ──
   const [tasks, setTasks] = useState<Task[]>(
     () => getCached<Task[]>("/api/tasks") ?? [],
   );
@@ -114,19 +114,19 @@ export default function CostsPage() {
         {},
       ),
   );
-  const [fy, setFy] = useState<number>(() =>
-    fyForDate(new Date().toISOString().split("T")[0]),
+  const [ocY, setOcY] = useState<number>(() =>
+    ocYearForDate(new Date().toISOString().split("T")[0]),
   );
-  const [availableFYs, setAvailableFYs] = useState<number[]>(() => {
+  const [availableOCYears, setAvailableOCYears] = useState<number[]>(() => {
     const cachedTasks = getCached<Task[]>("/api/tasks") ?? [];
     const cachedLineItems = getCached<LineItem[]>("/api/line-items") ?? [];
     const allDates = cachedTasks.map((t) => t.start_date).filter(Boolean);
-    const allFYs = [
-      ...allDates.map((d) => fyForDate(d)),
+    const allOCYs = [
+      ...allDates.map((d) => ocYearForDate(d)),
       ...cachedLineItems.filter((li) => !li.archived).map((li) => li.fy),
     ];
-    if (!allFYs.length) return [];
-    return [...new Set(allFYs)].sort();
+    if (!allOCYs.length) return [];
+    return [...new Set(allOCYs)].sort();
   });
 
   // ── Sync with Server ──
@@ -169,17 +169,17 @@ export default function CostsPage() {
       );
 
       const allDates = tasksData.map((t: Task) => t.start_date).filter(Boolean);
-      const allFYs = [
-        ...allDates.map((d: string) => fyForDate(d)),
+      const allOCYs = [
+        ...allDates.map((d: string) => ocYearForDate(d)),
         ...lineItemsData.filter((li: LineItem) => !li.archived).map((li: LineItem) => li.fy),
       ];
-      const fys = [...new Set(allFYs)] as number[];
-      fys.sort((a, b) => a - b);
-      setAvailableFYs(fys);
+      const ocYears = [...new Set(allOCYs)] as number[];
+      ocYears.sort((a, b) => a - b);
+      setAvailableOCYears(ocYears);
 
-      if (fys.length > 0) {
-        const currentFY = fyForDate(new Date().toISOString().split("T")[0]);
-        setFy(fys.includes(currentFY) ? currentFY : fys[fys.length - 1]);
+      if (ocYears.length > 0) {
+        const currentOCYear = ocYearForDate(new Date().toISOString().split("T")[0]);
+        setOcY(ocYears.includes(currentOCYear) ? currentOCYear : ocYears[ocYears.length - 1]);
       }
     } catch (err) {
       console.error("[refreshData] Failed to refresh data:", err);
@@ -200,28 +200,28 @@ export default function CostsPage() {
 
   // ── Budget Calculations ──
   // Build line items with budget vs actual totals.
-  const { start, end, label } = fyRange(fy);
-  const daysInFY = daysInRange(start, end);
+  const { start, end, label } = ocYearRange(ocY);
+  const daysInOCYear = daysInRange(start, end);
 
-  // Filter tasks by FY
-  const inFY_tasks = tasks.filter((t) => fyForDate(t.start_date) === fy);
+  // Filter tasks by OC Year
+  const inOCYear_tasks = tasks.filter((t) => ocYearForDate(t.start_date) === ocY);
 
   // Group tasks by line_item_id
   const tasksByLineItem = new Map<string, Task[]>();
-  for (const t of inFY_tasks) {
+  for (const t of inOCYear_tasks) {
     if (!tasksByLineItem.has(t.line_item_id)) {
       tasksByLineItem.set(t.line_item_id, []);
     }
     tasksByLineItem.get(t.line_item_id)!.push(t);
   }
 
-  // Build display line items — show line items for the selected FY, either from their own FY field
-  // or from tasks in that FY.
+  // Build display line items — show line items for the selected OC Year, either from their own OC Year field
+  // or from tasks in that OC Year.
   const displayLineItems: LineItemDisplay[] = [];
 
   const lineItemIdsToShow = new Set([
     ...tasksByLineItem.keys(),
-    ...lineItems.filter((li) => !li.archived && li.fy === fy).map((li) => li.id),
+    ...lineItems.filter((li) => !li.archived && li.fy === ocY).map((li) => li.id),
   ]);
 
   for (const lineItemId of lineItemIdsToShow) {
@@ -251,7 +251,7 @@ export default function CostsPage() {
       unitCost = representative.estimated_cost;
 
       if (representative.frequency && unitCost) {
-        budgetCount = occurrencesInRange(representative.frequency, daysInFY);
+        budgetCount = occurrencesInRange(representative.frequency, daysInOCYear);
         budgetTotal = budgetCount * unitCost;
       } else if (unitCost) {
         budgetCount = 1;
@@ -292,13 +292,13 @@ export default function CostsPage() {
           </div>
           <div className="flex gap-3">
             <select
-              value={fy}
-              onChange={(e) => setFy(Number(e.target.value))}
+              value={ocY}
+              onChange={(e) => setOcY(Number(e.target.value))}
               className="border border-gray-200 dark:border-gray-700 rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-gray-400"
             >
-              {availableFYs.map((y) => (
+              {availableOCYears.map((y) => (
                 <option key={y} value={y}>
-                  FY{y}
+                  OC-Y{y}
                 </option>
               ))}
             </select>
@@ -321,8 +321,8 @@ export default function CostsPage() {
           </div>
         </div>
 
-        {inFY_tasks.length === 0 ? (
-          <p className="text-gray-400 text-sm">No items in FY{fy}.</p>
+        {inOCYear_tasks.length === 0 ? (
+          <p className="text-gray-400 text-sm">No items in OC-Y{ocY}.</p>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
