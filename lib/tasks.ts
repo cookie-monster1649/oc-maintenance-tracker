@@ -229,10 +229,9 @@ export function pushFutureTasks(tasks: Task[], futureTasks: Task[]): void {
 export function extrapolateFutureTasks(task: Task): Task[] {
   if (!task.frequency) return [];
   const futureTasks: Task[] = [];
-  // 5-year window gives annual tasks room to generate 3 future occurrences even
-  // when leap-year date shifts (e.g. Feb 29 → Mar 1) push dates slightly forward.
-  // The 3-task cap in the while condition limits quantity for high-frequency tasks.
-  const cutoff = task.end_date ? parseISO(task.end_date) : addYears(parseISO(task.start_date), 5);
+  // 13-month window covers the next full OC year from any starting point.
+  // The 3-task cap limits quantity for high-frequency tasks (weekly, bi-weekly).
+  const cutoff = task.end_date ? parseISO(task.end_date) : addMonths(parseISO(task.start_date), 13);
   let current = nextStartDate(task.start_date, task.frequency);
 
   while (futureTasks.length < 3 && isBefore(parseISO(current), cutoff)) {
