@@ -32,6 +32,7 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+!.env.example
 
 # vercel
 .vercel
@@ -42,3 +43,7 @@ next-env.d.ts
 
 # local data
 /data
+
+# Claude Code and AI agent files (local development context)
+CLAUDE.md
+AGENTS.md
