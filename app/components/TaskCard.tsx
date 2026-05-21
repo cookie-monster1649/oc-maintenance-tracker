@@ -124,7 +124,7 @@ export function TaskCard({
     <div
       className={`border rounded-lg p-4 transition-[border-color,box-shadow,opacity,transform] duration-150 group ${isCompleted ? "border-gray-100 dark:border-gray-800 opacity-60" : "border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 hover:shadow-sm hover:-translate-y-px"}`}
     >
-      <div className="flex items-start justify-between gap-4">
+      <div className="flex items-start gap-2 md:gap-4">
         <div className="flex flex-col items-center justify-center w-12 shrink-0 text-center">
           <span className="text-2xl font-bold leading-none text-gray-900 dark:text-gray-100">
             {day}
@@ -134,31 +134,67 @@ export function TaskCard({
           </span>
         </div>
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 mb-1 flex-wrap">
+          {/* Title row shares space with action buttons */}
+          <div className="flex items-start justify-between gap-2 mb-1">
             <a
               href={`/line-items/${task.line_item_id}`}
               className={`font-medium hover:underline ${isCompleted ? "line-through text-gray-400 dark:text-gray-500" : "text-gray-900 dark:text-gray-100"}`}
             >
               {task.title ?? resolvedLineItem.title}
             </a>
-            {showCategory && (() => {
-              const colors = getCategoryColor(resolvedLineItem.category);
-              return (
-                <span
-                  className={`text-xs px-2 py-0.5 rounded-full ${colors.bg} ${colors.text} font-medium`}
+            <div className="flex gap-1 md:gap-2 shrink-0 items-center">
+              {!isCompleted && onCompleteAction && godMode && (
+                <button
+                  onClick={() => onCompleteAction(task.id)}
+                  disabled={completing === task.id}
+                  className="text-xs md:text-sm px-2 md:px-3 py-1 md:py-1.5 rounded-md border border-gray-300 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 disabled:opacity-40 transition-colors whitespace-nowrap"
                 >
-                  {resolvedLineItem.category}
-                </span>
-              );
-            })()}
-            {isCompleted && (
-              <span
-                className={`text-xs px-2 py-0.5 rounded-full font-medium ${STATUS_STYLES[task.status]}`}
-              >
-                {task.status}
-              </span>
-            )}
+                  {completing === task.id ? "Saving…" : "Mark done"}
+                </button>
+              )}
+              {godMode && onEditAction && (
+                <button
+                  onClick={() => onEditAction(task.id)}
+                  className="text-xs px-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
+                  title={isCompleted ? "Edit and undo completion" : "Edit task"}
+                  aria-label={isCompleted ? "Edit and undo completion" : "Edit task"}
+                >
+                  ✏
+                </button>
+              )}
+              {godMode && onDeleteOccurrenceAction && (
+                <button
+                  onClick={() => onDeleteOccurrenceAction(task.id)}
+                  className="hidden group-hover:flex items-center justify-center w-6 h-6 rounded-md border border-red-300 dark:border-red-700 bg-red-50 dark:bg-red-950 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900 transition-colors text-xs font-bold"
+                  title="Delete this occurrence"
+                >
+                  ✕
+                </button>
+              )}
+            </div>
           </div>
+          {/* Category and status badges — full width below title */}
+          {(showCategory || isCompleted) && (
+            <div className="flex items-center gap-2 mb-1 flex-wrap">
+              {showCategory && (() => {
+                const colors = getCategoryColor(resolvedLineItem.category);
+                return (
+                  <span
+                    className={`text-xs px-2 py-0.5 rounded-full ${colors.bg} ${colors.text} font-medium`}
+                  >
+                    {resolvedLineItem.category}
+                  </span>
+                );
+              })()}
+              {isCompleted && (
+                <span
+                  className={`text-xs px-2 py-0.5 rounded-full font-medium ${STATUS_STYLES[task.status]}`}
+                >
+                  {task.status}
+                </span>
+              )}
+            </div>
+          )}
           {showVendor && vendor && (
             <div className="mb-1">
               <a
@@ -224,36 +260,6 @@ export function TaskCard({
                 </div>
               ))}
             </div>
-          )}
-        </div>
-        <div className="flex gap-2 shrink-0 items-center">
-          {!isCompleted && onCompleteAction && godMode && (
-            <button
-              onClick={() => onCompleteAction(task.id)}
-              disabled={completing === task.id}
-              className="text-sm px-3 py-1.5 rounded-md border border-gray-300 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 disabled:opacity-40 transition-colors"
-            >
-              {completing === task.id ? "Saving…" : "Mark done"}
-            </button>
-          )}
-          {godMode && onEditAction && (
-            <button
-              onClick={() => onEditAction(task.id)}
-              className="text-xs px-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
-              title={isCompleted ? "Edit and undo completion" : "Edit task"}
-              aria-label={isCompleted ? "Edit and undo completion" : "Edit task"}
-            >
-              ✏
-            </button>
-          )}
-          {godMode && onDeleteOccurrenceAction && (
-            <button
-              onClick={() => onDeleteOccurrenceAction(task.id)}
-              className="hidden group-hover:flex items-center justify-center w-6 h-6 rounded-md border border-red-300 dark:border-red-700 bg-red-50 dark:bg-red-950 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900 transition-colors text-xs font-bold"
-              title="Delete this occurrence"
-            >
-              ✕
-            </button>
           )}
         </div>
       </div>
