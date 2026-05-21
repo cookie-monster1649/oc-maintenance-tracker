@@ -568,7 +568,10 @@ export default function Header() {
       )}
 
       {reassigningCategory && mounted && (
-        <div className="animate-backdrop fixed inset-0 bg-black/50 flex items-center justify-center z-60 p-4">
+        <div
+          className="animate-backdrop fixed inset-0 bg-black/50 flex items-center justify-center z-60 p-4"
+          onClick={(e) => { if (e.target === e.currentTarget) { setReassigningCategory(null); setReassignTarget(""); } }}
+        >
           <div
             className="bg-white dark:bg-gray-900 rounded-lg shadow-xl max-w-lg w-full max-h-[90vh] overflow-y-auto flex flex-col p-8"
             role="dialog" aria-modal="true" aria-labelledby="reassign-title"
@@ -642,7 +645,10 @@ export default function Header() {
       )}
 
       {godModeOpen && mounted && (
-        <div className="animate-backdrop fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+        <div
+          className="animate-backdrop fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
+          onClick={(e) => { if (e.target === e.currentTarget) { setGodModeOpen(false); setGodModePassword(""); setGodModeError(""); } }}
+        >
           <div
             className="bg-white dark:bg-gray-900 rounded-lg shadow-xl max-w-sm w-full flex flex-col p-8"
             role="dialog" aria-modal="true" aria-labelledby="god-mode-title"
@@ -701,7 +707,10 @@ export default function Header() {
       )}
 
       {lineItemsOpen && mounted && (
-        <div className="animate-backdrop fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+        <div
+          className="animate-backdrop fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
+          onClick={(e) => { if (e.target === e.currentTarget) setLineItemsOpen(false); }}
+        >
           <div
             className="bg-white dark:bg-gray-900 rounded-lg shadow-xl max-w-lg w-full max-h-[90vh] overflow-y-auto flex flex-col p-8"
             role="dialog" aria-modal="true" aria-labelledby="line-items-title"
@@ -757,7 +766,10 @@ export default function Header() {
       )}
 
       {categoriesOpen && mounted && (
-        <div className="animate-backdrop fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+        <div
+          className="animate-backdrop fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
+          onClick={(e) => { if (e.target === e.currentTarget) setCategoriesOpen(false); }}
+        >
           <div
             className="bg-white dark:bg-gray-900 rounded-lg shadow-xl max-w-lg w-full max-h-[90vh] overflow-y-auto flex flex-col p-8"
             role="dialog" aria-modal="true" aria-labelledby="categories-title"

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import type { BinColor, BinWeeksConfig } from "@/lib/bin-weeks";
 
 interface BinWeekModalProps {
@@ -19,14 +19,17 @@ const BIN_COLORS: BinColor[] = ["green", "yellow", "black", "purple"];
 
 export default function BinWeekModal({ onClose }: BinWeekModalProps) {
   const [config, setConfig] = useState<BinWeeksConfig | null>(null);
+  const [originalConfig, setOriginalConfig] = useState<BinWeeksConfig | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const backdropRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     fetch("/api/bin-weeks")
       .then((res) => res.json())
       .then((data) => {
         setConfig(data);
+        setOriginalConfig(data);
         setLoading(false);
       })
       .catch(() => setLoading(false));
@@ -74,8 +77,19 @@ export default function BinWeekModal({ onClose }: BinWeekModalProps) {
     return null;
   }
 
+  const handleBackdropClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (e.target !== backdropRef.current) return;
+    const hasChanges = originalConfig && JSON.stringify(config) !== JSON.stringify(originalConfig);
+    if (hasChanges && !confirm("Discard unsaved changes?")) return;
+    onClose();
+  };
+
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+    <div
+      ref={backdropRef}
+      className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50"
+      onClick={handleBackdropClick}
+    >
       <div className="bg-white dark:bg-gray-900 rounded-lg shadow-lg max-w-md w-full">
         <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-800">
           <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Configure Bin Weeks</h2>

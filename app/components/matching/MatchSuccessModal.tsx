@@ -16,7 +16,10 @@ export function MatchSuccessModal({
   onClose,
 }: MatchSuccessModalProps) {
   return (
-    <div className="animate-backdrop fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+    <div
+      className="animate-backdrop fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+    >
       <div className="animate-modal bg-white dark:bg-gray-900 rounded-lg shadow-xl max-w-sm w-full p-8 text-center">
         <div className="w-12 h-12 bg-green-100 dark:bg-green-950 text-green-600 dark:text-green-400 rounded-full flex items-center justify-center mx-auto mb-4">
           <svg

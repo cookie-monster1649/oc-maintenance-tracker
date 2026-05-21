@@ -20,7 +20,10 @@ export function SmartActionConfirmModal({
   onCancel,
 }: SmartActionConfirmModalProps) {
   return (
-    <div className="animate-backdrop fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 overflow-y-auto">
+    <div
+      className="animate-backdrop fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 overflow-y-auto"
+      onClick={(e) => { if (e.target === e.currentTarget) onCancel(); }}
+    >
       <div className="animate-modal bg-white dark:bg-gray-900 rounded-lg shadow-xl max-w-2xl w-full p-6 my-6">
         <h2 className="text-lg font-bold mb-6 text-gray-900 dark:text-gray-100">
           Confirm Task Completion
