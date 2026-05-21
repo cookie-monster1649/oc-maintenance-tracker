@@ -374,30 +374,28 @@ export default function LineItemDetailPage() {
 
   // Header left content (Budget/Actuals)
   const headerLeftContent = (
-    <div>
-      <div className="flex gap-12">
-        <div className="text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest min-w-fit">
-          OC-Y{new Date().getFullYear() + (new Date().getMonth() >= 3 ? 1 : 0)}
-        </div>
-        <div>
-          <div className="flex items-start gap-12 text-sm">
-            <div>
-              <div className="text-gray-500 dark:text-gray-400">Budget</div>
-              <div className="font-bold text-gray-900 dark:text-gray-100">
-                {fmt(derivedBudgetTotal)}
-              </div>
-            </div>
-            <div>
-              <div className="text-gray-500 dark:text-gray-400">Actuals</div>
-              <div className="font-bold text-gray-900 dark:text-gray-100">
-                {fmt(actualTotal)}
-              </div>
+    <div className="space-y-4">
+      <div className="text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest">
+        OC-Y{new Date().getFullYear() + (new Date().getMonth() >= 3 ? 1 : 0)}
+      </div>
+      <div>
+        <div className="flex flex-col md:flex-row md:gap-12 gap-2 text-sm">
+          <div>
+            <div className="text-gray-500 dark:text-gray-400">Budget</div>
+            <div className="font-bold text-gray-900 dark:text-gray-100">
+              {fmt(derivedBudgetTotal)}
             </div>
           </div>
-          {(currentYearEntry?.budget === null || currentYearEntry?.budget === undefined) && (
-            <div className="text-xs text-gray-400 dark:text-gray-500 mt-2">Derived from tasks</div>
-          )}
+          <div>
+            <div className="text-gray-500 dark:text-gray-400">Actuals</div>
+            <div className="font-bold text-gray-900 dark:text-gray-100">
+              {fmt(actualTotal)}
+            </div>
+          </div>
         </div>
+        {(currentYearEntry?.budget === null || currentYearEntry?.budget === undefined) && (
+          <div className="text-xs text-gray-400 dark:text-gray-500 mt-2">Derived from tasks</div>
+        )}
       </div>
     </div>
   );

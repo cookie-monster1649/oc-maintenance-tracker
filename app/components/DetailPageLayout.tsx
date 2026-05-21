@@ -51,8 +51,8 @@ export default function DetailPageLayout({
           {menuButton}
         </div>
 
-        {/* Header content: 2-column grid */}
-        <div className="grid grid-cols-2 gap-12 mb-12">
+        {/* Header content: 2-column grid, compact on mobile */}
+        <div className="grid grid-cols-2 gap-2 md:gap-12 mb-12">
           <div>{headerLeftContent}</div>
           <div>{headerRightContent}</div>
         </div>

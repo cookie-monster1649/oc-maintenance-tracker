@@ -408,24 +408,22 @@ export default function VendorDetailPage() {
 
   // Header left content (Budget/Actuals - OC-Y summary)
   const headerLeftContent = (
-    <div>
-      <div className="flex gap-12">
-        <div className="text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest min-w-fit">
-          FY{new Date().getFullYear() + (new Date().getMonth() >= 6 ? 1 : 0)}
-        </div>
-        <div>
-          <div className="flex items-start gap-12 text-sm">
-            <div>
-              <div className="text-gray-500 dark:text-gray-400">Budget</div>
-              <div className="font-bold text-gray-900 dark:text-gray-100">
-                {fmt(totalCost)}
-              </div>
+    <div className="space-y-4">
+      <div className="text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest">
+        FY{new Date().getFullYear() + (new Date().getMonth() >= 6 ? 1 : 0)}
+      </div>
+      <div>
+        <div className="flex flex-col md:flex-row md:gap-12 gap-2 text-sm">
+          <div>
+            <div className="text-gray-500 dark:text-gray-400">Budget</div>
+            <div className="font-bold text-gray-900 dark:text-gray-100">
+              {fmt(totalCost)}
             </div>
-            <div>
-              <div className="text-gray-500 dark:text-gray-400">Actuals</div>
-              <div className="font-bold text-gray-900 dark:text-gray-100">
-                {fmt(completed.reduce((s, t) => s + (t.actual_cost ?? t.estimated_cost ?? 0), 0))}
-              </div>
+          </div>
+          <div>
+            <div className="text-gray-500 dark:text-gray-400">Actuals</div>
+            <div className="font-bold text-gray-900 dark:text-gray-100">
+              {fmt(completed.reduce((s, t) => s + (t.actual_cost ?? t.estimated_cost ?? 0), 0))}
             </div>
           </div>
         </div>
@@ -437,7 +435,7 @@ export default function VendorDetailPage() {
   const headerRightContent = (
     <div className="space-y-3 text-sm">
       {vendor.phone && (
-        <div className="flex justify-between gap-4">
+        <div className="flex flex-col md:flex-row md:justify-between gap-1 md:gap-4">
           <span className="text-gray-500 dark:text-gray-400">
             Phone
           </span>
@@ -450,34 +448,34 @@ export default function VendorDetailPage() {
         </div>
       )}
       {vendor.email && (
-        <div className="flex justify-between gap-4">
+        <div className="flex flex-col md:flex-row md:justify-between gap-1 md:gap-4">
           <span className="text-gray-500 dark:text-gray-400">
             Email
           </span>
           <a
             href={`mailto:${vendor.email}`}
-            className="text-blue-600 dark:text-blue-400 hover:underline font-medium text-right"
+            className="text-blue-600 dark:text-blue-400 hover:underline font-medium md:text-right break-all"
           >
             {vendor.email}
           </a>
         </div>
       )}
       {vendor.address && (
-        <div className="flex justify-between gap-4">
+        <div className="flex flex-col md:flex-row md:justify-between gap-1 md:gap-4">
           <span className="text-gray-500 dark:text-gray-400">
             Location
           </span>
-          <span className="font-medium text-gray-900 dark:text-gray-100 text-right">
+          <span className="font-medium text-gray-900 dark:text-gray-100 md:text-right">
             {vendor.address}
           </span>
         </div>
       )}
       {vendor.notes && (
-        <div className="flex justify-between gap-4 pt-3 border-t border-gray-100 dark:border-gray-800">
+        <div className="flex flex-col md:flex-row md:justify-between gap-1 md:gap-4 pt-3 border-t border-gray-100 dark:border-gray-800">
           <span className="text-gray-500 dark:text-gray-400">
             Notes
           </span>
-          <span className="text-gray-600 dark:text-gray-400 text-right">
+          <span className="text-gray-600 dark:text-gray-400 md:text-right">
             {vendor.notes}
           </span>
         </div>
