@@ -1,9 +1,10 @@
 "use client";
 
 import { ReactNode } from "react";
+import { useRouter } from "next/navigation";
 
 interface DetailPageLayoutProps {
-  backHref: string;
+  backHref?: string;
   title: string;
   subtitle?: string;
   menuButton?: ReactNode;
@@ -23,14 +24,16 @@ export default function DetailPageLayout({
   taskPatternsSection,
   tasksAndDocumentsSection,
 }: DetailPageLayoutProps) {
+  const router = useRouter();
+
   return (
     <main className="animate-page content-container py-10">
-      <a
-        href={backHref}
-        className="text-sm text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 mb-8 inline-block"
+      <button
+        onClick={() => router.back()}
+        className="text-sm text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 mb-8 inline-block bg-none border-none cursor-pointer p-0"
       >
         ← Back
-      </a>
+      </button>
 
       <div className="mb-12">
         {/* Title section */}

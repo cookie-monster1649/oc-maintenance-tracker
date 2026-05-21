@@ -41,6 +41,7 @@ export default function TasksPage() {
   const [costPromptValue, setCostPromptValue] = useState("");
   const [showCompleted, setShowCompleted] = useState(false);
   const [isAddingTask, setIsAddingTask] = useState(false);
+  const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
 
   async function fetchAll() {
     const [tasksRes, lineItemsRes, vendorsRes, categoriesRes] = await Promise.all([
@@ -116,6 +117,29 @@ export default function TasksPage() {
       }
     } catch (err) {
       console.error("Unlink failed", err);
+    }
+  }
+
+  function handleEditTask(taskId: string) {
+    setEditingTaskId(taskId);
+  }
+
+  async function handleEditSave(taskId: string, data: Record<string, unknown>) {
+    try {
+      const res = await fetch(`/api/tasks/${taskId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      });
+      if (res.ok) {
+        fetchAll();
+        setEditingTaskId(null);
+      } else {
+        throw new Error("Failed to update task");
+      }
+    } catch (err) {
+      console.error("Edit failed", err);
+      alert(`Error: ${err instanceof Error ? err.message : "Unknown error"}`);
     }
   }
 
@@ -198,6 +222,7 @@ export default function TasksPage() {
                       completing={completing}
                       categoryColors={categoryColors}
                       onUnlinkDocumentAction={handleUnlinkDocument}
+                      onEditAction={handleEditTask}
                     />
                   );
                 })}
@@ -243,6 +268,7 @@ export default function TasksPage() {
                           completing={completing}
                           categoryColors={categoryColors}
                           onUnlinkDocumentAction={handleUnlinkDocument}
+                          onEditAction={handleEditTask}
                         />
                       ))}
                     </div>
@@ -266,6 +292,26 @@ export default function TasksPage() {
         onClose={() => setIsAddingTask(false)}
       />
 
+      {editingTaskId && (() => {
+        const editingTask = tasks.find((t) => t.id === editingTaskId);
+        return (
+          <NewTaskModal
+            isOpen={!!editingTaskId}
+            mode="edit"
+            lineItems={lineItems}
+            categories={categories}
+            vendors={vendors}
+            editingData={editingTask}
+            onEditSave={(data) => handleEditSave(editingTaskId, data)}
+            onSave={() => {
+              setEditingTaskId(null);
+              fetchAll();
+            }}
+            onClose={() => setEditingTaskId(null)}
+          />
+        );
+      })()}
+
       {promptingCostFor && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white dark:bg-gray-900 rounded-lg shadow-xl max-w-md w-full p-8">
@@ -284,16 +330,16 @@ export default function TasksPage() {
             />
             <div className="flex gap-3">
               <button
-                onClick={() => finishCompleteTask(promptingCostFor, Number(costPromptValue) || undefined)}
-                className="flex-1 text-sm px-4 py-2 rounded-md bg-gray-900 dark:bg-gray-700 text-white hover:bg-gray-700 dark:hover:bg-gray-600 transition-colors font-medium"
-              >
-                Complete
-              </button>
-              <button
                 onClick={() => setPromptingCostFor(null)}
                 className="flex-1 text-sm px-4 py-2 rounded-md border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors font-medium"
               >
                 Cancel
+              </button>
+              <button
+                onClick={() => finishCompleteTask(promptingCostFor, Number(costPromptValue) || undefined)}
+                className="flex-1 text-sm px-4 py-2 rounded-md bg-gray-900 dark:bg-gray-700 text-white hover:bg-gray-700 dark:hover:bg-gray-600 transition-colors font-medium"
+              >
+                Complete
               </button>
             </div>
           </div>

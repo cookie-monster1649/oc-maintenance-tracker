@@ -27,7 +27,7 @@ interface Document {
 
 interface DocumentListProps {
   documents: Document[];
-  unmatchedOnly: boolean;
+  unlinkedOnly: boolean;
   godMode: boolean;
   onMatch: (doc: Document) => void;
   onSmartAction: (doc: Document, action: SmartAction) => void;
@@ -39,7 +39,7 @@ interface DocumentListProps {
 
 export default function DocumentList({
   documents,
-  unmatchedOnly,
+  unlinkedOnly,
   godMode,
   onMatch,
   onSmartAction,
@@ -51,7 +51,7 @@ export default function DocumentList({
   // ── Document Processing ──
   // Filter documents, group by type, and calculate stats.
   // statsByType loops all documents (not just filtered) to show overall match stats in tabs.
-  const filteredDocs = unmatchedOnly
+  const filteredDocs = unlinkedOnly
     ? documents.filter((doc) => !doc.is_matched && !doc.is_dismissed)
     : documents;
 
@@ -75,7 +75,7 @@ export default function DocumentList({
   if (filteredDocs.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-20 text-gray-500 border-2 border-dashed border-gray-100 dark:border-gray-800 rounded-lg">
-        <p>No {unmatchedOnly ? "unmatched" : ""} documents found.</p>
+        <p>No {unlinkedOnly ? "unlinked" : ""} documents found.</p>
       </div>
     );
   }
@@ -161,22 +161,6 @@ export default function DocumentList({
                       >
                         View ↗
                       </a>
-                      {onEditLinks && !doc.is_dismissed && doc.document_type_label?.toLowerCase() !== "bill" && (
-                        <button
-                          onClick={() => onEditLinks(doc)}
-                          className="text-xs text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors px-2 py-1"
-                        >
-                          Edit links
-                        </button>
-                      )}
-                      {doc.is_dismissed && (
-                        <button
-                          onClick={() => onUndoDismiss(doc.id)}
-                          className="text-xs text-rose-600 dark:text-rose-400 hover:underline px-2 py-1"
-                        >
-                          Undo Dismiss
-                        </button>
-                      )}
                       {godMode && !doc.is_dismissed && doc.document_type_label?.toLowerCase() === "bill" && !doc.is_matched && (
                         <button
                           onClick={() => onMatch(doc)}
@@ -184,6 +168,29 @@ export default function DocumentList({
                         >
                           Match
                         </button>
+                      )}
+                      {doc.is_dismissed ? (
+                        <button
+                          onClick={() => onUndoDismiss(doc.id)}
+                          className="text-xs text-rose-600 dark:text-rose-400 hover:underline px-2 py-1"
+                        >
+                          Undo Dismiss
+                        </button>
+                      ) : (
+                        onEditLinks && (
+                          <button
+                            onClick={() => onEditLinks(doc)}
+                            className={`text-xs hover:underline px-2 py-1 transition-colors ${
+                              doc.is_matched
+                                ? "text-gray-500 dark:text-gray-400"
+                                : "text-blue-600 dark:text-blue-400"
+                            }`}
+                            title="Edit links"
+                            aria-label="Edit links"
+                          >
+                            Edit links
+                          </button>
+                        )
                       )}
                     </div>
                   </li>

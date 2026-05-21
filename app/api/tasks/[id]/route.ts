@@ -24,6 +24,7 @@ export async function PUT(req: Request, { params }: Params) {
     actual_cost: body.actual_cost != null ? Number(body.actual_cost) : tasks[idx].actual_cost,
     archived: body.archived ?? tasks[idx].archived,
     vendor_id: "vendor_id" in body ? (body.vendor_id ?? null) : tasks[idx].vendor_id,
+    status: body.status ?? tasks[idx].status,
   };
 
   writeTasks(tasks);

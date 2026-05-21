@@ -19,8 +19,10 @@ interface NewTaskData {
   start_date: string;
   end_date: string;
   estimated_cost: string;
+  actual_cost: string;
   line_item_id: string; // FK to LineItem
   vendor_id: string;
+  status?: string; // For editing completed tasks
 }
 
 interface NewLineItemInline {
@@ -32,6 +34,19 @@ interface NewLineItemInline {
 interface NewVendorForm {
   name: string;
   service_type: string;
+}
+
+interface EditingData {
+  title?: string | null;
+  description?: string | null;
+  frequency?: string | null;
+  estimated_cost?: number | null;
+  actual_cost?: number | null;
+  vendor_id?: string | null;
+  end_date?: string | null;
+  start_date?: string | null;
+  status?: string;
+  line_item_id?: string;
 }
 
 interface NewTaskModalProps {
@@ -46,15 +61,7 @@ interface NewTaskModalProps {
   prefilledVendorId?: string;
   allowCreateAndComplete?: boolean;
   mode?: "create" | "edit";
-  editingData?: {
-    title?: string;
-    description?: string | null;
-    frequency?: string | null;
-    estimated_cost?: number | null;
-    vendor_id?: string | null;
-    end_date?: string | null;
-    start_date?: string | null;
-  };
+  editingData?: EditingData;
   onEditSave?: (data: Record<string, unknown>) => Promise<void>;
 }
 
@@ -77,7 +84,7 @@ export default function NewTaskModal({
   prefilledFrequency = "Monthly",
   prefilledCategory = "",
   prefilledVendorId = "",
-  allowCreateAndComplete = false,
+  allowCreateAndComplete = true,
   mode = "create",
   editingData,
   onEditSave,
@@ -92,8 +99,10 @@ export default function NewTaskModal({
         start_date: editingData.start_date || "",
         end_date: editingData.end_date || "",
         estimated_cost: editingData.estimated_cost?.toString() || "",
-        line_item_id: "",
+        actual_cost: editingData.actual_cost?.toString() || "",
+        line_item_id: editingData.line_item_id || "",
         vendor_id: editingData.vendor_id || "",
+        status: editingData.status || "",
       };
     }
     return {
@@ -103,6 +112,7 @@ export default function NewTaskModal({
       start_date: "",
       end_date: "",
       estimated_cost: "",
+      actual_cost: "",
       line_item_id: "",
       vendor_id: prefilledVendorId,
     };
@@ -120,9 +130,11 @@ export default function NewTaskModal({
   });
   const [isLoading, setIsLoading] = useState(false);
   const [vendorError, setVendorError] = useState("");
+  const [localVendors, setLocalVendors] = useState<Vendor[]>(vendors);
 
   useEffect(() => {
     if (mode === "edit" && isOpen && editingData) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setNewTask({
         title: editingData.title || "",
         description: editingData.description || "",
@@ -130,21 +142,28 @@ export default function NewTaskModal({
         start_date: editingData.start_date || "",
         end_date: editingData.end_date || "",
         estimated_cost: editingData.estimated_cost?.toString() || "",
-        line_item_id: "",
+        actual_cost: editingData.actual_cost?.toString() || "",
+        line_item_id: editingData.line_item_id || "",
         vendor_id: editingData.vendor_id || "",
+        status: editingData.status || "",
       });
     }
-  }, [isOpen, editingData, mode]);
+    setLocalVendors(vendors);
+  }, [isOpen, editingData, mode, vendors]);
 
   if (!isOpen) return null;
 
-  const selectedLineItem = lineItems.find((li) => li.id === newTask.line_item_id);
+  const selectedLineItem = lineItems.find(
+    (li) => li.id === newTask.line_item_id,
+  );
   const isValid =
     mode === "edit"
       ? newTask.title && newTask.frequency
       : newTask.start_date &&
         (createNewLineItem
-          ? newLineItem.title && newLineItem.category && newTask.line_item_id === ""
+          ? newLineItem.title &&
+            newLineItem.category &&
+            newTask.line_item_id === ""
           : newTask.line_item_id);
 
   const handleCreateVendor = async () => {
@@ -167,7 +186,9 @@ export default function NewTaskModal({
       if (!res.ok) throw new Error("Failed to create vendor");
       const created = await res.json();
 
+      setLocalVendors([...localVendors, created]);
       setNewLineItem({ ...newLineItem, vendor_id: created.id });
+      setNewTask({ ...newTask, vendor_id: created.id });
       setNewVendor({ name: "", service_type: "" });
       setIsCreatingVendor(false);
     } catch (err) {
@@ -183,13 +204,20 @@ export default function NewTaskModal({
 
     try {
       if (mode === "edit" && onEditSave) {
-        const editPayload = {
+        const editPayload: Record<string, unknown> = {
           title: newTask.title || null,
-          frequency: newTask.frequency === "once-off" ? null : newTask.frequency,
+          frequency:
+            newTask.frequency === "once-off" ? null : newTask.frequency,
           end_date: newTask.end_date || null,
-          estimated_cost: newTask.estimated_cost ? Number(newTask.estimated_cost) : null,
+          estimated_cost: newTask.estimated_cost
+            ? Number(newTask.estimated_cost)
+            : null,
+          actual_cost: newTask.actual_cost ? Number(newTask.actual_cost) : null,
           vendor_id: newTask.vendor_id || null,
         };
+        if (newTask.status) {
+          editPayload.status = newTask.status;
+        }
         await onEditSave(editPayload);
         onClose();
         return;
@@ -222,7 +250,9 @@ export default function NewTaskModal({
         frequency: newTask.frequency === "once-off" ? null : newTask.frequency,
         start_date: newTask.start_date,
         end_date: newTask.end_date || null,
-        estimated_cost: newTask.estimated_cost ? Number(newTask.estimated_cost) : null,
+        estimated_cost: newTask.estimated_cost
+          ? Number(newTask.estimated_cost)
+          : null,
         line_item_id: lineItemId,
         vendor_id: newTask.vendor_id || null,
         no_extrapolate: newTask.frequency === "once-off",
@@ -247,11 +277,16 @@ export default function NewTaskModal({
         start_date: "",
         end_date: "",
         estimated_cost: "",
+        actual_cost: "",
         line_item_id: "",
         vendor_id: prefilledVendorId,
       });
       setCreateNewLineItem(false);
-      setNewLineItem({ title: "", category: prefilledCategory, vendor_id: prefilledVendorId });
+      setNewLineItem({
+        title: "",
+        category: prefilledCategory,
+        vendor_id: prefilledVendorId,
+      });
       onSave();
     } catch (err) {
       console.error("Task operation failed:", err);
@@ -271,7 +306,9 @@ export default function NewTaskModal({
     >
       <div className={MODAL_CONTENT}>
         <div className="flex items-center justify-between mb-8 shrink-0">
-          <h2 className={MODAL_TITLE}>{mode === "edit" ? "Edit Task Pattern" : "New Task"}</h2>
+          <h2 className={MODAL_TITLE}>
+            {mode === "edit" ? "Edit Task Pattern" : "New Task"}
+          </h2>
           {mode === "create" && !isCreatingVendor && (
             <button
               onClick={() => {
@@ -298,7 +335,9 @@ export default function NewTaskModal({
             <>
               {vendorError && (
                 <div className="p-3 bg-rose-50 dark:bg-rose-950 border border-rose-200 dark:border-rose-800 rounded-md">
-                  <p className="text-sm text-rose-700 dark:text-rose-400">{vendorError}</p>
+                  <p className="text-sm text-rose-700 dark:text-rose-400">
+                    {vendorError}
+                  </p>
                 </div>
               )}
               <div className="space-y-4">
@@ -308,7 +347,9 @@ export default function NewTaskModal({
                   </label>
                   <input
                     value={newVendor.name}
-                    onChange={(e) => setNewVendor({ ...newVendor, name: e.target.value })}
+                    onChange={(e) =>
+                      setNewVendor({ ...newVendor, name: e.target.value })
+                    }
                     placeholder="e.g. Acme Services"
                     className={INPUT_BASE}
                   />
@@ -319,7 +360,12 @@ export default function NewTaskModal({
                   </label>
                   <input
                     value={newVendor.service_type}
-                    onChange={(e) => setNewVendor({ ...newVendor, service_type: e.target.value })}
+                    onChange={(e) =>
+                      setNewVendor({
+                        ...newVendor,
+                        service_type: e.target.value,
+                      })
+                    }
                     placeholder="e.g. Electrician"
                     className={INPUT_BASE}
                   />
@@ -330,12 +376,14 @@ export default function NewTaskModal({
             <>
               <div>
                 <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
-                  Title (optional)
+                  Title *
                 </label>
                 <input
                   type="text"
                   value={newTask.title}
-                  onChange={(e) => setNewTask({ ...newTask, title: e.target.value })}
+                  onChange={(e) =>
+                    setNewTask({ ...newTask, title: e.target.value })
+                  }
                   placeholder="Task name (or use line item title)"
                   className={INPUT_WITH_PLACEHOLDER}
                 />
@@ -360,100 +408,111 @@ export default function NewTaskModal({
                   <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
                     Line Item *
                   </label>
-                {!createNewLineItem ? (
-                  <>
-                    <select
-                      value={newTask.line_item_id}
-                      onChange={(e) => {
-                        const li = lineItems.find((li) => li.id === e.target.value);
-                        setNewTask({
-                          ...newTask,
-                          line_item_id: e.target.value,
-                          vendor_id: li?.vendor_id ?? "",
-                        });
-                      }}
-                      className={INPUT_BASE}
-                    >
-                      <option value="">Select existing line item</option>
-                      {lineItems.map((li) => (
-                        <option key={li.id} value={li.id}>
-                          {li.title} ({li.category})
-                        </option>
-                      ))}
-                    </select>
-                    <button
-                      type="button"
-                      onClick={() => setCreateNewLineItem(true)}
-                      className="text-sm text-blue-600 dark:text-blue-400 mt-2 hover:underline"
-                    >
-                      + Create new line item
-                    </button>
-                  </>
-                ) : (
-                  <>
-                    <div className="space-y-3 p-3 bg-blue-50 dark:bg-blue-950 rounded-md border border-blue-200 dark:border-blue-800">
-                      <div>
-                        <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">
-                          Title *
-                        </label>
-                        <input
-                          type="text"
-                          value={newLineItem.title}
-                          onChange={(e) =>
-                            setNewLineItem({ ...newLineItem, title: e.target.value })
-                          }
-                          className={INPUT_BASE}
-                        />
+                  {!createNewLineItem ? (
+                    <>
+                      <select
+                        value={newTask.line_item_id}
+                        onChange={(e) => {
+                          const li = lineItems.find(
+                            (li) => li.id === e.target.value,
+                          );
+                          setNewTask({
+                            ...newTask,
+                            line_item_id: e.target.value,
+                            vendor_id: newTask.vendor_id || li?.vendor_id || "",
+                          });
+                        }}
+                        className={INPUT_BASE}
+                      >
+                        <option value="">Select existing line item</option>
+                        {lineItems.map((li) => (
+                          <option key={li.id} value={li.id}>
+                            {li.title} ({li.category})
+                          </option>
+                        ))}
+                      </select>
+                      <button
+                        type="button"
+                        onClick={() => setCreateNewLineItem(true)}
+                        className="text-sm text-blue-600 dark:text-blue-400 mt-2 hover:underline"
+                      >
+                        + Create new line item
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <div className="space-y-3 p-3 bg-blue-50 dark:bg-blue-950 rounded-md border border-blue-200 dark:border-blue-800">
+                        <div>
+                          <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">
+                            Title *
+                          </label>
+                          <input
+                            type="text"
+                            value={newLineItem.title}
+                            onChange={(e) =>
+                              setNewLineItem({
+                                ...newLineItem,
+                                title: e.target.value,
+                              })
+                            }
+                            className={INPUT_BASE}
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">
+                            Category *
+                          </label>
+                          <select
+                            value={newLineItem.category}
+                            onChange={(e) =>
+                              setNewLineItem({
+                                ...newLineItem,
+                                category: e.target.value,
+                              })
+                            }
+                            className={INPUT_BASE}
+                          >
+                            <option value="">Select category</option>
+                            {categories.map((c) => (
+                              <option key={c} value={c}>
+                                {c}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">
+                            Vendor (optional)
+                          </label>
+                          <select
+                            value={newLineItem.vendor_id}
+                            onChange={(e) =>
+                              setNewLineItem({
+                                ...newLineItem,
+                                vendor_id: e.target.value,
+                              })
+                            }
+                            className={INPUT_BASE}
+                          >
+                            <option value="">None</option>
+                            {localVendors.map((v) => (
+                              <option key={v.id} value={v.id}>
+                                {v.name}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
                       </div>
-                      <div>
-                        <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">
-                          Category *
-                        </label>
-                        <select
-                          value={newLineItem.category}
-                          onChange={(e) =>
-                            setNewLineItem({ ...newLineItem, category: e.target.value })
-                          }
-                          className={INPUT_BASE}
-                        >
-                          <option value="">Select category</option>
-                          {categories.map((c) => (
-                            <option key={c} value={c}>
-                              {c}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                      <div>
-                        <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">
-                          Vendor (optional)
-                        </label>
-                        <select
-                          value={newLineItem.vendor_id}
-                          onChange={(e) =>
-                            setNewLineItem({ ...newLineItem, vendor_id: e.target.value })
-                          }
-                          className={INPUT_BASE}
-                        >
-                          <option value="">None</option>
-                          {vendors.map((v) => (
-                            <option key={v.id} value={v.id}>
-                              {v.name}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => setCreateNewLineItem(false)}
-                      className="text-sm text-gray-600 dark:text-gray-400 mt-2 hover:underline"
-                    >
-                      ← Use existing line item
-                    </button>
-                  </>
-                )}
-              </div>
+                      <button
+                        type="button"
+                        onClick={() => setCreateNewLineItem(false)}
+                        className="text-sm text-gray-600 dark:text-gray-400 mt-2 hover:underline"
+                      >
+                        ← Use existing line item
+                      </button>
+                    </>
+                  )}
+                </div>
               )}
 
               {selectedLineItem && (
@@ -468,11 +527,13 @@ export default function NewTaskModal({
                 </label>
                 <select
                   value={newTask.vendor_id}
-                  onChange={(e) => setNewTask({ ...newTask, vendor_id: e.target.value })}
+                  onChange={(e) =>
+                    setNewTask({ ...newTask, vendor_id: e.target.value })
+                  }
                   className={INPUT_BASE}
                 >
                   <option value="">None</option>
-                  {vendors.map((v) => (
+                  {localVendors.map((v) => (
                     <option key={v.id} value={v.id}>
                       {v.name}
                     </option>
@@ -545,6 +606,41 @@ export default function NewTaskModal({
                   className={INPUT_WITH_PLACEHOLDER}
                 />
               </div>
+
+              {mode === "edit" && editingData?.status === "Completed" && (
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                    Act. cost ($) (optional)
+                  </label>
+                  <input
+                    type="number"
+                    value={newTask.actual_cost}
+                    onChange={(e) =>
+                      setNewTask({ ...newTask, actual_cost: e.target.value })
+                    }
+                    placeholder="0"
+                    className={INPUT_WITH_PLACEHOLDER}
+                  />
+                </div>
+              )}
+
+              {mode === "edit" && editingData?.status === "Completed" && (
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                    Status
+                  </label>
+                  <select
+                    value={newTask.status || "Completed"}
+                    onChange={(e) =>
+                      setNewTask({ ...newTask, status: e.target.value })
+                    }
+                    className={INPUT_BASE}
+                  >
+                    <option value="Completed">Completed</option>
+                    <option value="Scheduled">Undo - Mark as Scheduled</option>
+                  </select>
+                </div>
+              )}
             </>
           )}
         </div>
@@ -568,7 +664,10 @@ export default function NewTaskModal({
             </>
           ) : (
             <>
-              <button onClick={onClose} className={`flex-1 ${BUTTON_SECONDARY}`}>
+              <button
+                onClick={onClose}
+                className={`flex-1 ${BUTTON_SECONDARY}`}
+              >
                 Cancel
               </button>
               <button
@@ -577,18 +676,24 @@ export default function NewTaskModal({
                 className={`flex-1 ${BUTTON_PRIMARY_DISABLED}`}
               >
                 {isLoading
-                  ? (mode === "edit" ? "Saving..." : "Creating...")
-                  : (mode === "edit" ? "Save Changes" : "Create Task")}
+                  ? mode === "edit"
+                    ? "Saving..."
+                    : "Creating..."
+                  : mode === "edit"
+                    ? "Save Changes"
+                    : "Create Task"}
               </button>
-              {mode === "create" && allowCreateAndComplete && newTask.frequency === "once-off" && (
-                <button
-                  onClick={() => handleSave(true)}
-                  disabled={!isValid || isLoading}
-                  className="flex-1 text-sm px-4 py-2 rounded-md bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors font-medium"
-                >
-                  {isLoading ? "Creating..." : "Create & Complete"}
-                </button>
-              )}
+              {mode === "create" &&
+                allowCreateAndComplete &&
+                newTask.frequency === "once-off" && (
+                  <button
+                    onClick={() => handleSave(true)}
+                    disabled={!isValid || isLoading}
+                    className="flex-1 text-sm px-4 py-2 rounded-md bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors font-medium"
+                  >
+                    {isLoading ? "Creating..." : "Create & Complete"}
+                  </button>
+                )}
             </>
           )}
         </div>

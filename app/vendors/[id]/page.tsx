@@ -14,6 +14,9 @@ import { MatchDocumentModal } from "@/app/components/matching/MatchDocumentModal
 import { MatchDocumentErrorBoundary } from "@/app/components/matching/MatchDocumentErrorBoundary";
 import DetailPageLayout from "@/app/components/DetailPageLayout";
 import { getEffectiveVendorId, deduplicateTasks, getTaskPatterns } from "@/lib/detail-page-filters";
+import NewTaskModal from "@/app/components/NewTaskModal";
+import VendorModal from "@/app/components/VendorModal";
+import type { Vendor as ApiVendor } from "@/lib/vendors";
 
 interface CategoryColor {
   name: string;
@@ -51,6 +54,11 @@ interface Document {
   is_matched: boolean;
   correspondent: number | null;
   smart_actions: SmartAction[];
+}
+
+interface PaperlessCorrespondent {
+  id: number;
+  name: string;
 }
 
 const INPUT =
@@ -110,9 +118,13 @@ export default function VendorDetailPage() {
       ),
   );
   const [categories, setCategories] = useState<string[]>([]);
+  const [correspondents, setCorrespondents] = useState<PaperlessCorrespondent[]>([]);
   const [editOpen, setEditOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [completing, setCompleting] = useState<string | null>(null);
+  const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
+  const [promptingCostFor, setPromptingCostFor] = useState<string | null>(null);
+  const [costPromptValue, setCostPromptValue] = useState("");
   const [form, setForm] = useState<Partial<Vendor>>({});
   const [originalForm, setOriginalForm] = useState<Partial<Vendor>>({});
   const [selectedTaskPatterns, setSelectedTaskPatterns] = useState<string[]>([]);
@@ -128,19 +140,21 @@ export default function VendorDetailPage() {
   }
 
   const fetchAll = useCallback(async () => {
-    const [vendorsRes, tasksRes, lineItemsRes, categoriesRes] = await Promise.all([
+    const [vendorsRes, tasksRes, lineItemsRes, categoriesRes, corrRes] = await Promise.all([
       fetch("/api/vendors"),
       fetch("/api/tasks"),
       fetch("/api/line-items"),
       fetch("/api/categories"),
+      fetch("/api/paperless/correspondents").catch(() => null),
     ]);
-    const [vendorsData, tasksData, lineItemsData, categoriesData] =
+    const [vendorsData, tasksData, lineItemsData, categoriesData, corrData] =
       (await Promise.all([
         vendorsRes.json(),
         tasksRes.json(),
         lineItemsRes.json(),
         categoriesRes.json(),
-      ])) as [Vendor[], Task[], LineItem[], CategoryColor[]];
+        corrRes ? corrRes.json() : Promise.resolve([]),
+      ])) as [Vendor[], Task[], LineItem[], CategoryColor[], PaperlessCorrespondent[]];
     setCached("/api/vendors", vendorsData);
     setCached("/api/tasks", tasksData);
     setCached("/api/line-items", lineItemsData);
@@ -149,6 +163,7 @@ export default function VendorDetailPage() {
     setTasks(tasksData);
     setLineItems(lineItemsData);
     setCategories(categoriesData.map((c: CategoryColor) => c.name));
+    setCorrespondents(Array.isArray(corrData) ? corrData : []);
     setCategoryColors(
       categoriesData.reduce((acc: Record<string, string>, c: CategoryColor) => {
         acc[c.name] = c.color;
@@ -221,10 +236,26 @@ export default function VendorDetailPage() {
   });
 
   async function completeTask(id: string) {
+    const task = tasks.find((t) => t.id === id);
+    setPromptingCostFor(id);
+    setCostPromptValue(task?.estimated_cost?.toString() || "");
+  }
+
+  async function finishCompleteTask(id: string, actualCost?: number) {
     setCompleting(id);
-    await fetch(`/api/tasks/${id}/complete`, { method: "POST" });
+    const body: Record<string, unknown> = {};
+    if (actualCost !== undefined) {
+      body.actual_cost = actualCost;
+    }
+    await fetch(`/api/tasks/${id}/complete`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
     await fetchTasks();
     setCompleting(null);
+    setPromptingCostFor(null);
+    setCostPromptValue("");
   }
 
   async function handleUnlinkDocument(tId: string, docId: number) {
@@ -239,6 +270,29 @@ export default function VendorDetailPage() {
       }
     } catch (err) {
       console.error("Unlink failed", err);
+    }
+  }
+
+  function handleEditTask(taskId: string) {
+    setEditingTaskId(taskId);
+  }
+
+  async function handleEditSave(taskId: string, data: Record<string, unknown>) {
+    try {
+      const res = await fetch(`/api/tasks/${taskId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      });
+      if (res.ok) {
+        fetchAll();
+        setEditingTaskId(null);
+      } else {
+        throw new Error("Failed to update task");
+      }
+    } catch (err) {
+      console.error("Edit failed", err);
+      alert(`Error: ${err instanceof Error ? err.message : "Unknown error"}`);
     }
   }
 
@@ -297,10 +351,10 @@ export default function VendorDetailPage() {
     const initial = {
       name: vendor.name,
       service_type: vendor.service_type,
-      email: vendor.email ?? "",
-      phone: vendor.phone ?? "",
-      address: vendor.address ?? "",
-      notes: vendor.notes ?? "",
+      email: vendor.email,
+      phone: vendor.phone,
+      address: vendor.address,
+      notes: vendor.notes,
       paperless_correspondent_id: vendor.paperless_correspondent_id ?? null,
     };
     setForm(initial);
@@ -511,11 +565,13 @@ export default function VendorDetailPage() {
                       </span>
                     </>
                   )}
-                  {pattern.estimated_cost && (
+                  {(pattern.estimated_cost != null || pattern.actual_cost != null) && (
                     <>
                       <span className="mx-3 text-gray-400 dark:text-gray-500">•</span>
                       <span className={isSelected ? "text-gray-100 dark:text-gray-800" : "text-gray-500 dark:text-gray-400"}>
-                        ${pattern.estimated_cost}
+                        {pattern.actual_cost != null
+                          ? `Est $${pattern.estimated_cost ?? 0} / Act $${pattern.actual_cost}`
+                          : `$${pattern.estimated_cost}`}
                       </span>
                     </>
                   )}
@@ -577,6 +633,7 @@ export default function VendorDetailPage() {
                           completing={completing}
                           categoryColors={categoryColors}
                           onUnlinkDocumentAction={handleUnlinkDocument}
+                          onEditAction={handleEditTask}
                           showVendor={false}
                         />
                       );
@@ -622,6 +679,7 @@ export default function VendorDetailPage() {
                           completing={completing}
                           categoryColors={categoryColors}
                           onUnlinkDocumentAction={handleUnlinkDocument}
+                          onEditAction={handleEditTask}
                           showVendor={false}
                         />
                       );
@@ -741,103 +799,15 @@ export default function VendorDetailPage() {
         tasksAndDocumentsSection={tasksAndDocumentsSection}
       />
 
-      {editOpen && (
-        <div
-          ref={backdropRef}
-          className={MODAL_BACKDROP}
-          onClick={(e) => {
-            if (e.target === backdropRef.current) closeEdit();
-          }}
-        >
-          <div className={MODAL_CONTENT_LG}>
-            <h2 className="text-lg font-semibold mb-6 border-b border-gray-200 dark:border-gray-800 pb-4">
-              Edit {vendor.name}
-            </h2>
-            <div className="space-y-4 mb-6">
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
-                  Name
-                </label>
-                <input
-                  type="text"
-                  value={form.name || ""}
-                  onChange={(e) => setForm({ ...form, name: e.target.value })}
-                  className={INPUT}
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
-                  Service Type
-                </label>
-                <input
-                  type="text"
-                  value={form.service_type || ""}
-                  onChange={(e) => setForm({ ...form, service_type: e.target.value })}
-                  className={INPUT}
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
-                  Phone
-                </label>
-                <input
-                  type="tel"
-                  value={form.phone || ""}
-                  onChange={(e) => setForm({ ...form, phone: e.target.value })}
-                  className={INPUT}
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
-                  Email
-                </label>
-                <input
-                  type="email"
-                  value={form.email || ""}
-                  onChange={(e) => setForm({ ...form, email: e.target.value })}
-                  className={INPUT}
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
-                  Address
-                </label>
-                <input
-                  type="text"
-                  value={form.address || ""}
-                  onChange={(e) => setForm({ ...form, address: e.target.value })}
-                  className={INPUT}
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
-                  Notes
-                </label>
-                <textarea
-                  value={form.notes || ""}
-                  onChange={(e) => setForm({ ...form, notes: e.target.value })}
-                  rows={3}
-                  className={INPUT}
-                />
-              </div>
-            </div>
-            <div className="flex gap-3 border-t border-gray-200 dark:border-gray-800 pt-4">
-              <button
-                onClick={closeEdit}
-                className="flex-1 px-4 py-2 rounded-md border border-gray-300 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors text-sm"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={saveEdit}
-                className="flex-1 px-4 py-2 rounded-md bg-gray-900 dark:bg-gray-700 text-white hover:bg-gray-700 dark:hover:bg-gray-600 transition-colors text-sm font-medium"
-              >
-                Save Changes
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <VendorModal
+        isOpen={editOpen}
+        editing={vendor}
+        form={form as Parameters<typeof VendorModal>[0]['form']}
+        setForm={(newForm) => setForm(newForm)}
+        correspondents={correspondents}
+        onClose={closeEdit}
+        onSave={saveEdit}
+      />
 
       <MatchDocumentErrorBoundary>
         {matchingDoc && (
@@ -872,6 +842,60 @@ export default function VendorDetailPage() {
           />
         )}
       </MatchDocumentErrorBoundary>
+
+      {editingTaskId && (() => {
+        const editingTask = tasks.find((t) => t.id === editingTaskId);
+        return (
+          <NewTaskModal
+            isOpen={!!editingTaskId}
+            mode="edit"
+            lineItems={lineItems}
+            categories={categories}
+            vendors={vendors as unknown as Parameters<typeof NewTaskModal>[0]['vendors']}
+            editingData={editingTask}
+            onEditSave={(data) => handleEditSave(editingTaskId, data)}
+            onSave={() => {
+              setEditingTaskId(null);
+              fetchAll();
+            }}
+            onClose={() => setEditingTaskId(null)}
+          />
+        );
+      })()}
+
+      {promptingCostFor && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-gray-900 rounded-lg shadow-xl max-w-md w-full p-8">
+            <h3 className="text-lg font-bold mb-4 text-gray-900 dark:text-gray-100">
+              Enter Actual Cost
+            </h3>
+            <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+              What was the actual cost for this task?
+            </p>
+            <input
+              type="number"
+              value={costPromptValue}
+              onChange={(e) => setCostPromptValue(e.target.value)}
+              placeholder="Enter amount"
+              className="w-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 rounded-md px-3 py-2 text-sm text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-gray-400 mb-6"
+            />
+            <div className="flex gap-3">
+              <button
+                onClick={() => setPromptingCostFor(null)}
+                className="flex-1 text-sm px-4 py-2 rounded-md border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors font-medium"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => finishCompleteTask(promptingCostFor, Number(costPromptValue) || undefined)}
+                className="flex-1 text-sm px-4 py-2 rounded-md bg-gray-900 dark:bg-gray-700 text-white hover:bg-gray-700 dark:hover:bg-gray-600 transition-colors font-medium"
+              >
+                Complete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }

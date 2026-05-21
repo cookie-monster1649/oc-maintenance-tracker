@@ -206,10 +206,22 @@ export function MatchDocumentModal({
 
         <div className="space-y-6">
           <div className="p-3 bg-gray-50 dark:bg-gray-800 rounded-md border border-gray-100 dark:border-gray-700">
-            <p className="text-[10px] uppercase font-bold text-gray-400 mb-1">
-              Document
-            </p>
-            <p className="text-sm font-medium truncate">{doc.title}</p>
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex-1 min-w-0">
+                <p className="text-[10px] uppercase font-bold text-gray-400 mb-1">
+                  Document
+                </p>
+                <p className="text-sm font-medium truncate">{doc.title}</p>
+              </div>
+              <a
+                href={doc.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-xs text-gray-500 hover:text-gray-900 dark:hover:text-white transition-colors flex items-center gap-1 shrink-0"
+              >
+                View ↗
+              </a>
+            </div>
           </div>
 
           {!isCreatingVendor ? (

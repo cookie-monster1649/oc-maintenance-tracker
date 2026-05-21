@@ -68,6 +68,7 @@ export function getTaskPatterns(tasks: Task[]): Map<
     title: string;
     frequency: string | null;
     estimated_cost: number | null;
+    actual_cost: number | null;
     vendor_id: string | null;
     end_date: string | null;
   }
@@ -78,6 +79,7 @@ export function getTaskPatterns(tasks: Task[]): Map<
       title: string;
       frequency: string | null;
       estimated_cost: number | null;
+      actual_cost: number | null;
       vendor_id: string | null;
       end_date: string | null;
     }
@@ -86,10 +88,27 @@ export function getTaskPatterns(tasks: Task[]): Map<
   for (const task of tasks) {
     const key = `${task.title}|${task.frequency}`;
     if (!patterns.has(key)) {
+      const completedInstances = tasks.filter(
+        (t) =>
+          t.title === task.title &&
+          t.frequency === task.frequency &&
+          t.status === "Completed" &&
+          t.actual_cost != null
+      );
+      const mostRecentCompleted =
+        completedInstances.length > 0
+          ? completedInstances.sort((a, b) =>
+              (b.last_completed_date || "").localeCompare(
+                a.last_completed_date || ""
+              )
+            )[0]
+          : null;
+
       patterns.set(key, {
         title: task.title || "Untitled",
         frequency: task.frequency,
         estimated_cost: task.estimated_cost,
+        actual_cost: mostRecentCompleted?.actual_cost ?? null,
         vendor_id: task.vendor_id ?? null,
         end_date: task.end_date ?? null,
       });

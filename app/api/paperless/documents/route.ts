@@ -26,11 +26,21 @@ export async function GET() {
         readDismissed(),
       ]);
 
-    // Simple matched check: see if doc ID exists in any task's documents array
+    // Matched check: see if doc ID exists in any task, line item, or vendor's documents array
     const matchedDocIds = new Set<number>();
     tasks.forEach((task) => {
       if (task.documents) {
         task.documents.forEach((doc) => matchedDocIds.add(doc.id));
+      }
+    });
+    lineItems.forEach((lineItem) => {
+      if (lineItem.documents) {
+        lineItem.documents.forEach((doc) => matchedDocIds.add(doc.id));
+      }
+    });
+    vendors.forEach((vendor) => {
+      if (vendor.documents) {
+        vendor.documents.forEach((doc) => matchedDocIds.add(doc.id));
       }
     });
 

@@ -85,7 +85,7 @@ export default function DocumentsPage() {
   const vendors = Array.isArray(vendorsData) ? vendorsData : [];
 
   // ── UI State ──
-  const [unmatchedOnly, setUnmatchedOnly] = useState(false);
+  const [unlinkedOnly, setUnlinkedOnly] = useState(false);
   const [isCreatingVendor, setIsCreatingVendor] = useState(false);
   const [selectedTab, setSelectedTab] = useState<string>("");
   const [editLinksDoc, setEditLinksDoc] = useState<Document | null>(null);
@@ -196,8 +196,8 @@ export default function DocumentsPage() {
   }
 
   // ── Document Filtering & Tab State ──
-  // Filters documents based on unmatchedOnly setting and manages selected document type tab.
-  const filteredDocs = unmatchedOnly
+  // Filters documents based on unlinkedOnly setting and manages selected document type tab.
+  const filteredDocs = unlinkedOnly
     ? documents.filter((doc) => !doc.is_matched && !doc.is_dismissed)
     : documents;
 
@@ -248,11 +248,12 @@ export default function DocumentsPage() {
               <label className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400 cursor-pointer">
                 <input
                   type="checkbox"
-                  checked={unmatchedOnly}
-                  onChange={(e) => setUnmatchedOnly(e.target.checked)}
+                  checked={unlinkedOnly}
+                  onChange={(e) => setUnlinkedOnly(e.target.checked)}
                   className="rounded border-gray-300 dark:border-gray-700 text-gray-900 focus:ring-gray-500"
                 />
-                Unmatched only
+                <span className="text-xs text-gray-400">🔗</span>
+                Unlinked only
               </label>
               <button
                 onClick={refreshAll}
@@ -302,7 +303,7 @@ export default function DocumentsPage() {
         ) : (
           <DocumentList
             documents={filteredDocs}
-            unmatchedOnly={unmatchedOnly}
+            unlinkedOnly={unlinkedOnly}
             godMode={godMode}
             selectedTab={selectedTab}
             onTabChange={setSelectedTab}

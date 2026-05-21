@@ -6,6 +6,7 @@ import { useCachedData, invalidateCache } from "@/lib/data";
 import { useDocumentMatching } from "@/app/components/matching/useDocumentMatching";
 import { MatchDocumentModal } from "@/app/components/matching/MatchDocumentModal";
 import { useGodMode } from "@/app/contexts/god-mode";
+import { getColorClasses } from "@/lib/colors";
 import BinWeekIndicator from "@/app/components/BinWeekIndicator";
 import type { Task } from "@/lib/tasks";
 import type { BinColor } from "@/lib/bin-weeks";
@@ -65,6 +66,15 @@ export default function Home() {
   const categories: string[] = Array.isArray(categoriesData)
     ? (categoriesData as { name: string }[]).map((c) => c.name)
     : [];
+  const categoryColors: Record<string, string> = Array.isArray(categoriesData)
+    ? (categoriesData as { name: string; color: string }[]).reduce(
+        (acc: Record<string, string>, c) => {
+          acc[c.name] = c.color;
+          return acc;
+        },
+        {}
+      )
+    : {};
 
   const {
     matchingDoc,
@@ -168,7 +178,7 @@ export default function Home() {
           <div className="space-y-2 pl-5">
             {overdue.map((task) => (
               <div key={task.id} className="text-sm">
-                <Link href={`/line-items/${task.line_item_id}`} className="text-gray-900 dark:text-gray-100 hover:underline">{task.title}</Link>
+                <Link href={`/line-items/${task.line_item_id}?pattern=${encodeURIComponent(`${task.title || "Untitled"}|${task.frequency ?? ""}`)}`} className="text-gray-900 dark:text-gray-100 hover:underline">{task.title ?? lineItems.find((li) => li.id === task.line_item_id)?.title ?? "Untitled"}</Link>
                 {"    "}
                 <span className="text-red-600 dark:text-red-400">{daysOverdue(task.start_date)} days overdue</span>
               </div>
@@ -223,9 +233,19 @@ export default function Home() {
               <div key={task.id} className="text-sm">
                 <span className="text-gray-500 dark:text-gray-500">{formatDate(task.start_date)}</span>
                 {"    "}
-                <Link href={`/line-items/${task.line_item_id}`} className="text-gray-900 dark:text-gray-100 hover:underline">{task.title}</Link>
+                <Link href={`/line-items/${task.line_item_id}?pattern=${encodeURIComponent(`${task.title || "Untitled"}|${task.frequency ?? ""}`)}`} className="text-gray-900 dark:text-gray-100 hover:underline">{task.title ?? lineItems.find((li) => li.id === task.line_item_id)?.title ?? "Untitled"}</Link>
                 {"    "}
-                <span className="text-gray-400 dark:text-gray-600">—</span>
+                {(() => {
+                  const lineItem = lineItems.find((li) => li.id === task.line_item_id);
+                  if (!lineItem) return null;
+                  const colorName = categoryColors[lineItem.category] || "blue";
+                  const colors = getColorClasses(colorName);
+                  return (
+                    <span className={`text-xs px-2 py-0.5 rounded-full ${colors.bg} ${colors.text} font-medium`}>
+                      {lineItem.category}
+                    </span>
+                  );
+                })()}
               </div>
             ))}
           </div>

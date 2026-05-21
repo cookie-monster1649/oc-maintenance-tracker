@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, useCallback } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { TaskCard, Task } from "@/app/components/TaskCard";
 import type { LineItem } from "@/lib/line-items";
 import { getCached, setCached } from "@/lib/cache";
@@ -73,6 +73,7 @@ export default function LineItemDetailPage() {
   const { godMode } = useGodMode();
   const params = useParams();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const lineItemId = params.id as string;
 
   const [lineItem, setLineItem] = useState<LineItem | null>(null);
@@ -99,6 +100,9 @@ export default function LineItemDetailPage() {
   const [editOpen, setEditOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [completing, setCompleting] = useState<string | null>(null);
+  const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
+  const [promptingCostFor, setPromptingCostFor] = useState<string | null>(null);
+  const [costPromptValue, setCostPromptValue] = useState("");
   const [addTaskOpen, setAddTaskOpen] = useState(false);
   const [editingPattern, setEditingPattern] = useState<{
     title: string;
@@ -118,6 +122,13 @@ export default function LineItemDetailPage() {
   const [selectedTaskPatterns, setSelectedTaskPatterns] = useState<string[]>([]);
 
   const menuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const patternParam = searchParams.get("pattern");
+    if (patternParam) {
+      setSelectedTaskPatterns([patternParam]);
+    }
+  }, [searchParams]);
 
   const fetchAll = useCallback(async () => {
     const [lineItemRes, tasksRes, vendorsRes, categoriesRes] = await Promise.all([
@@ -190,14 +201,26 @@ export default function LineItemDetailPage() {
   }, []);
 
   async function completeTask(id: string) {
+    const task = tasks.find((t) => t.id === id);
+    setPromptingCostFor(id);
+    setCostPromptValue(task?.estimated_cost?.toString() || "");
+  }
+
+  async function finishCompleteTask(id: string, actualCost?: number) {
     setCompleting(id);
+    const body: Record<string, unknown> = {};
+    if (actualCost !== undefined) {
+      body.actual_cost = actualCost;
+    }
     await fetch(`/api/tasks/${id}/complete`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ actual_cost: null }),
+      body: JSON.stringify(body),
     });
     await fetchAll();
     setCompleting(null);
+    setPromptingCostFor(null);
+    setCostPromptValue("");
   }
 
   async function handleUnlinkDocument(tId: string, docId: number) {
@@ -212,6 +235,29 @@ export default function LineItemDetailPage() {
       }
     } catch (err) {
       console.error("Unlink failed", err);
+    }
+  }
+
+  function handleEditTask(taskId: string) {
+    setEditingTaskId(taskId);
+  }
+
+  async function handleEditSave(taskId: string, data: Record<string, unknown>) {
+    try {
+      const res = await fetch(`/api/tasks/${taskId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      });
+      if (res.ok) {
+        fetchAll();
+        setEditingTaskId(null);
+      } else {
+        throw new Error("Failed to update task");
+      }
+    } catch (err) {
+      console.error("Edit failed", err);
+      alert(`Error: ${err instanceof Error ? err.message : "Unknown error"}`);
     }
   }
 
@@ -296,16 +342,31 @@ export default function LineItemDetailPage() {
       .sort((a, b) => (a.start_date || "").localeCompare(b.start_date || "")),
   );
 
-  const actualTotal = completed.reduce(
+  const currentOCYear = new Date().getFullYear() + (new Date().getMonth() >= 3 ? 1 : 0);
+
+  const getOCYear = (dateStr: string): number => {
+    const d = new Date(dateStr + "T00:00:00");
+    return d.getFullYear() + (d.getMonth() >= 3 ? 1 : 0);
+  };
+
+  const currentYearCompleted = completed.filter((t) => {
+    const completedDate = t.last_completed_date || t.start_date;
+    return completedDate && getOCYear(completedDate) === currentOCYear;
+  });
+
+  const actualTotal = currentYearCompleted.reduce(
     (s, t) => s + (t.actual_cost ?? t.estimated_cost ?? 0),
     0,
   );
 
-  const currentOCYear = new Date().getFullYear() + (new Date().getMonth() >= 3 ? 1 : 0);
   const currentYearEntry = lineItem.ocy_entries.find((e) => e.year === currentOCYear);
+  const currentYearTasks = lineItemTasks.filter((t) => {
+    const taskDate = t.start_date;
+    return taskDate && getOCYear(taskDate) === currentOCYear;
+  });
   const derivedBudgetTotal = currentYearEntry?.budget !== null && currentYearEntry?.budget !== undefined
     ? currentYearEntry.budget
-    : lineItemTasks.reduce((s, t) => s + (t.estimated_cost ?? 0), 0);
+    : currentYearTasks.reduce((s, t) => s + (t.estimated_cost ?? 0), 0);
 
   const vendor = vendors.find((v) => v.id === lineItem.vendor_id);
   const upcomingGroups = groupByYear(upcoming);
@@ -473,11 +534,13 @@ export default function LineItemDetailPage() {
                       </span>
                     </>
                   )}
-                  {pattern.estimated_cost && (
+                  {(pattern.estimated_cost != null || pattern.actual_cost != null) && (
                     <>
                       <span className="mx-3 text-gray-400 dark:text-gray-500">•</span>
                       <span className={isSelected ? "text-gray-100 dark:text-gray-800" : "text-gray-500 dark:text-gray-400"}>
-                        ${pattern.estimated_cost}
+                        {pattern.actual_cost != null
+                          ? `Est $${pattern.estimated_cost ?? 0} / Act $${pattern.actual_cost}`
+                          : `$${pattern.estimated_cost}`}
                       </span>
                     </>
                   )}
@@ -555,6 +618,7 @@ export default function LineItemDetailPage() {
                         completing={completing}
                         categoryColors={categoryColors}
                         onUnlinkDocumentAction={handleUnlinkDocument}
+                        onEditAction={handleEditTask}
                         showCategory={false}
                       />
                     ))}
@@ -593,6 +657,7 @@ export default function LineItemDetailPage() {
                         completing={completing}
                         categoryColors={categoryColors}
                         onUnlinkDocumentAction={handleUnlinkDocument}
+                        onEditAction={handleEditTask}
                         showCategory={false}
                       />
                     ))}
@@ -843,6 +908,60 @@ export default function LineItemDetailPage() {
           />
         )}
       </MatchDocumentErrorBoundary>
+
+      {editingTaskId && (() => {
+        const editingTask = tasks.find((t) => t.id === editingTaskId);
+        return (
+          <NewTaskModal
+            isOpen={!!editingTaskId}
+            mode="edit"
+            lineItems={[lineItem as LineItem]}
+            categories={categories}
+            vendors={vendors}
+            editingData={editingTask}
+            onEditSave={(data) => handleEditSave(editingTaskId, data)}
+            onSave={() => {
+              setEditingTaskId(null);
+              fetchAll();
+            }}
+            onClose={() => setEditingTaskId(null)}
+          />
+        );
+      })()}
+
+      {promptingCostFor && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-gray-900 rounded-lg shadow-xl max-w-md w-full p-8">
+            <h3 className="text-lg font-bold mb-4 text-gray-900 dark:text-gray-100">
+              Enter Actual Cost
+            </h3>
+            <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+              What was the actual cost for this task?
+            </p>
+            <input
+              type="number"
+              value={costPromptValue}
+              onChange={(e) => setCostPromptValue(e.target.value)}
+              placeholder="Enter amount"
+              className="w-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 rounded-md px-3 py-2 text-sm text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-gray-400 mb-6"
+            />
+            <div className="flex gap-3">
+              <button
+                onClick={() => setPromptingCostFor(null)}
+                className="flex-1 text-sm px-4 py-2 rounded-md border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors font-medium"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => finishCompleteTask(promptingCostFor, Number(costPromptValue) || undefined)}
+                className="flex-1 text-sm px-4 py-2 rounded-md bg-gray-900 dark:bg-gray-700 text-white hover:bg-gray-700 dark:hover:bg-gray-600 transition-colors font-medium"
+              >
+                Complete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }

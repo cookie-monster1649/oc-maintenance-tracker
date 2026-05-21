@@ -75,6 +75,7 @@ export function TaskCard({
   categoryColors,
   onUnlinkDocumentAction,
   onDeleteOccurrenceAction,
+  onEditAction,
   showCategory = true,
   showVendor = true,
 }: {
@@ -86,6 +87,7 @@ export function TaskCard({
   categoryColors?: Record<string, string>;
   onUnlinkDocumentAction?: (taskId: string, docId: number) => void;
   onDeleteOccurrenceAction?: (id: string) => void;
+  onEditAction?: (id: string) => void;
   showCategory?: boolean;
   showVendor?: boolean;
 }) {
@@ -174,7 +176,13 @@ export function TaskCard({
           )}
           <div className="flex gap-4 text-xs text-gray-400 dark:text-gray-500 flex-wrap">
             {task.frequency && <span>{task.frequency}</span>}
-            {task.estimated_cost != null && <span>${task.estimated_cost}</span>}
+            {(task.actual_cost != null || task.estimated_cost != null) && (
+              <span>
+                {isCompleted && task.actual_cost != null
+                  ? `Est $${task.estimated_cost ?? 0} / Act $${task.actual_cost}`
+                  : `$${task.estimated_cost}`}
+              </span>
+            )}
             {isCompleted && task.last_completed_date && (
               <span>Completed {task.last_completed_date}</span>
             )}
@@ -226,6 +234,16 @@ export function TaskCard({
               className="text-sm px-3 py-1.5 rounded-md border border-gray-300 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 disabled:opacity-40 transition-colors"
             >
               {completing === task.id ? "Saving…" : "Mark done"}
+            </button>
+          )}
+          {godMode && onEditAction && (
+            <button
+              onClick={() => onEditAction(task.id)}
+              className="text-xs px-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
+              title={isCompleted ? "Edit and undo completion" : "Edit task"}
+              aria-label={isCompleted ? "Edit and undo completion" : "Edit task"}
+            >
+              ✏
             </button>
           )}
           {godMode && onDeleteOccurrenceAction && (

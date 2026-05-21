@@ -11,6 +11,7 @@ import {
   INPUT_BASE,
   SELECT_BASE,
 } from "@/lib/ui-constants";
+import { getColorClasses } from "@/lib/colors";
 
 type Theme = "light" | "dark" | "system";
 type ColorName =
@@ -75,10 +76,15 @@ export default function Header() {
   const [open, setOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
   const [categoriesOpen, setCategoriesOpen] = useState(false);
+  const [lineItemsOpen, setLineItemsOpen] = useState(false);
   const [categories, setCategories] = useState<CategoryItem[]>([]);
   const [newCategoryName, setNewCategoryName] = useState("");
   const [newCategoryColor, setNewCategoryColor] = useState<ColorName>("blue");
   const [loadingCategories, setLoadingCategories] = useState(false);
+  const [lineItems, setLineItems] = useState<Array<{ id: string; title: string; category: string; vendor_id: string | null }>>(
+    []
+  );
+  const [loadingLineItems, setLoadingLineItems] = useState(false);
   const [tasks, setTasks] = useState<
     { id: string; title: string; category: string }[]
   >([]);
@@ -180,6 +186,19 @@ export default function Header() {
       console.error("Failed to load categories:", error);
     } finally {
       setLoadingCategories(false);
+    }
+  }
+
+  async function loadLineItems() {
+    try {
+      setLoadingLineItems(true);
+      const res = await fetch("/api/line-items");
+      const data = await res.json();
+      setLineItems(data);
+    } catch (error) {
+      console.error("Failed to load line items:", error);
+    } finally {
+      setLoadingLineItems(false);
     }
   }
 
@@ -410,16 +429,29 @@ export default function Header() {
                 </div>
               </div>
               {godMode && (
-                <button
-                  onClick={() => {
-                    setCategoriesOpen(true);
-                    setOpen(false);
-                  }}
-                  aria-label="Manage categories"
-                  className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors border-b border-gray-100 dark:border-gray-800 focus-ring"
-                >
-                  Categories
-                </button>
+                <>
+                  <button
+                    onClick={async () => {
+                      await loadLineItems();
+                      setLineItemsOpen(true);
+                      setOpen(false);
+                    }}
+                    aria-label="View all line items"
+                    className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors border-b border-gray-100 dark:border-gray-800 focus-ring"
+                  >
+                    Line Items
+                  </button>
+                  <button
+                    onClick={() => {
+                      setCategoriesOpen(true);
+                      setOpen(false);
+                    }}
+                    aria-label="Manage categories"
+                    className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors border-b border-gray-100 dark:border-gray-800 focus-ring"
+                  >
+                    Categories
+                  </button>
+                </>
               )}
               {godMode && (
                 <div className="flex gap-0 border-b border-gray-100 dark:border-gray-800">
@@ -662,6 +694,62 @@ export default function Header() {
                 className={`flex-1 ${BUTTON_SECONDARY} focus-ring`}
               >
                 Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {lineItemsOpen && mounted && (
+        <div className="animate-backdrop fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div
+            className="bg-white dark:bg-gray-900 rounded-lg shadow-xl max-w-lg w-full max-h-[90vh] overflow-y-auto flex flex-col p-8"
+            role="dialog" aria-modal="true" aria-labelledby="line-items-title"
+            onKeyDown={(e) => trapFocus(e, () => setLineItemsOpen(false))}
+          >
+            <h2 id="line-items-title" className="text-2xl font-bold mb-6 text-gray-900 dark:text-gray-100 shrink-0">
+              Line Items
+            </h2>
+
+            {loadingLineItems ? (
+              <p className="text-gray-400">Loading...</p>
+            ) : lineItems.length === 0 ? (
+              <p className="text-sm text-gray-400 dark:text-gray-500">No line items yet.</p>
+            ) : (
+              <div className="space-y-2 flex-1 overflow-y-auto mb-6">
+                {lineItems
+                  .sort((a, b) => a.title.localeCompare(b.title))
+                  .map((item) => (
+                    <Link
+                      key={item.id}
+                      href={`/line-items/${item.id}`}
+                      onClick={() => setLineItemsOpen(false)}
+                      className="block text-sm p-2 rounded hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+                    >
+                      <div className="flex items-center gap-3">
+                        <span className="text-gray-900 dark:text-gray-100 flex-1">
+                          {item.title}
+                        </span>
+                        {(() => {
+                          const colors = getColorClasses(item.category || "blue");
+                          return (
+                            <span className={`text-xs px-2 py-0.5 rounded-full ${colors.bg} ${colors.text} font-medium shrink-0`}>
+                              {item.category}
+                            </span>
+                          );
+                        })()}
+                      </div>
+                    </Link>
+                  ))}
+              </div>
+            )}
+
+            <div className="flex gap-3 pt-6 border-t border-gray-100 dark:border-gray-800 shrink-0">
+              <button
+                onClick={() => setLineItemsOpen(false)}
+                className={`flex-1 ${BUTTON_SECONDARY} focus-ring`}
+              >
+                Close
               </button>
             </div>
           </div>
