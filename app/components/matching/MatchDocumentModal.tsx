@@ -412,9 +412,7 @@ export function MatchDocumentModal({
                           >
                             <div className="flex justify-between items-center">
                               <span className="text-sm font-medium">
-                                {task.last_completed_date
-                                  ? format(parseISO(task.last_completed_date), "dd MMM yyyy")
-                                  : format(parseISO(task.start_date), "dd MMM yyyy")}
+                                {format(parseISO(task.start_date), "dd MMM yyyy")}
                               </span>
                               <span
                                 className={`text-[10px] uppercase font-bold px-1.5 py-0.5 rounded ${
