@@ -119,16 +119,12 @@ export default function LineItemDetailPage() {
   const [vendorDocs, setVendorDocs] = useState<VendorDoc[]>([]);
   const [loadingDocs, setLoadingDocs] = useState(false);
   const [matchingDoc, setMatchingDoc] = useState<MatchingDocument | null>(null);
-  const [selectedTaskPatterns, setSelectedTaskPatterns] = useState<string[]>([]);
+  const [selectedTaskPatterns, setSelectedTaskPatterns] = useState<string[]>(() => {
+    const patternParam = searchParams.get("pattern");
+    return patternParam ? [patternParam] : [];
+  });
 
   const menuRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const patternParam = searchParams.get("pattern");
-    if (patternParam) {
-      setSelectedTaskPatterns([patternParam]);
-    }
-  }, [searchParams]);
 
   const fetchAll = useCallback(async () => {
     const [lineItemRes, tasksRes, vendorsRes, categoriesRes] = await Promise.all([
@@ -342,11 +338,12 @@ export default function LineItemDetailPage() {
       .sort((a, b) => (a.start_date || "").localeCompare(b.start_date || "")),
   );
 
-  const currentOCYear = new Date().getFullYear() + (new Date().getMonth() >= 3 ? 1 : 0);
+  const now = new Date();
+  const currentOCYear = now.getMonth() >= 3 ? now.getFullYear() : now.getFullYear() - 1;
 
   const getOCYear = (dateStr: string): number => {
     const d = new Date(dateStr + "T00:00:00");
-    return d.getFullYear() + (d.getMonth() >= 3 ? 1 : 0);
+    return d.getMonth() >= 3 ? d.getFullYear() : d.getFullYear() - 1;
   };
 
   const currentYearCompleted = completed.filter((t) => {
@@ -376,7 +373,7 @@ export default function LineItemDetailPage() {
   const headerLeftContent = (
     <div className="space-y-4">
       <div className="text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest">
-        OC-Y{new Date().getFullYear() + (new Date().getMonth() >= 3 ? 1 : 0)}
+        OC-Y{new Date().getMonth() >= 3 ? new Date().getFullYear() : new Date().getFullYear() - 1}
       </div>
       <div>
         <div className="flex flex-col md:flex-row md:gap-12 gap-2 text-sm">
@@ -780,7 +777,7 @@ export default function LineItemDetailPage() {
         taskYears={[...new Set(
           lineItemTasks.map((t) => {
             const d = new Date(t.start_date + "T00:00:00");
-            return d.getMonth() >= 3 ? d.getFullYear() + 1 : d.getFullYear();
+            return d.getMonth() >= 3 ? d.getFullYear() : d.getFullYear() - 1;
           })
         )]}
         onSave={fetchAll}

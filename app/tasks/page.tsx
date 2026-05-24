@@ -146,6 +146,11 @@ export default function TasksPage() {
   const active = tasks.filter((t) => t.status !== "Completed" && !t.archived);
   const done = tasks.filter((t) => t.status === "Completed" && !t.archived);
 
+  const ocYearForDate = (dateStr: string): number => {
+    const d = new Date(dateStr + "T00:00:00");
+    return d.getMonth() >= 3 ? d.getFullYear() : d.getFullYear() - 1;
+  };
+
   const groupByYear = (
     items: Task[],
     dateField: "start_date" | "date" = "start_date",
@@ -156,13 +161,13 @@ export default function TasksPage() {
         dateField === "date"
           ? task.last_completed_date || task.start_date
           : task.start_date
-      ) || "0000";
-      const year = date.split("-")[0];
+      ) || "0000-01-01";
+      const ocY = date === "0000-01-01" ? "0000" : `OC-Y${ocYearForDate(date)}`;
       const lastGroup = groups[groups.length - 1];
-      if (lastGroup && lastGroup.year === year) {
+      if (lastGroup && lastGroup.year === ocY) {
         lastGroup.tasks.push(task);
       } else {
-        groups.push({ year, tasks: [task] });
+        groups.push({ year: ocY, tasks: [task] });
       }
     });
     return groups;

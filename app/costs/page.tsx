@@ -33,16 +33,16 @@ interface LineItemDisplay {
 
 function ocYearForDate(dateStr: string): number {
   const d = new Date(dateStr + "T00:00:00");
-  // OC Year starts in April (month 3, since JS months are 0-indexed).
-  // Dates in Apr–Dec belong to the next OC Year (e.g., 2024-04-15 → OC-Y2025).
-  return d.getMonth() >= 3 ? d.getFullYear() + 1 : d.getFullYear();
+  // OC Year is labeled by the April it starts in.
+  // Apr–Dec dates are in the current year's OC year; Jan–Mar are in the previous year's.
+  return d.getMonth() >= 3 ? d.getFullYear() : d.getFullYear() - 1;
 }
 
 function ocYearRange(ocY: number): { start: Date; end: Date; label: string } {
   return {
-    start: new Date(`${ocY - 1}-04-01T00:00:00Z`),
-    end: new Date(`${ocY}-03-31T23:59:59Z`),
-    label: `1 April ${ocY - 1} – 31 March ${ocY}`,
+    start: new Date(`${ocY}-04-01T00:00:00Z`),
+    end: new Date(`${ocY + 1}-03-31T23:59:59Z`),
+    label: `1 April ${ocY} – 31 March ${ocY + 1}`,
   };
 }
 

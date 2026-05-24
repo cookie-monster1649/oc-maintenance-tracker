@@ -23,7 +23,11 @@ export const colorOptions = Object.keys(colorMap) as ColorName[];
 export function readCategories(): string[] {
   try {
     const data = readFileSync(categoriesFile, "utf-8");
-    return JSON.parse(data);
+    const parsed = JSON.parse(data);
+    // Support both legacy object format {id, name, color} and plain string format.
+    return parsed.map((c: unknown) =>
+      typeof c === "string" ? c : (c as { name: string }).name,
+    );
   } catch {
     return [];
   }

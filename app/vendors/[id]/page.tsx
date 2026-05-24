@@ -343,7 +343,22 @@ export default function VendorDetailPage() {
     ),
   );
 
-  const totalCost = assignedTasks.reduce(
+  const now = new Date();
+  const currentOCYear = now.getMonth() >= 3 ? now.getFullYear() : now.getFullYear() - 1;
+  const getOCYear = (dateStr: string): number => {
+    const d = new Date(dateStr + "T00:00:00");
+    return d.getMonth() >= 3 ? d.getFullYear() : d.getFullYear() - 1;
+  };
+
+  const currentYearTasks = assignedTasks.filter(
+    (t) => t.start_date && getOCYear(t.start_date) === currentOCYear,
+  );
+  const currentYearCompleted = completed.filter((t) => {
+    const date = t.last_completed_date || t.start_date;
+    return date && getOCYear(date) === currentOCYear;
+  });
+
+  const totalCost = currentYearTasks.reduce(
     (s, t) => s + (t.estimated_cost ?? 0),
     0,
   );
@@ -410,7 +425,7 @@ export default function VendorDetailPage() {
   const headerLeftContent = (
     <div className="space-y-4">
       <div className="text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest">
-        FY{new Date().getFullYear() + (new Date().getMonth() >= 6 ? 1 : 0)}
+        OC-Y{new Date().getMonth() >= 3 ? new Date().getFullYear() : new Date().getFullYear() - 1}
       </div>
       <div>
         <div className="flex flex-col md:flex-row md:gap-12 gap-2 text-sm">
@@ -423,7 +438,7 @@ export default function VendorDetailPage() {
           <div>
             <div className="text-gray-500 dark:text-gray-400">Actuals</div>
             <div className="font-bold text-gray-900 dark:text-gray-100">
-              {fmt(completed.reduce((s, t) => s + (t.actual_cost ?? t.estimated_cost ?? 0), 0))}
+              {fmt(currentYearCompleted.reduce((s, t) => s + (t.actual_cost ?? t.estimated_cost ?? 0), 0))}
             </div>
           </div>
         </div>

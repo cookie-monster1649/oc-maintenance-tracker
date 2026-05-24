@@ -23,7 +23,7 @@ interface FormState {
 
 function getCurrentOCYear(): number {
   const d = new Date();
-  return d.getMonth() >= 3 ? d.getFullYear() + 1 : d.getFullYear();
+  return d.getMonth() >= 3 ? d.getFullYear() : d.getFullYear() - 1;
 }
 
 function emptyForm(): FormState {
