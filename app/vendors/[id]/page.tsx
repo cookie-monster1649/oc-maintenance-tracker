@@ -68,6 +68,11 @@ function fmt(n: number): string {
   return n.toLocaleString("en-AU", { style: "currency", currency: "AUD" });
 }
 
+function ocYearForDate(dateStr: string): number {
+  const d = new Date(dateStr + "T00:00:00");
+  return d.getMonth() >= 3 ? d.getFullYear() : d.getFullYear() - 1;
+}
+
 function groupByYear(
   items: Task[],
   dateField: "start_date" | "date" = "start_date",
@@ -78,13 +83,13 @@ function groupByYear(
       dateField === "date"
         ? task.last_completed_date || task.start_date
         : task.start_date
-    ) || "0000";
-    const year = date.split("-")[0];
+    ) || "0000-01-01";
+    const ocY = date === "0000-01-01" ? "0000" : `OC-Y${ocYearForDate(date)}`;
     const lastGroup = groups[groups.length - 1];
-    if (lastGroup && lastGroup.year === year) {
+    if (lastGroup && lastGroup.year === ocY) {
       lastGroup.tasks.push(task);
     } else {
-      groups.push({ year, tasks: [task] });
+      groups.push({ year: ocY, tasks: [task] });
     }
   });
   return groups;
@@ -345,17 +350,13 @@ export default function VendorDetailPage() {
 
   const now = new Date();
   const currentOCYear = now.getMonth() >= 3 ? now.getFullYear() : now.getFullYear() - 1;
-  const getOCYear = (dateStr: string): number => {
-    const d = new Date(dateStr + "T00:00:00");
-    return d.getMonth() >= 3 ? d.getFullYear() : d.getFullYear() - 1;
-  };
 
   const currentYearTasks = assignedTasks.filter(
-    (t) => t.start_date && getOCYear(t.start_date) === currentOCYear,
+    (t) => t.start_date && ocYearForDate(t.start_date) === currentOCYear,
   );
   const currentYearCompleted = completed.filter((t) => {
     const date = t.last_completed_date || t.start_date;
-    return date && getOCYear(date) === currentOCYear;
+    return date && ocYearForDate(date) === currentOCYear;
   });
 
   const totalCost = currentYearTasks.reduce(
@@ -619,8 +620,8 @@ export default function VendorDetailPage() {
             </h2>
             <div className="space-y-6">
               {(() => {
-                const currentYear = new Date().getFullYear().toString();
-                const showYears = upcomingGroups.some((g) => g.year !== currentYear);
+                const currentOCYLabel = `OC-Y${currentOCYear}`;
+                const showYears = upcomingGroups.length > 1 || upcomingGroups.some((g) => g.year !== currentOCYLabel);
                 return upcomingGroups.map((group) => (
                   <div key={group.year} className="space-y-3">
                     {showYears && (
@@ -665,8 +666,8 @@ export default function VendorDetailPage() {
             </h2>
             <div className="space-y-8">
               {(() => {
-                const currentYear = new Date().getFullYear().toString();
-                const showYears = completedGroups.some((g) => g.year !== currentYear);
+                const currentOCYLabel = `OC-Y${currentOCYear}`;
+                const showYears = completedGroups.length > 1 || completedGroups.some((g) => g.year !== currentOCYLabel);
                 return completedGroups.map((group) => (
                   <div key={group.year} className="space-y-3">
                     {showYears && (
